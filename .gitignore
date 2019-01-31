@@ -1,0 +1,13 @@
+# directories
+venv*/
+.DS_Store
+.ipynb_checkpoints
+data/*
+results/*
+
+# files
+#.gitignore
+
+# extensions
+*.pyc
+*.egg-info
