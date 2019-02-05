@@ -1,4 +1,7 @@
 torch
 torchvision
-pytoune
 matplotlib
+scipy
+imageio
+scikit-image
+pytest

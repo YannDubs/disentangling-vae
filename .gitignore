@@ -4,6 +4,7 @@ data/
 results/*
 notebooks/
 old*
+trained_models/
 
 # Byte-compiled / optimized / DLL files
 *.egg-info

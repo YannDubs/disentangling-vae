@@ -1,29 +1,72 @@
 import torch
-from torch import nn
+from torch import nn, optim
+from torch.nn import functional as F
 
 from disvae.initialization import weights_init
 
 
 class VAE(nn.Module):
-    def __init__(self, encoder, decoder):
+    def __init__(self, img_size, encoder, decoder, latent_dim,
+                 device=torch.device("cpu")):
+        """
+        Class which defines model and forward pass.
+
+        Parameters
+        ----------
+        img_size : tuple of ints
+            Size of images. E.g. (1, 32, 32) or (3, 64, 64).
+
+        device : torch.device
+            Device on which to run the code.
+        """
         super(VAE, self).__init__()
-        self.encoder = encoder
-        self.decoder = decoder
+
+        if img_size[1:] not in [(32, 32), (64, 64)]:
+            raise RuntimeError("{} sized images not supported. Only (None, 32, 32) and (None, 64, 64) supported. Build your own architecture or reshape images!".format(img_size))
+
+        self.latent_dim = latent_dim
+        self.img_size = img_size
+        self.device = device
+        self.num_pixels = self.img_size[1] * self.img_size[2]
+        self.encoder = encoder(img_size, self.latent_dim, self.device)
+        self.decoder = decoder(img_size, self.latent_dim, self.device)
 
         self.reset_parameters()
 
-    def reparameterize(self, mu, log_var):
-        std = torch.exp(0.5 * log_var)  # square root in exponent => std
-        eps = torch.randn_like(std)
-        z = std * eps + mu
-        return z
+    def reparameterize(self, mean, logvar):
+        """
+        Samples from a normal distribution using the reparameterization trick.
+
+        Parameters
+        ----------
+        mean : torch.Tensor
+            Mean of the normal distribution. Shape (N, D) where D is dimension
+            of distribution.
+
+        logvar : torch.Tensor
+            Diagonal log variance of the normal distribution. Shape (N, D)
+        """
+        if self.training:
+            std = torch.exp(0.5 * logvar)
+            eps = torch.randn_like(std)
+            return mean + std * eps
+        else:
+            # Reconstruction mode
+            return mean
 
     def forward(self, x):
-        # make image linear (i.e vector form)
-        mu, log_var = self.encoder(x)
-        z = self.reparameterize(mu, log_var)
-        x_hat = self.decoder(z).view(x.size())
-        return x_hat, mu, log_var
+        """
+        Forward pass of model.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Batch of data. Shape (N, C, H, W)
+        """
+        latent_dist = self.encoder(x)
+        latent_sample = self.reparameterize(*latent_dist)
+        reconstruct = self.decoder(latent_sample)
+        return reconstruct, latent_dist
 
     def reset_parameters(self):
         self.apply(weights_init)

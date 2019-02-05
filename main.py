@@ -1,36 +1,37 @@
 import argparse
-import sys
 import os
 import logging
 from timeit import default_timer
-
-parentddir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
-sys.path.append(parentddir)
+import json
 
 import torch
 import numpy as np
-from pytoune.framework import Model
-from pytoune.framework.callbacks import TerminateOnNaN, ModelCheckpoint
+from torch import optim
 
-from evaluate.dataloaders import get_mnist_dataloaders
-from disvae.loss import get_loss
 from disvae.vae import VAE
 from disvae.encoder import EncoderBetaB
 from disvae.decoder import DecoderBetaB
+from disvae.training import Trainer
+from utils.dataloaders import (get_mnist_dataloaders, get_dsprites_dataloader,
+                               get_chairs_dataloader, get_fashion_mnist_dataloaders,
+                               get_img_size)
+from viz.visualize import Visualizer
 
 
 def default_config():
-    return {'epochs': 3,
+    return {'epochs': 10,
             'batch_size': 64,
             'no_cuda': False,
-            'no_checkpoint': False,
             'seed': 1234,
             'log-level': "info",
-
+            "lr": 1e-3,
+            "capacity": [0.0, 5.0, 25000, 30.0],
+            "print_every": 50,
+            "record_every": 5,
             'model': 'Burgess',  # follows the paper by Burgess et al
             'dataset': 'mnist',
-            'loss': 'beta-vae',
-            'experiment': 'custom'
+            'experiment': 'custom',
+            "latent_dim": 10
             }
 
 
@@ -38,7 +39,7 @@ def default_experiment(args):
     if args.experiment == 'custom':
         return args
 
-    # TO FILL IN FOR ALL THE DEFAULT HYPERPARAMETERS OF TEH EXPERIMENTS WE WANT
+    # TO FILL IN FOR ALL THE DEFAULT HYPERPARAMETERS OF THE EXPERIMENTS WE WANT
     # TO REPLICATE
     # @aleco
 
@@ -56,13 +57,16 @@ def parse_arguments():
     general.add_argument('-L', '--log-level', help="Logging levels.",
                          default=defaultsConfig['log-level'],
                          choices=log_levels)
-    general.add_argument('--no-checkpoint',
-                         action='store_true', default=defaultsConfig['no_checkpoint'],
-                         help='Disables model checkpoint. I.e saving best model based on validation loss.')
+    parser.add_argument("-P", '--print_every',
+                        type=int, default=defaultsConfig['print_every'],
+                        help='Every how many batches to print results')
+    parser.add_argument("-R", '--record_every',
+                        type=int, default=defaultsConfig['record_every'],
+                        help='Every how many batches to save results')
 
     # Dataset options
     data = parser.add_argument_group('Dataset options')
-    datasets = ['mnist']
+    datasets = ['mnist', "celeba", "chairs", "dsprites", "fashion"]
     data.add_argument('-d', '--dataset', help="Path to training data.",
                       default=defaultsConfig['dataset'], choices=datasets)
 
@@ -86,20 +90,24 @@ def parse_arguments():
     learn.add_argument('--no-cuda', action='store_true',
                        default=defaultsConfig['no_cuda'],
                        help='Disables CUDA training, even when have one.')
+    learn.add_argument('-l', '--lr',
+                       type=float, default=defaultsConfig['lr'],
+                       help='Learning rate.')
+    learn.add_argument('-c', '--capacity',
+                       type=float, default=defaultsConfig['capacity'],
+                       metavar=('MIN_CAPACITY, MAX_CAPACITY, NUM_ITERS, GAMMA_Z'),
+                       nargs='*',
+                       help="Capacity of latent channel.")
 
     # Model Options
     model = parser.add_argument_group('Learning options')
-    models = ['mnist']
+    models = ['Burgess']
     model.add_argument('-m', '--model',
                        default=defaultsConfig['model'], choices=models,
                        help='Type of encoder and decoder to use.')
-
-    # Loss Options
-    loss = parser.add_argument_group('Learning options')
-    losses = ['beta-vae']
-    loss.add_argument('-l', '--loss',
-                      default=defaultsConfig['loss'], choices=losses,
-                      help='Type of VAE loss.')
+    model.add_argument('-z', '--latent-dim',
+                       default=defaultsConfig['latent_dim'], type=int,
+                       help='Dimension of the latent variable.')
 
     args = parser.parse_args()
 
@@ -125,39 +133,51 @@ def main(args):
 
     # PREPARES DATA
     if args.dataset == "mnist":
-        train, test, img_size = get_mnist_dataloaders(batch_size=args.batch_size)
+        train_loader, test = get_mnist_dataloaders(batch_size=args.batch_size)
 
-    logger.info("Train {} with {} samples".format(args.dataset, len(train)))
+    img_size = get_img_size(args.dataset)
+
+    logger.info("Train {} with {} samples".format(args.dataset, len(train_loader)))
 
     # PREPARES MODEL
     if args.model == "Burgess":
-        encoder = EncoderBetaB(img_size)
-        decoder = DecoderBetaB(img_size)
-    vae = VAE(encoder, decoder)
+        encoder = EncoderBetaB
+        decoder = DecoderBetaB
+    model = VAE(img_size, encoder, decoder, args.latent_dim)
 
-    model_parameters = filter(lambda p: p.requires_grad, vae.parameters())
+    model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     nParams = sum([np.prod(p.size()) for p in model_parameters])
     logger.info('Num parameters in model: {}'.format(nParams))
 
-    # COMPILES
-    if args.loss == "beta-vae":
-        loss = get_loss("b-vae", beta=4)
-
-    model = Model(vae, "adam", loss)
-    model.to(device)
-
-    callbacks = [TerminateOnNaN()]
-    if not args.no_checkpoint:
-        modelDir = os.path.join(parentddir, 'results/models')
-        filename = os.path.join(modelDir, "{}.pth.tar".format(args.dataset))
-        callbacks.append(ModelCheckpoint(filename,
-                                         save_best_only=True,
-                                         monitor="train_loss"))
-
     # TRAINS
-    model.fit_generator(train, epochs=args.epochs)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    trainer = Trainer(model, optimizer,
+                      latent_dim=args.latent_dim,
+                      capacity=args.capacity,
+                      print_loss_every=args.print_every,
+                      record_loss_every=args.record_every,
+                      device=device,
+                      log_level=args.log_level)
+    viz = Visualizer(model)
+    trainer.train(train_loader,
+                  epochs=args.epochs,
+                  save_training_gif=('./imgs/training.gif', viz))
 
-    # EVALUATES
+    # EVALUATES / EXPERMINETS
+    # TO DO @Aleco
+
+    # SAVE
+    model_dir = "trained_models/{}".format(args.dataset)
+
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+
+    torch.save(trainer.model.state_dict(), os.path.join(model_dir, 'model.pt'))
+    with open(os.path.join(model_dir, 'specs.json'), 'w') as f:
+        specs = dict(dataset=args.dataset,
+                     latent_dim=args.latent_dim,
+                     model_type=args.model)
+        json.dump(specs, f)
 
     logger.info('Finished after {:.1f} min.'.format((default_timer() - start) / 60))
 
