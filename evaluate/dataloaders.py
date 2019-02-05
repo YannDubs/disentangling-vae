@@ -31,7 +31,8 @@ class FashionMNISTAE(datasets.FashionMNIST):
 
 def get_mnist_dataloaders(batch_size=128,
                           path_to_data=os.path.join(DIR, '../data/mnist'),
-                          is_autoencode=True):
+                          is_autoencode=True,
+                          is_shuffle=True):
     """MNIST dataloader with (32, 32) images."""
     img_size = (1, 32, 32)
     all_transforms = transforms.Compose([
@@ -43,14 +44,15 @@ def get_mnist_dataloaders(batch_size=128,
                        transform=all_transforms)
     test_data = Mnist(path_to_data, train=False,
                       transform=all_transforms)
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=is_shuffle)
+    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=is_shuffle)
     return train_loader, test_loader, img_size
 
 
 def get_fashion_mnist_dataloaders(batch_size=128,
                                   path_to_data=os.path.join(DIR, '../data/fashion-mnist'),
-                                  is_autoencode=True):
+                                  is_autoencode=True,
+                                  is_shuffle=True):
     """FashionMNIST dataloader with (32, 32) images."""
     img_size = (1, 32, 32)
     all_transforms = transforms.Compose([
@@ -62,6 +64,6 @@ def get_fashion_mnist_dataloaders(batch_size=128,
                              transform=all_transforms)
     test_data = FasionMnist(path_to_data, train=False,
                             transform=all_transforms)
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=is_shuffle)
+    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=is_shuffle)
     return train_loader, test_loader, img_size
