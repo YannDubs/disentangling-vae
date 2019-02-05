@@ -1,13 +1,29 @@
 # directories
 venv*/
-.DS_Store
-.ipynb_checkpoints
-data/*
+data/
 results/*
+notebooks/
+old*
+
+# Byte-compiled / optimized / DLL files
+*.egg-info
+*pyc
+__pycache__/
+*.py[cod]
+*.egg*
+.ipynb_checkpoints/
+.DS_Store
 
 # files
-#.gitignore
+.gitignore
+*.tar
+*.zip
+*.tar
+*.sublime*
 
 # extensions
 *.pyc
 *.egg-info
+
+# placeholders to keep directories
+!.keep
