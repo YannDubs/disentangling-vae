@@ -143,7 +143,7 @@ def main(args):
     if args.model == "Burgess":
         encoder = EncoderBetaB
         decoder = DecoderBetaB
-    model = VAE(img_size, encoder, decoder, args.latent_dim)
+    model = VAE(img_size, encoder, decoder, args.latent_dim, device=device)
 
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     nParams = sum([np.prod(p.size()) for p in model_parameters])

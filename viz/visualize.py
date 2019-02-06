@@ -37,9 +37,9 @@ class Visualizer():
         # Plot reconstructions in test mode, i.e. without sampling from latent
         self.model.eval()
         # Pass data through VAE to obtain reconstruction
-        input_data = Variable(data, volatile=True)
-        input_data = input_data.to(self.model.device)
-        recon_data, _ = self.model(input_data)
+        with torch.no_grad():
+            input_data = data.to(self.model.device)
+            recon_data, _ = self.model(input_data)
         self.model.train()
 
         # Upper half of plot will contain data, bottom half will contain
@@ -165,7 +165,6 @@ class Visualizer():
             Samples from latent distribution. Shape (N, L) where L is dimension
             of latent distribution.
         """
-        latent_samples = Variable(latent_samples)
         latent_samples = latent_samples.to(self.model.device)
         return self.model.decoder(latent_samples).cpu()
 
