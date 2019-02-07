@@ -19,7 +19,7 @@ from viz.visualize import Visualizer
 
 
 def default_experiment():
-    return {'epochs': 2,
+    return {'epochs': 100000,
             'batch_size': 64,
             'no_cuda': False,
             'seed': 1234,
