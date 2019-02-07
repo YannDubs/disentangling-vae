@@ -19,7 +19,7 @@ from viz.visualize import Visualizer
 
 
 def default_experiment():
-    return {'epochs': 100000,
+    return {'epochs': 2,
             'batch_size': 64,
             'no_cuda': False,
             'seed': 1234,
@@ -91,7 +91,7 @@ def parse_arguments():
 
     # Predefined experiments
     experiment = parser.add_argument_group('Predefined experiments')
-    experiments = ['custom']
+    experiments = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite', 'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs']
     experiment.add_argument('-x', '--experiment',
                             default=experiment_config['experiment'], choices=experiments,
                             help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
@@ -182,12 +182,12 @@ def main(args):
                   save_training_gif=('./imgs/training.gif', viz))
 
     # SAVE MODEL AND EXPERIMENT INFORMATION
-    model_dir = "trained_models/{}".format(args.dataset)
+    model_dir = "trained_models/{}/".format(args.experiment)
 
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
 
-    torch.save(trainer.model.state_dict(), os.path.join(model_dir, 'model.pt'))
+    torch.save(trainer.model, os.path.join(model_dir, 'model.pt'))
     with open(os.path.join(model_dir, 'specs.json'), 'w') as f:
         specs = dict(dataset=args.dataset,
                      latent_dim=args.latent_dim,
