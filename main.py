@@ -181,10 +181,7 @@ def main(args):
                   epochs=args.epochs,
                   save_training_gif=('./imgs/training.gif', viz))
 
-    # EVALUATES / EXPERMINETS
-    # TO DO @Aleco
-
-    # SAVE
+    # SAVE MODEL AND EXPERIMENT INFORMATION
     model_dir = "trained_models/{}".format(args.dataset)
 
     if not os.path.exists(model_dir):
@@ -194,7 +191,9 @@ def main(args):
     with open(os.path.join(model_dir, 'specs.json'), 'w') as f:
         specs = dict(dataset=args.dataset,
                      latent_dim=args.latent_dim,
-                     model_type=args.model)
+                     model_type=args.model,
+                     capacity=args.capacity,
+                     experiment_name=args.experiment)
         json.dump(specs, f)
 
     logger.info('Finished after {:.1f} min.'.format((default_timer() - start) / 60))
