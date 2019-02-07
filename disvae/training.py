@@ -186,12 +186,19 @@ class Trainer():
         # Calculate KL divergence
         mean, logvar = latent_dist
         kl_loss = self._kl_normal_loss(mean, logvar)
-        # Linearly increase capacity of continuous channels
-        cap_min, cap_max, cap_num_iters, cap_gamma = \
-            self.capacity
-        # Increase continuous capacity without exceeding cap_max
-        cap_current = (cap_max - cap_min) * self.num_steps / float(cap_num_iters) + cap_min
-        cap_current = min(cap_current, cap_max)
+
+        # If a capacity constraint is applied
+        if isinstance(self.capacity, list) and self.capacity:
+            # Linearly increase capacity of continuous channels
+            cap_min, cap_max, cap_num_iters, cap_gamma = \
+                self.capacity
+            # Increase continuous capacity without exceeding cap_max
+            cap_current = (cap_max - cap_min) * self.num_steps / float(cap_num_iters) + cap_min
+            cap_current = min(cap_current, cap_max)
+        else:
+            cap_gamma = self.capacity
+            cap_current = 0
+
         # Calculate continuous capacity loss
         capacity_loss = cap_gamma * torch.abs(cap_current - kl_loss)
 
