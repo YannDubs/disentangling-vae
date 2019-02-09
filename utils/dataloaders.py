@@ -19,6 +19,19 @@ def get_img_size(dataset):
         img_size = (3, 64, 64)
     return img_size
 
+def get_dataloaders(batch_size, dataset):
+    """A generic data loader"""
+    dataset_options = {
+        "mnist": get_mnist_dataloaders,
+        "fashion_mnist": get_fashion_mnist_dataloaders,
+        "dsprites": get_dsprites_dataloader,
+        "chairs": get_chairs_dataloader,
+        "celeba": get_celeba_dataloader
+    }
+    if dataset in dataset_options:
+        return dataset_options[dataset](batch_size=batch_size)
+    else:
+        raise Exception("{} is not valid. Please enter a valid dataset".format(dataset))
 
 def get_mnist_dataloaders(batch_size=128,
                           path_to_data=os.path.join(DIR, '../data/mnist')):
