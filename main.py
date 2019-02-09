@@ -95,7 +95,7 @@ def parse_arguments():
                        help='Learning rate.')
     learn.add_argument('-c', '--capacity',
                        type=float, default=defaultsConfig['capacity'],
-                       metavar=('MIN_CAPACITY, MAX_CAPACITY, NUM_ITERS, GAMMA_Z'),
+                       metavar=('MIN_C, MAX_C, C_N_INTERP, GAMMA'),
                        nargs='*',
                        help="Capacity of latent channel.")
 
