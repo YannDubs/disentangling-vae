@@ -6,14 +6,12 @@ import torch
 from torch.nn import functional as F
 from torchvision.utils import make_grid
 
-logger = logging.getLogger(__name__)
+import sys
+sys.path.append("..")
+from utils.graph_logger import GraphLogger
 
-# Create a logger to store information for plotting
-graph_logger = logging.getLogger('KL_Logger')
-graph_logger.setLevel(logging.DEBUG)
-file_handler = logging.FileHandler('experiments/kl_data.log')
-file_handler.setLevel(logging.DEBUG)
-graph_logger.addHandler(file_handler)
+
+logger = logging.getLogger(__name__)
 
 
 class Trainer():
@@ -76,6 +74,9 @@ class Trainer():
         if log_level is not None:
             self.logger.setLevel(log_level.upper())
 
+        self.graph_logger = GraphLogger(latent_dim, 'experiments/kl_data.log', 'KL_logger')
+
+
     def train(self, data_loader, epochs=10, save_training_gif=None):
         """
         Trains the model.
@@ -107,8 +108,7 @@ class Trainer():
             for i in range(self.num_latent_dim):
                 avg_kl_per_factor.append(self.losses['kl_loss_' + str(i)])
                 self.losses['kl_loss_' + str(i)] = 0
-            graph_logger.debug('Epoch: {} Average KL loss per factor: {}'.format(
-                epoch, avg_kl_per_factor))
+            self.graph_logger.log(epoch, avg_kl_per_factor)
 
             if save_training_gif is not None:
                 # Generate batch of images and convert to grid

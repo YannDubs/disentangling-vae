@@ -12,9 +12,8 @@ from disvae.vae import VAE
 from disvae.encoder import EncoderBetaB
 from disvae.decoder import DecoderBetaB
 from disvae.training import Trainer
-from utils.dataloaders import (get_dataloaders, get_mnist_dataloaders, get_dsprites_dataloader,
-                               get_chairs_dataloader, get_fashion_mnist_dataloaders,
-                               get_img_size)
+from utils.dataloaders import (get_dataloaders, get_img_size)
+from utils.log_plotter import LogPlotter
 from viz.visualize import Visualizer
 
 

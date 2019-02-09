@@ -25,6 +25,7 @@ __pycache__/
 # extensions
 *.pyc
 *.egg-info
+*.log
 
 # placeholders to keep directories
 !.keep
