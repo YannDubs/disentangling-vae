@@ -1,10 +1,13 @@
 import glob
 import os
 
+import subprocess
 import numpy as np
 from skimage.io import imread
+import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets, transforms
+from torchvision.datasets import ImageFolder
 
 DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -13,7 +16,7 @@ def get_img_size(dataset):
     """Return the correct image size."""
     if dataset in ['mnist', 'fashion_mnist']:
         img_size = (1, 32, 32)
-    if dataset in ['chairs', 'dsprites']:
+    if dataset in ['3DChairs', 'dsprites']:
         img_size = (1, 64, 64)
     if dataset == 'celeba':
         img_size = (3, 64, 64)
@@ -52,53 +55,69 @@ def get_fashion_mnist_dataloaders(batch_size=128,
     return train_loader, test_loader
 
 
-def get_dsprites_dataloader(batch_size=128,
-                            path_to_data=os.path.join(DIR, '../data/datadsprites/dsprites_data.npz')):
+def get_dsprites_dataloader(batch_size=128):
     """DSprites dataloader."""
-    dsprites_data = DSpritesDataset(path_to_data,
-                                    transform=transforms.ToTensor())
-    dsprites_loader = DataLoader(dsprites_data, batch_size=batch_size,
-                                 shuffle=True)
-    return dsprites_loader
+    root = os.path.join(DIR, '01_data', 'dsprites-dataset')
+    if os.path.isdir(root)==False:
+        subprocess.call("load_DSprites.sh")
+        
+    data_path = os.path.join(DIR, '01_data', 'dsprites-dataset/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz')
+    data = np.load(data_path)
+    data = torch.from_numpy(data['imgs']).unsqueeze(1).float()*255
+    train_kwargs = {'data_tensor':data}
+    dset = CustomTensorDataset
+    
+    train_data = dset(**train_kwargs)    
+    
+    data_loader = DataLoader(train_data,
+                             batch_size=batch_size,
+                             shuffle=True)
+
+    return data_loader
 
 
-def get_chairs_dataloader(batch_size=128,
-                          path_to_data=os.path.join(DIR, '../data/chairs/rendered_chairs_64')):
+def get_chairs_dataloader(batch_size=128):
     """Chairs dataloader. Chairs are center cropped and resized to (64, 64)."""
-    all_transforms = transforms.Compose([
-        transforms.Grayscale(),
-        transforms.ToTensor()
-    ])
-    chairs_data = datasets.ImageFolder(root=path_to_data,
-                                       transform=all_transforms)
-    chairs_loader = DataLoader(chairs_data, batch_size=batch_size,
-                               shuffle=True)
-    return chairs_loader
+
+    root = os.path.join(DIR, '01_data', '3DChairs')
+    if os.path.isdir(root)==False:
+        subprocess.call("load_3DChairs.sh")
+    image_size = get_img_size('3DChairs')
+    
+    transform = transforms.Compose([
+        transforms.Resize((image_size, image_size)),
+        transforms.ToTensor(),])
+    train_kwargs = {'root':root, 'transform':transform}
+    dset = CustomImageFolder
+    train_data = dset(**train_kwargs)    
+    
+    data_loader = DataLoader(train_data,
+                             batch_size=batch_size,
+                             shuffle=True)
+
+    return data_loader
 
 
-def get_chairs_test_dataloader(batch_size=62,
-                               path_to_data=os.path.join(DIR, '../data/chairs/rendered_chairs_64_test')):
-    """There are 62 pictures of each chair, so get batches of data containing
-    one chair per batch."""
-    all_transforms = transforms.Compose([
-        transforms.Grayscale(),
-        transforms.ToTensor()
-    ])
-    chairs_data = datasets.ImageFolder(root=path_to_data,
-                                       transform=all_transforms)
-    chairs_loader = DataLoader(chairs_data, batch_size=batch_size,
-                               shuffle=False)
-    return chairs_loader
-
-
-def get_celeba_dataloader(batch_size=128,
-                          path_to_data=os.path.join(DIR, '../data/celeba_64')):
+def get_celeba_dataloader(batch_size=128):
     """CelebA dataloader with (64, 64) images."""
-    celeba_data = CelebADataset(path_to_data,
-                                transform=transforms.ToTensor())
-    celeba_loader = DataLoader(celeba_data, batch_size=batch_size,
-                               shuffle=True)
-    return celeba_loader
+    root = os.path.join(DIR, '01_data', 'celeba')
+    if os.path.isdir(root)==False:
+        subprocess.call("load_3DChairs.sh")
+        
+    image_size=get_image_size('celeba')
+    root = os.path.join(DIR, '01_data', 'celeba/')
+    transform = transforms.Compose([
+    transforms.Resize((image_size, image_size)),
+    transforms.ToTensor(),])
+    train_kwargs = {'root':root, 'transform':transform}
+    dset = CustomImageFolder
+    train_data = dset(**train_kwargs)    
+    
+    data_loader = DataLoader(train_data,
+                             batch_size=batch_size,
+                             shuffle=True)
+
+    return data_loader
 
 
 class DSpritesDataset(Dataset):
@@ -154,3 +173,14 @@ class CelebADataset(Dataset):
             sample = self.transform(sample)
         # Since there are no labels, we just return 0 for the "label" here
         return sample, 0
+
+class CustomImageFolder(ImageFolder):
+    def __init__(self, root, transform=None):
+        super(CustomImageFolder, self).__init__(root, transform)
+
+    def __getitem__(self, index):
+        path = self.imgs[index][0]
+        img = self.loader(path)
+        if self.transform is not None:
+            img = self.transform(img)
+        return img
