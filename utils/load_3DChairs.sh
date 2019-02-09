@@ -1,8 +1,9 @@
 #! /bin/sh
 
 # create data folder
-mkdir -p 01_data
-cd 01_data
+mkdir -p data
+cd data
+ls
 # download 3D chairs
 wget https://www.di.ens.fr/willow/research/seeing3Dchairs/data/rendered_chairs.tar
 # extract the files

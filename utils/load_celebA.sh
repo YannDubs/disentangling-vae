@@ -1,7 +1,7 @@
 #! /bin/sh
 
-mkdir -p 01_data
-cd 01_data
+mkdir -p data
+cd data
 
 python3 get_drive_file.py 0B7EVK8r0v71pZjFTYXZWM3FlRnM celebA.zip
 mkdir celeba

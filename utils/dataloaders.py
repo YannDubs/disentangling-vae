@@ -11,12 +11,22 @@ from torchvision.datasets import ImageFolder
 
 DIR = os.path.abspath(os.path.dirname(__file__))
 
+class CustomImageFolder(ImageFolder):
+    def __init__(self, root, transform=None):
+        super(CustomImageFolder, self).__init__(root, transform)
+
+    def __getitem__(self, index):
+        path = self.imgs[index][0]
+        img = self.loader(path)
+        if self.transform is not None:
+            img = self.transform(img)
+        return img
 
 def get_img_size(dataset):
     """Return the correct image size."""
     if dataset in ['mnist', 'fashion_mnist']:
         img_size = (1, 32, 32)
-    if dataset in ['3DChairs', 'dsprites']:
+    if dataset in ['chairs', 'dsprites']:
         img_size = (1, 64, 64)
     if dataset == 'celeba':
         img_size = (3, 64, 64)
@@ -68,15 +78,15 @@ def get_fashion_mnist_dataloaders(batch_size=128,
     return train_loader, test_loader
 
 
-def get_dsprites_dataloader(batch_size=128):
+def get_dsprites_dataloader(batch_size=128,path_to_data=os.path.join(DIR, '../data/dsprites-dataset')):
     """DSprites dataloader."""
-    root = os.path.join(DIR, '01_data', 'dsprites-dataset')
+    root = os.path.join(os.path.dirname(DIR), 'data', 'dsprites-dataset')
     if os.path.isdir(root)==False:
-        subprocess.call("load_DSprites.sh")
+        subprocess.call(DIR + '/load_DSprites.sh')
         
-    data_path = os.path.join(DIR, '01_data', 'dsprites-dataset/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz')
+    data_path = os.path.join(os.path.dirname(DIR), 'data', 'dsprites-dataset/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz')
     data = np.load(data_path)
-    data = torch.from_numpy(data['imgs']).unsqueeze(1).float()*255
+    data = torch.from_numpy(data['imgs']).unsqueeze(1).float()#*255
     train_kwargs = {'data_tensor':data}
     dset = CustomTensorDataset
     
@@ -89,13 +99,14 @@ def get_dsprites_dataloader(batch_size=128):
     return data_loader
 
 
-def get_chairs_dataloader(batch_size=128):
+def get_chairs_dataloader(batch_size=128,path_to_data=os.path.join(DIR, '../data/3DChairs')):
     """Chairs dataloader. Chairs are center cropped and resized to (64, 64)."""
-
-    root = os.path.join(DIR, '01_data', '3DChairs')
+    print('wacht even')
+    root = os.path.join(os.path.dirname(DIR), 'data', '3DChairs')
+    print(root)
     if os.path.isdir(root)==False:
-        subprocess.call("load_3DChairs.sh")
-    image_size = get_img_size('3DChairs')
+        subprocess.call(DIR + '/load_3DChairs.sh')
+    image_size = get_img_size('chairs')
     
     transform = transforms.Compose([
         transforms.Resize((image_size, image_size)),
@@ -111,25 +122,27 @@ def get_chairs_dataloader(batch_size=128):
     return data_loader
 
 
-def get_celeba_dataloader(batch_size=128):
+def get_celeba_dataloader(batch_size=128,path_to_data=os.path.join(DIR, '../data/celeba')):
     """CelebA dataloader with (64, 64) images."""
-    root = os.path.join(DIR, '01_data', 'celeba')
+    root = os.path.join(os.path.dirname(DIR), 'data', 'celeba')
     if os.path.isdir(root)==False:
-        subprocess.call("load_3DChairs.sh")
+        subprocess.call(DIR + '/load_celebA.sh')
         
-    image_size=get_image_size('celeba')
-    root = os.path.join(DIR, '01_data', 'celeba/')
+    image_size=get_img_size('celeba')
+    root = os.path.join(os.path.dirname(DIR), 'data', 'celeba/')
     transform = transforms.Compose([
     transforms.Resize((image_size, image_size)),
     transforms.ToTensor(),])
     train_kwargs = {'root':root, 'transform':transform}
     dset = CustomImageFolder
+    print(dset)
     train_data = dset(**train_kwargs)    
-    
+    print(train_data)
     data_loader = DataLoader(train_data,
                              batch_size=batch_size,
                              shuffle=True)
-
+    print('hoi')
+    print(data_loader)
     return data_loader
 
 
@@ -187,13 +200,3 @@ class CelebADataset(Dataset):
         # Since there are no labels, we just return 0 for the "label" here
         return sample, 0
 
-class CustomImageFolder(ImageFolder):
-    def __init__(self, root, transform=None):
-        super(CustomImageFolder, self).__init__(root, transform)
-
-    def __getitem__(self, index):
-        path = self.imgs[index][0]
-        img = self.loader(path)
-        if self.transform is not None:
-            img = self.transform(img)
-        return img

@@ -68,7 +68,7 @@ class Trainer():
         if log_level is not None:
             self.logger.setLevel(log_level.upper())
 
-    def train(self, data_loader, epochs=10, save_training_gif=None):
+    def train(self, data_loader, epochs=1, save_training_gif=None):
         """
         Trains the model.
 

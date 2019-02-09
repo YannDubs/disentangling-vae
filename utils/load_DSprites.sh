@@ -1,8 +1,8 @@
 #! /bin/sh
 
 # create data folder
-mkdir -p 01_data
-cd 01_data
+mkdir -p data
+cd data
 
 git clone https://github.com/deepmind/dsprites-dataset.git
 cd dsprites-dataset
