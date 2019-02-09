@@ -129,11 +129,9 @@ def parse_arguments():
 
     args = parser.parse_args()
     
-    print(args)
-
     experiment_config = set_experiment(args)
 
-    return args
+    return experiment_config
 
 
 def main(args):
@@ -204,5 +202,4 @@ def main(args):
 
 if __name__ == '__main__':
     args = parse_arguments()
-    args.experiment
     main(args)
