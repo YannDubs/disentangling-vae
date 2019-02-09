@@ -6,20 +6,20 @@ import torch
 from torch.nn import functional as F
 from torchvision.utils import make_grid
 
-from losses import get_loss_f
+from disvae.losses import get_loss_f
 
 logger = logging.getLogger(__name__)
 
 
 class Trainer():
     def __init__(self, model, optimizer,
+                 loss="betaB",
                  latent_dim=10,
-                 capacity=None,
+                 loss_kwargs={},
                  print_loss_every=50,
                  record_loss_every=5,
                  device=torch.device("cpu"),
-                 log_level=None,
-                 loss):
+                 log_level=None):
         """
         Class to handle training of model.
 
@@ -32,10 +32,8 @@ class Trainer():
         latent_dim : int
             Dimensionality of latent output.
 
-        capacity : tuple (float, float, int, float)
-            Tuple containing (min_capacity, max_capacity, num_iters, gamma_z).
-            Parameters to control the capacity of the continuous latent
-            channels.
+        loss_kwargs : dict.
+            Additional arguments to the loss function.
 
         print_loss_every : int
             Frequency with which loss is printed during training.
@@ -49,7 +47,7 @@ class Trainer():
         log_level : {'critical', 'error', 'warning', 'info', 'debug'}
             Logging levels.
 
-        loss : {"betaH", "betaB", "factorising", "factorising", "batchTC"}
+        loss : {"VAE", "betaH", "betaB", "factorising", "batchTC"}
             Type of VAE loss to use.
         """
         self.device = device
@@ -57,13 +55,7 @@ class Trainer():
         self.optimizer = optimizer
         self.print_loss_every = print_loss_every
         self.record_loss_every = record_loss_every
-        self.capacity = capacity
-        self.dec_dist = "bernoulli" if self.img_size[0] == 1 else "gaussian"
-        self.loss_f = get_loss_f(name)
-
-        # Initialize attributes
-        self.num_steps = 0
-        self.batch_size = None
+        self.loss_f = get_loss_f(loss, self.model.is_color, **loss_kwargs)
         self.losses = {'loss': [],
                        'recon_loss': [],
                        'kl_loss': []}
@@ -95,11 +87,11 @@ class Trainer():
         if save_training_gif is not None:
             training_progress_images = []
 
-        self.batch_size = data_loader.batch_size
+        batch_size = data_loader.batch_size
         self.model.train()
         for epoch in range(epochs):
             mean_epoch_loss = self._train_epoch(data_loader)
-            avg_loss = self.batch_size * self.model.num_pixels * mean_epoch_loss
+            avg_loss = batch_size * self.model.num_pixels * mean_epoch_loss
             self.logger.info('Epoch: {} Average loss: {:.2f}'.format(epoch + 1,
                                                                      avg_loss))
 
@@ -154,12 +146,10 @@ class Trainer():
         data : torch.Tensor
             A batch of data. Shape : (batch_size, channel, height, width).
         """
-        self.num_steps += 1
-
         self.optimizer.zero_grad()
         data = data.to(self.device)
         recon_batch, latent_dist = self.model(data)
-        loss = self._loss_function(data, recon_batch, latent_dist)
+        loss = self.loss_f(data, recon_batch, latent_dist, self.model.training, self.losses)
         # make loss independent of number of pixels
         loss = loss / self.model.num_pixels
         loss.backward()

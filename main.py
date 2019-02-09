@@ -9,8 +9,8 @@ import numpy as np
 from torch import optim
 
 from disvae.vae import VAE
-from disvae.encoder import EncoderBetaB
-from disvae.decoder import DecoderBetaB
+from disvae.encoder import get_Encoder
+from disvae.decoder import get_Decoder
 from disvae.training import Trainer
 from utils.dataloaders import (get_dataloaders, get_mnist_dataloaders, get_dsprites_dataloader,
                                get_chairs_dataloader, get_fashion_mnist_dataloaders,
@@ -26,6 +26,8 @@ def default_experiment():
             'log-level': "info",
             "lr": 1e-3,
             "capacity": [0.0, 5.0, 25000, 30.0],
+            "beta": 4.,
+            "loss": "betaB",
             "print_every": 50,
             "record_every": 5,
             'model': 'Burgess',  # follows the paper by Burgess et al
@@ -42,23 +44,29 @@ def set_experiment(default_config):
     if default_config.experiment == 'custom':
         return default_config
     elif default_config.experiment == 'vae_blob_x_y':
-        default_config.capacity = 1
+        default_config.beta = 1
         default_config.dataset = 'dsprites'
+        default_config.loss = "betaH"
     elif default_config.experiment == 'beta_vae_blob_x_y':
-        default_config.capacity = 150
+        default_config.beta = 150
         default_config.dataset = 'black_and_white_dsprite'
+        default_config.loss = "betaH"
     elif default_config.experiment == 'beta_vae_dsprite':
         default_config.capacity = [0.0, 25.0, 100000, 1000.0]
         default_config.dataset = 'dsprites'
+        default_config.loss = "betaB"
     elif default_config.experiment == 'beta_vae_celeba':
         default_config.capacity = [0.0, 50.0, 100000, 10000.]
         default_config.dataset = 'celeba'
+        default_config.loss = "betaB"
     elif default_config.experiment == 'beta_vae_colour_dsprite':
         default_config.capacity = [0.0, 25.0, 100000, 1000.0]
         default_config.dataset = 'dsprites'
+        default_config.loss = "betaB"
     elif default_config.experiment == 'beta_vae_chairs':
-        default_config.capacity = 1000
+        default_config.beta = 1000
         default_config.dataset = 'chairs'
+        default_config.loss = "betaH"
 
     return default_config
 
@@ -108,14 +116,9 @@ def parse_arguments():
     learn.add_argument('--no-cuda', action='store_true',
                        default=default_config['no_cuda'],
                        help='Disables CUDA training, even when have one.')
-    learn.add_argument('-l', '--lr',
+    learn.add_argument('-a', '--lr',
                        type=float, default=default_config['lr'],
                        help='Learning rate.')
-    learn.add_argument('-c', '--capacity',
-                       type=float, default=default_config['capacity'],
-                       metavar=('MIN_C, MAX_C, C_N_INTERP, GAMMA'),
-                       nargs='*',
-                       help="Capacity of latent channel.")
 
     # Model Options
     model = parser.add_argument_group('Learning options')
@@ -126,6 +129,18 @@ def parse_arguments():
     model.add_argument('-z', '--latent-dim',
                        default=default_config['latent_dim'], type=int,
                        help='Dimension of the latent variable.')
+    model.add_argument('-c', '--capacity',
+                       type=float, default=default_config['capacity'],
+                       metavar=('MIN_C, MAX_C, C_N_INTERP, GAMMA'),
+                       nargs='*',
+                       help="Capacity of latent channel. Only used if `loss=betaB`")
+    model.add_argument('-B', '--beta',
+                       type=float, default=default_config['beta'],
+                       help="Weight of the KL term. Only used if `loss=betaH`")
+    losses = ["VAE", "betaH", "betaB", "factorising", "batchTC"]
+    model.add_argument('-l', '--loss',
+                       choices=losses, default=default_config['loss'],
+                       help="type of VAE loss function to use.")
 
     args = parser.parse_args()
 
@@ -159,9 +174,8 @@ def main(args):
     logger.info("Train {} with {} samples".format(args.dataset, len(train_loader)))
 
     # PREPARES MODEL
-    if args.model == "Burgess":
-        encoder = EncoderBetaB
-        decoder = DecoderBetaB
+    encoder = get_Encoder(args.model)
+    decoder = get_Decoder(args.model)
     model = VAE(img_size, encoder, decoder, args.latent_dim, device=device)
 
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
@@ -170,9 +184,11 @@ def main(args):
 
     # TRAINS
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    loss_kwargs = dict(capacity=args.capacity, beta=args.beta)
     trainer = Trainer(model, optimizer,
+                      loss=args.loss,
                       latent_dim=args.latent_dim,
-                      capacity=args.capacity,
+                      loss_kwargs=loss_kwargs,
                       print_loss_every=args.print_every,
                       record_loss_every=args.record_every,
                       device=device,
@@ -193,7 +209,8 @@ def main(args):
         specs = dict(dataset=args.dataset,
                      latent_dim=args.latent_dim,
                      model_type=args.model,
-                     capacity=args.capacity,
+                     loss=args.loss,
+                     loss_kwargs=loss_kwargs,
                      experiment_name=args.experiment)
         json.dump(specs, f)
 

@@ -6,17 +6,25 @@ import abc
 from torch.nn import functional as F
 
 
-def get_loss_f(name, **kwargs):
+def get_loss_f(name, is_color, capacity=None, beta=None):
     """Return the correct loss function."""
     if name == "betaH":
-        return BetaHLoss(**kwargs)
+        return BetaHLoss(is_color, beta)
+    elif name == "VAE":
+        return BetaHLoss(is_color, beta=1)
     elif name == "betaB":
-        return BetaBLoss(**kwargs)
+        return BetaBLoss(is_color,
+                         C_min=capacity[0],
+                         C_max=capacity[1],
+                         C_n_interp=capacity[2],
+                         gamma=capacity[3])
     elif name == "factorising":
         raise ValueError("{} loss not yet implemented".format(name))
+        # Paper: Disentangling by Factorising
         # return FactorLoss(**kwargs)
     elif name == "batchTC":
         raise ValueError("{} loss not yet implemented".format(name))
+        # Paper : Isolating Sources of Disentanglement in VAEs
         # return BatchTCLoss(**kwargs)
     else:
         raise ValueError("Uknown loss : {}".format(name))
@@ -158,7 +166,7 @@ class BetaBLoss(BaseLoss):
         return loss
 
 
-def _reconstruction_loss(self, data, recon_data, is_color):
+def _reconstruction_loss(data, recon_data, is_color):
     """
     Calculates the reconstruction loss for a batch of data.
 
@@ -192,7 +200,7 @@ def _reconstruction_loss(self, data, recon_data, is_color):
     return loss
 
 
-def _kl_normal_loss(self, mean, logvar, storer=None):
+def _kl_normal_loss(mean, logvar, storer=None):
     """
     Calculates the KL divergence between a normal distribution with
     diagonal covariance and a unit normal distribution.
