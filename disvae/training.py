@@ -8,6 +8,13 @@ from torchvision.utils import make_grid
 
 logger = logging.getLogger(__name__)
 
+# Create a logger to store information for plotting
+graph_logger = logging.getLogger('KL_Logger')
+graph_logger.setLevel(logging.DEBUG)
+file_handler = logging.FileHandler('experiments/kl_data.log')
+file_handler.setLevel(logging.DEBUG)
+graph_logger.addHandler(file_handler)
+
 
 class Trainer():
     def __init__(self, model, optimizer,
@@ -52,6 +59,7 @@ class Trainer():
         self.print_loss_every = print_loss_every
         self.record_loss_every = record_loss_every
         self.capacity = capacity
+        self.num_latent_dim = latent_dim
 
         # Initialize attributes
         self.num_steps = 0
@@ -62,7 +70,7 @@ class Trainer():
 
         # For every dimension of continuous latent variables
         for i in range(latent_dim):
-            self.losses['kl_loss_' + str(i)] = []
+            self.losses['kl_loss_' + str(i)] = 0
 
         self.logger = logger
         if log_level is not None:
@@ -94,6 +102,13 @@ class Trainer():
             avg_loss = self.batch_size * self.model.num_pixels * mean_epoch_loss
             self.logger.info('Epoch: {} Average loss: {:.2f}'.format(epoch + 1,
                                                                      avg_loss))
+            # Log and reset for next epoch
+            avg_kl_per_factor = []
+            for i in range(self.num_latent_dim):
+                avg_kl_per_factor.append(self.losses['kl_loss_' + str(i)])
+                self.losses['kl_loss_' + str(i)] = 0
+            graph_logger.debug('Epoch: {} Average KL loss per factor: {}'.format(
+                epoch, avg_kl_per_factor))
 
             if save_training_gif is not None:
                 # Generate batch of images and convert to grid
@@ -239,6 +254,6 @@ class Trainer():
         if self.model.training and self.num_steps % self.record_loss_every == 1:
             self.losses['kl_loss'].append(kl_loss.item())
             for i in range(self.model.latent_dim):
-                self.losses['kl_loss_' + str(i)].append(kl_means[i].item())
+                self.losses['kl_loss_' + str(i)] += kl_means[i].item()
 
         return kl_loss
