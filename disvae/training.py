@@ -120,6 +120,8 @@ class Trainer():
         """
         epoch_loss = 0.
         print_every_loss = 0.  # Keeps track of loss to print every
+        print('data_loader:')
+        print(data_loader)
         for batch_idx, (data, label) in enumerate(data_loader):
             iter_loss = self._train_iteration(data)
             epoch_loss += iter_loss

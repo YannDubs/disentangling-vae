@@ -8,6 +8,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets, transforms
 from torchvision.datasets import ImageFolder
+import torchvision.transforms.functional as F
 
 DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -22,6 +23,56 @@ class CustomImageFolder(ImageFolder):
             img = self.transform(img)
         return img
 
+class ChairsDataset(Dataset):
+    """CelebA dataset with 64 by 64 images."""
+
+    def __init__(self, path_to_data, subsample=1, transform=None):
+        """
+        Parameters
+        ----------
+        subsample : int
+            Only load every |subsample| number of images.
+        """
+        self.img_paths = glob.glob(path_to_data + '/images/*')[::subsample]
+        self.transform = transform
+    def __len__(self):
+        return len(self.img_paths)
+
+    def __getitem__(self, idx):
+        sample_path = self.img_paths[idx]
+        sample = imread(sample_path)
+        #sample = self.loader(path)
+        #sample = F.to_pil_image(sample)
+        if self.transform:
+            sample = self.transform(sample)
+        # Since there are no labels, we just return 0 for the "label" here
+        return sample, 0
+
+def get_chairs_dataloader(batch_size=128,path_to_data=os.path.join(DIR, '../data/3DChairs/images')):
+    """Chairs dataloader. Chairs are center cropped and resized to (64, 64)."""
+    root = os.path.join(os.path.dirname(DIR), 'data', '3DChairs')
+    if os.path.isdir(root)==False:
+        subprocess.call(DIR + '/load_3DChairs.sh')
+#     image_size = get_img_size('chairs')
+    
+#     transform = transforms.Compose([
+#         transforms.Resize((image_size, image_size)),
+#         transforms.ToTensor(),])
+#     train_kwargs = {'root':root, 'transform':transform}
+    
+    all_transforms = transforms.Compose([
+        transforms.Grayscale(),
+        transforms.ToTensor()])
+    chairs_data = datasets.ImageFolder(root=root, transform=all_transforms)
+#     dset = CustomImageFolder
+#     train_data = dset(**train_kwargs) 
+    chairs_loader = DataLoader(chairs_data, batch_size=batch_size, shuffle=True)
+#     data_loader = DataLoader(train_data,
+#                              batch_size=batch_size,
+#                              shuffle=True)
+
+    return chairs_loader, chairs_loader
+    
 def get_img_size(dataset):
     """Return the correct image size."""
     if dataset in ['mnist', 'fashion_mnist']:
@@ -99,27 +150,7 @@ def get_dsprites_dataloader(batch_size=128,path_to_data=os.path.join(DIR, '../da
     return data_loader
 
 
-def get_chairs_dataloader(batch_size=128,path_to_data=os.path.join(DIR, '../data/3DChairs')):
-    """Chairs dataloader. Chairs are center cropped and resized to (64, 64)."""
-    print('wacht even')
-    root = os.path.join(os.path.dirname(DIR), 'data', '3DChairs')
-    print(root)
-    if os.path.isdir(root)==False:
-        subprocess.call(DIR + '/load_3DChairs.sh')
-    image_size = get_img_size('chairs')
-    
-    transform = transforms.Compose([
-        transforms.Resize((image_size, image_size)),
-        transforms.ToTensor(),])
-    train_kwargs = {'root':root, 'transform':transform}
-    dset = CustomImageFolder
-    train_data = dset(**train_kwargs)    
-    
-    data_loader = DataLoader(train_data,
-                             batch_size=batch_size,
-                             shuffle=True)
 
-    return data_loader
 
 
 def get_celeba_dataloader(batch_size=128,path_to_data=os.path.join(DIR, '../data/celeba')):
@@ -175,28 +206,5 @@ class DSpritesDataset(Dataset):
         return sample, 0
 
 
-class CelebADataset(Dataset):
-    """CelebA dataset with 64 by 64 images."""
 
-    def __init__(self, path_to_data, subsample=1, transform=None):
-        """
-        Parameters
-        ----------
-        subsample : int
-            Only load every |subsample| number of images.
-        """
-        self.img_paths = glob.glob(path_to_data + '/*')[::subsample]
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.img_paths)
-
-    def __getitem__(self, idx):
-        sample_path = self.img_paths[idx]
-        sample = imread(sample_path)
-
-        if self.transform:
-            sample = self.transform(sample)
-        # Since there are no labels, we just return 0 for the "label" here
-        return sample, 0
 
