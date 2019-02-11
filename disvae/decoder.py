@@ -4,6 +4,14 @@ import torch
 from torch import nn
 
 
+def get_Decoder(name):
+    """Return the correct decoder."""
+    if name == "Burgess":
+        return DecoderBetaB
+    else:
+        raise ValueError("Uknown encoder : {}".format(name))
+
+
 class DecoderBetaB(nn.Module):
     def __init__(self, img_size,
                  latent_dim=10,

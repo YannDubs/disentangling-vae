@@ -4,6 +4,14 @@ import torch
 from torch import nn
 
 
+def get_Encoder(name):
+    """Return the correct encoder."""
+    if name == "Burgess":
+        return EncoderBetaB
+    else:
+        raise ValueError("Uknown encoder : {}".format(name))
+
+
 class EncoderBetaB(nn.Module):
     def __init__(self, img_size,
                  latent_dim=10,
@@ -79,6 +87,6 @@ class EncoderBetaB(nn.Module):
 
         # Fully connected layer for log variance and mean
         mu = self.mu_gen(x)
-        log_var = self.log_var_gen(x)  #Log std-dev in paper (bear in mind)
+        log_var = self.log_var_gen(x)  # Log std-dev in paper (bear in mind)
 
         return mu, log_var
