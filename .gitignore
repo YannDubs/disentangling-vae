@@ -5,6 +5,7 @@ results/*
 notebooks/
 old*
 trained_models/
+imgs/*
 
 # Byte-compiled / optimized / DLL files
 *.egg-info
@@ -25,6 +26,7 @@ __pycache__/
 # extensions
 *.pyc
 *.egg-info
+*.log
 
 # placeholders to keep directories
 !.keep

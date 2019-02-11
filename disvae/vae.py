@@ -27,6 +27,7 @@ class VAE(nn.Module):
         self.latent_dim = latent_dim
         self.img_size = img_size
         self.device = device
+        self.is_color = self.img_size[0] > 1
         self.num_pixels = self.img_size[1] * self.img_size[2]
         self.encoder = encoder(img_size, self.latent_dim, self.device)
         self.decoder = decoder(img_size, self.latent_dim, self.device)
@@ -40,11 +41,11 @@ class VAE(nn.Module):
         Parameters
         ----------
         mean : torch.Tensor
-            Mean of the normal distribution. Shape (N, D) where D is dimension
-            of distribution.
+            Mean of the normal distribution. Shape (batch_size, latent_dim)
 
         logvar : torch.Tensor
-            Diagonal log variance of the normal distribution. Shape (N, D)
+            Diagonal log variance of the normal distribution. Shape (batch_size,
+            latent_dim)
         """
         if self.training:
             std = torch.exp(0.5 * logvar)
@@ -61,11 +62,13 @@ class VAE(nn.Module):
         Parameters
         ----------
         x : torch.Tensor
-            Batch of data. Shape (N, C, H, W)
+            Batch of data. Shape (batch_size, n_chan, height, width)
         """
         latent_dist = self.encoder(x)
         latent_sample = self.reparameterize(*latent_dist)
         reconstruct = self.decoder(latent_sample)
+        if self.is_color:
+            reconstruct = reconstruct * 255
         return reconstruct, latent_dist
 
     def reset_parameters(self):

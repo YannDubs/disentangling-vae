@@ -188,6 +188,7 @@ class DSpritesDataset(Dataset):
             Only load every |subsample| number of images.
         """
         self.imgs = np.load(path_to_data)['imgs'][::subsample]
+
         self.transform = transform
 
     def __len__(self):
