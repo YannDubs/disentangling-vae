@@ -19,7 +19,7 @@ def get_img_size(dataset):
         img_size = (3, 64, 64)
     return img_size
 
-def get_dataloaders(batch_size, dataset):
+def get_dataloaders(batch_size, dataset, shuffle=False):
     """A generic data loader"""
     dataset_options = {
         "mnist": get_mnist_dataloaders,
@@ -29,11 +29,11 @@ def get_dataloaders(batch_size, dataset):
         "celeba": get_celeba_dataloader
     }
     if dataset in dataset_options:
-        return dataset_options[dataset](batch_size=batch_size)
+        return dataset_options[dataset](batch_size=batch_size, shuffle=shuffle)
     else:
         raise Exception("{} is not valid. Please enter a valid dataset".format(dataset))
 
-def get_mnist_dataloaders(batch_size=128,
+def get_mnist_dataloaders(batch_size=128, shuffle=False,
                           path_to_data=os.path.join(DIR, '../data/mnist')):
     """MNIST dataloader with (32, 32) images."""
     all_transforms = transforms.Compose([
@@ -49,7 +49,7 @@ def get_mnist_dataloaders(batch_size=128,
     return train_loader, test_loader
 
 
-def get_fashion_mnist_dataloaders(batch_size=128,
+def get_fashion_mnist_dataloaders(batch_size=128, shuffle=False,
                                   path_to_data=os.path.join(DIR, '../data/fashion/mnist')):
     """FashionMNIST dataloader with (32, 32) images."""
     all_transforms = transforms.Compose([
@@ -65,7 +65,7 @@ def get_fashion_mnist_dataloaders(batch_size=128,
     return train_loader, test_loader
 
 
-def get_dsprites_dataloader(batch_size=128,
+def get_dsprites_dataloader(batch_size=128, shuffle=False,
                             path_to_data=os.path.join(DIR, '../data/datadsprites/dsprites_data.npz')):
     """DSprites dataloader."""
     dsprites_data = DSpritesDataset(path_to_data,
@@ -75,7 +75,7 @@ def get_dsprites_dataloader(batch_size=128,
     return dsprites_loader
 
 
-def get_chairs_dataloader(batch_size=128,
+def get_chairs_dataloader(batch_size=128, shuffle=False,
                           path_to_data=os.path.join(DIR, '../data/chairs/rendered_chairs_64')):
     """Chairs dataloader. Chairs are center cropped and resized to (64, 64)."""
     all_transforms = transforms.Compose([
@@ -89,7 +89,7 @@ def get_chairs_dataloader(batch_size=128,
     return chairs_loader
 
 
-def get_chairs_test_dataloader(batch_size=62,
+def get_chairs_test_dataloader(batch_size=62, shuffle=False,
                                path_to_data=os.path.join(DIR, '../data/chairs/rendered_chairs_64_test')):
     """There are 62 pictures of each chair, so get batches of data containing
     one chair per batch."""
@@ -104,7 +104,7 @@ def get_chairs_test_dataloader(batch_size=62,
     return chairs_loader
 
 
-def get_celeba_dataloader(batch_size=128,
+def get_celeba_dataloader(batch_size=128, shuffle=False,
                           path_to_data=os.path.join(DIR, '../data/celeba_64')):
     """CelebA dataloader with (64, 64) images."""
     celeba_data = CelebADataset(path_to_data,
