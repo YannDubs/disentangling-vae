@@ -38,7 +38,7 @@ def parse_arguments():
     visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction']
     visualisation.add_argument('-v', '--visualisation',
                             default='random_samples', choices=visualisation_options,
-                            help='Predefined visaulisation options which can be performed.')
+                            help='Predefined visualisation options which can be performed.')
     visualisation.add_argument('-s', '--sweep_dim',
                             default=0, help='The latent dimension to sweep (if applicable)')
     visualisation.add_argument('-n', '--num_samples',
