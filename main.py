@@ -166,7 +166,7 @@ def main(args):
                           else "cpu")
 
     # PREPARES DATA
-    train_loader, test = get_dataloaders(batch_size=args.batch_size, dataset=args.dataset)
+    train_loader, test_loader = get_dataloaders(batch_size=args.batch_size, dataset=args.dataset)
 
     img_size = get_img_size(args.dataset)
 
