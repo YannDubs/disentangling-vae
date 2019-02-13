@@ -15,10 +15,10 @@ def random_samples(experiment_name, num_samples=1):
         spec_data = json.load(spec_file)
         dataset_name = spec_data['dataset']
 
-        _, data_loader = get_dataloaders(batch_size=num_samples, dataset=dataset_name, shuffle=True)
+        _, test_loader = get_dataloaders(batch_size=num_samples, dataset=dataset_name, shuffle=True)
 
-        for (data, _) in data_loader:
-            return data
+        for (test_data, _) in test_loader:
+            return test_data
 
 
 def parse_arguments():
