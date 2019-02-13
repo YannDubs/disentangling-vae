@@ -33,7 +33,7 @@ def get_dataloaders(batch_size, dataset, shuffle=False):
     else:
         raise Exception("{} is not valid. Please enter a valid dataset".format(dataset))
 
-def get_mnist_dataloaders(batch_size=128, shuffle=False,
+def get_mnist_dataloaders(batch_size=128, shuffle=True,
                           path_to_data=os.path.join(DIR, '../data/mnist')):
     """MNIST dataloader with (32, 32) images."""
     all_transforms = transforms.Compose([
@@ -44,12 +44,12 @@ def get_mnist_dataloaders(batch_size=128, shuffle=False,
                                 transform=all_transforms)
     test_data = datasets.MNIST(path_to_data, train=False,
                                transform=all_transforms)
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=shuffle)
     return train_loader, test_loader
 
 
-def get_fashion_mnist_dataloaders(batch_size=128, shuffle=False,
+def get_fashion_mnist_dataloaders(batch_size=128, shuffle=True,
                                   path_to_data=os.path.join(DIR, '../data/fashion/mnist')):
     """FashionMNIST dataloader with (32, 32) images."""
     all_transforms = transforms.Compose([
@@ -60,22 +60,22 @@ def get_fashion_mnist_dataloaders(batch_size=128, shuffle=False,
                                        transform=all_transforms)
     test_data = datasets.FashionMNIST(path_to_data, train=False,
                                       transform=all_transforms)
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
+    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=shuffle)
     return train_loader, test_loader
 
 
-def get_dsprites_dataloader(batch_size=128, shuffle=False,
+def get_dsprites_dataloader(batch_size=128, shuffle=True,
                             path_to_data=os.path.join(DIR, '../data/datadsprites/dsprites_data.npz')):
     """DSprites dataloader."""
     dsprites_data = DSpritesDataset(path_to_data,
                                     transform=transforms.ToTensor())
     dsprites_loader = DataLoader(dsprites_data, batch_size=batch_size,
-                                 shuffle=True)
+                                 shuffle=shuffle)
     return dsprites_loader
 
 
-def get_chairs_dataloader(batch_size=128, shuffle=False,
+def get_chairs_dataloader(batch_size=128, shuffle=True,
                           path_to_data=os.path.join(DIR, '../data/chairs/rendered_chairs_64')):
     """Chairs dataloader. Chairs are center cropped and resized to (64, 64)."""
     all_transforms = transforms.Compose([
@@ -85,11 +85,11 @@ def get_chairs_dataloader(batch_size=128, shuffle=False,
     chairs_data = datasets.ImageFolder(root=path_to_data,
                                        transform=all_transforms)
     chairs_loader = DataLoader(chairs_data, batch_size=batch_size,
-                               shuffle=True)
+                               shuffle=shuffle)
     return chairs_loader
 
 
-def get_chairs_test_dataloader(batch_size=62, shuffle=False,
+def get_chairs_test_dataloader(batch_size=62, shuffle=True,
                                path_to_data=os.path.join(DIR, '../data/chairs/rendered_chairs_64_test')):
     """There are 62 pictures of each chair, so get batches of data containing
     one chair per batch."""
@@ -100,17 +100,17 @@ def get_chairs_test_dataloader(batch_size=62, shuffle=False,
     chairs_data = datasets.ImageFolder(root=path_to_data,
                                        transform=all_transforms)
     chairs_loader = DataLoader(chairs_data, batch_size=batch_size,
-                               shuffle=False)
+                               shuffle=shuffle)
     return chairs_loader
 
 
-def get_celeba_dataloader(batch_size=128, shuffle=False,
+def get_celeba_dataloader(batch_size=128, shuffle=True,
                           path_to_data=os.path.join(DIR, '../data/celeba_64')):
     """CelebA dataloader with (64, 64) images."""
     celeba_data = CelebADataset(path_to_data,
                                 transform=transforms.ToTensor())
     celeba_loader = DataLoader(celeba_data, batch_size=batch_size,
-                               shuffle=True)
+                               shuffle=shuffle)
     return celeba_loader
 
 
