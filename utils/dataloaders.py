@@ -65,14 +65,17 @@ def get_fashion_mnist_dataloaders(batch_size=128, shuffle=True,
     return train_loader, test_loader
 
 
-def get_dsprites_dataloader(batch_size=128, shuffle=True,
-                            path_to_data=os.path.join(DIR, '../data/datadsprites/dsprites_data.npz')):
+def get_dsprites_dataloader(batch_size=128,path_to_data=os.path.join(DIR, '../data/dsprites-dataset')):
     """DSprites dataloader."""
-    dsprites_data = DSpritesDataset(path_to_data,
+    root = os.path.join(os.path.dirname(DIR), 'data', 'dsprites-dataset')
+    if os.path.isdir(root)==False:
+        subprocess.call(DIR + '/load_DSprites.sh')
+        
+    dsprites_data = DSpritesDataset(path_to_data=path_to_data+'/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz',
                                     transform=transforms.ToTensor())
     dsprites_loader = DataLoader(dsprites_data, batch_size=batch_size,
-                                 shuffle=shuffle)
-    return dsprites_loader
+                                 shuffle=True)
+    return dsprites_loader, 0
 
 
 def get_chairs_dataloader(batch_size=128, shuffle=True,
@@ -125,7 +128,6 @@ class DSpritesDataset(Dataset):
             Only load every |subsample| number of images.
         """
         self.imgs = np.load(path_to_data)['imgs'][::subsample]
-
         self.transform = transform
 
     def __len__(self):
