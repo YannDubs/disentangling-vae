@@ -168,7 +168,7 @@ class Trainer():
         if self.loss_type == 'factorising':
 
             train_loss = self.loss_f(data, self.model, self.optimizer,
-                                     self.model.training, self.losses)
+                                     self.model.training, self.stored_losses)
 
         # Generic iteration for other models
         else:
@@ -176,7 +176,7 @@ class Trainer():
             self.optimizer.zero_grad()
             data = data.to(self.device)
             recon_batch, latent_dist = self.model(data)
-            loss = self.loss_f(data, recon_batch, latent_dist, self.model.training, self.losses)
+            loss = self.loss_f(data, recon_batch, latent_dist, self.model.training, self.stored_losses)
             # make loss independent of number of pixels
             loss = loss / self.model.num_pixels
             loss.backward()
