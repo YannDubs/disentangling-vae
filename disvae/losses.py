@@ -2,11 +2,11 @@
 Module containing all vae losses.
 """
 import abc
-
+import torch
 from torch.nn import functional as F
 
 
-def get_loss_f(name, is_color, capacity=None, beta=None):
+def get_loss_f(name, is_color, capacity=None, beta=None, discriminator=None, optimizer_d=None, device=None):
     """Return the correct loss function."""
     if name == "betaH":
         return BetaHLoss(is_color, beta)
@@ -19,9 +19,12 @@ def get_loss_f(name, is_color, capacity=None, beta=None):
                          C_n_interp=capacity[2],
                          gamma=capacity[3])
     elif name == "factorising":
-        raise ValueError("{} loss not yet implemented".format(name))
         # Paper: Disentangling by Factorising
-        # return FactorLoss(**kwargs)
+        return FactorKLoss(is_color,
+                           discriminator,
+                           optimizer_d,
+                           device,
+                           beta)
     elif name == "batchTC":
         raise ValueError("{} loss not yet implemented".format(name))
         # Paper : Isolating Sources of Disentanglement in VAEs
@@ -59,9 +62,9 @@ class BaseLoss(abc.ABC):
         recon_data : torch.Tensor
             Reconstructed data. Shape : (batch_size, n_chan, height, width).
 
-        latent_dist : tuple
+        latent_dist : torch.Tensor
             sufficient statistics of the latent dimension. E.g. for gaussian
-            (mean, logvar) both of shape : (batch_size, latent_dim).
+            (mean, logvar) each of shape : (batch_size, latent_dim).
 
         storer : dict
             Dictionary in which to store important variables for vizualisation.
@@ -138,7 +141,7 @@ class BetaBLoss(BaseLoss):
     gamma : float, optional
         Weight of the KL divergence term.
 
-    Refernces:
+    References:
         [1] Burgess, Christopher P., et al. "Understanding disentangling in
         $\beta$-VAE." arXiv preprint arXiv:1804.03599 (2018).
     """
@@ -164,6 +167,100 @@ class BetaBLoss(BaseLoss):
         loss = rec_loss + self.gamma * (kl_loss - C).abs()
 
         return loss
+
+
+class FactorKLoss(BaseLoss):
+    """
+        Compute the Factor-VAE loss as per Algorithm 2 of [1]
+
+        Parameters
+        ----------
+        is_color : bool
+            Whether the image are in color.
+
+        discriminator : disvae.discriminator.Discriminator
+
+        optimizer_d : torch.optim.adam.Adam
+
+        device : torch.device
+
+        beta : float, optional
+            Weight of the TC loss term.
+
+        References :
+            [1] Kim, Hyunjik, and Andriy Mnih. "Disentangling by factorising."
+            arXiv preprint arXiv:1802.05983 (2018).
+        """
+
+    def __init__(self, is_color, discriminator, optimizer_d, device, beta=40.):
+        super().__init__(is_color)
+        self.beta = beta
+        self.device = device
+        self.discriminator = discriminator
+        self.optimizer_d = optimizer_d
+
+    def __call__(self, data, model, optimizer, is_train, storer):
+        storer = self._pre_call(is_train, storer)
+
+        # If factor-vae split data into two batches
+        batch_size = data.size(dim=0)
+        half_batch_size = batch_size // 2
+        data = data.split(half_batch_size)
+        data1 = data[0].to(self.device)
+        data2 = data[1].to(self.device)
+
+        # Initialise the targets for cross_entropy loss
+        ones = torch.ones(batch_size, dtype=torch.long, device=self.device)
+        zeros = torch.zeros(batch_size, dtype=torch.long, device=self.device)
+
+        # Get first sample of latent distribution
+        recon_batch, latent_dist = model(data1)
+
+        # Get reconstruction loss
+        rec_loss = _reconstruction_loss(data1, recon_batch, self.is_color)
+
+        # Get KL-Divergence (latent_dist[0] = mean, latent_dist[1] = log_var)
+        kl_loss = _kl_normal_loss(latent_dist[0], latent_dist[1], storer)
+
+        # Run latent distribution through discriminator
+        d_z = self.discriminator(latent_dist)
+
+        # Calculate the total correlation (TC) loss term
+        tc_loss = (d_z[:, :, :1] - d_z[:, :, 1:]).mean()
+
+        # Factor VAE loss
+        vae_loss = rec_loss + kl_loss + self.beta * tc_loss
+
+        # Make loss independent of number of pixels
+        vae_loss = vae_loss / model.num_pixels
+
+        # Train loss for function return
+        train_loss = vae_loss.item()
+
+        # Run VAE optimizer
+        optimizer.zero_grad()
+        vae_loss.backward(retain_graph=True)
+        optimizer.step()
+
+        # Get second sample of latent distribution
+        _, latent_dist = model(data2)
+
+        # Create a permutation of the latent distribution
+        z_perm = _permute_dims(latent_dist)
+
+        # Run permeated latent distribution through discriminator
+        d_z_perm = self.discriminator(z_perm)
+
+        # Calculate total correlation loss
+        d_tc_loss = 0.5 * (F.cross_entropy(d_z.reshape((batch_size, 2)), zeros)
+                           + F.cross_entropy(d_z_perm.reshape((batch_size, 2)), ones))
+
+        # Run discriminator optimizer
+        self.optimizer_d.zero_grad()
+        d_tc_loss.backward()
+        self.optimizer_d.step()
+
+        return train_loss
 
 
 def _reconstruction_loss(data, recon_data, is_color):
@@ -229,3 +326,32 @@ def _kl_normal_loss(mean, logvar, storer=None):
             storer['kl_loss_' + str(i)].append(latent_kl[i].item())
 
     return total_kl
+
+
+def _permute_dims(latent_dist):
+    """
+    Implementation of Algorithm 1 in ref [1]. Randomly permutes the sample from
+    q(z) (latent_dist) across the batch for each of the latent dimensions (mean
+    and log_var).
+
+    Parameters
+    ----------
+    latent_dist : torch.Tensor
+        sufficient statistics of the latent dimension. E.g. for gaussian
+        (mean, log_var), each of shape : (batch_size, latent_dim).
+
+    References :
+        [1] Kim, Hyunjik, and Andriy Mnih. "Disentangling by factorising."
+        arXiv preprint arXiv:1802.05983 (2018).
+
+    """
+
+    perm = torch.zeros(latent_dist.size())
+    dim_j, batch_size, dim_z = latent_dist.size()
+
+    for j in range(dim_j):
+        for z in range(dim_z):
+            pi = torch.randperm(batch_size)
+            perm[j, :, z] = latent_dist[j, pi, z]
+
+    return perm

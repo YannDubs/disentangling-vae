@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class Trainer():
     def __init__(self, model, optimizer,
-                 loss="betaB",
+                 loss_type="betaB",
                  latent_dim=10,
                  loss_kwargs={},
                  print_loss_every=50,
@@ -47,15 +47,16 @@ class Trainer():
         log_level : {'critical', 'error', 'warning', 'info', 'debug'}
             Logging levels.
 
-        loss : {"VAE", "betaH", "betaB", "factorising", "batchTC"}
+        loss_type : {"VAE", "betaH", "betaB", "factorising", "batchTC"}
             Type of VAE loss to use.
         """
         self.device = device
+        self.loss_type = loss_type
         self.model = model.to(self.device)
         self.optimizer = optimizer
         self.print_loss_every = print_loss_every
         self.record_loss_every = record_loss_every
-        self.loss_f = get_loss_f(loss, self.model.is_color, **loss_kwargs)
+        self.loss_f = get_loss_f(self.loss_type, self.model.is_color, **loss_kwargs)
         self.losses = {'loss': [],
                        'recon_loss': [],
                        'kl_loss': []}
@@ -146,14 +147,23 @@ class Trainer():
         data : torch.Tensor
             A batch of data. Shape : (batch_size, channel, height, width).
         """
-        self.optimizer.zero_grad()
-        data = data.to(self.device)
-        recon_batch, latent_dist = self.model(data)
-        loss = self.loss_f(data, recon_batch, latent_dist, self.model.training, self.losses)
-        # make loss independent of number of pixels
-        loss = loss / self.model.num_pixels
-        loss.backward()
-        self.optimizer.step()
+        # For factor-vae
+        if self.loss_type == 'factorising':
 
-        train_loss = loss.item()
+            train_loss = self.loss_f(data, self.model, self.optimizer,
+                                     self.model.training, self.losses)
+
+        # Generic iteration for other models
+        else:
+
+            self.optimizer.zero_grad()
+            data = data.to(self.device)
+            recon_batch, latent_dist = self.model(data)
+            loss = self.loss_f(data, recon_batch, latent_dist, self.model.training, self.losses)
+            # make loss independent of number of pixels
+            loss = loss / self.model.num_pixels
+            loss.backward()
+            self.optimizer.step()
+
+            train_loss = loss.item()
         return train_loss
