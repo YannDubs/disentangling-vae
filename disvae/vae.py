@@ -69,7 +69,6 @@ class VAE(nn.Module):
         reconstruct = self.decoder(latent_sample)
         if self.is_color:
             reconstruct = reconstruct * 255
-
         return reconstruct, latent_dist
 
     def reset_parameters(self):
