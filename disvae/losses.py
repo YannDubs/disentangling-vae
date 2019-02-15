@@ -323,8 +323,7 @@ def _kl_normal_loss(mean, logvar, storer=None):
     if storer is not None:
         storer['kl_loss'].append(total_kl.item())
         for i in range(latent_dim):
-            storer['kl_loss_' + str(i)].append(latent_kl[i].item())
-
+            storer['kl_loss_' + str(i)] += latent_kl[i].item()
     return total_kl
 
 

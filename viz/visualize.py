@@ -20,7 +20,7 @@ class Visualizer():
         self.save_images = True  # If false, each method returns a tensor
         # instead of saving image.
 
-    def reconstructions(self, data, size=(8, 8), filename='recon.png'):
+    def reconstructions(self, data, size=(8, 8), filename='imgs/recon.png'):
         """
         Generates reconstructions of data through the model.
 
@@ -43,10 +43,10 @@ class Visualizer():
         self.model.train()
 
         # Upper half of plot will contain data, bottom half will contain
-        # reconstructions
-        num_images = size[0] * size[1] / 2
-        originals = input_data[:num_images].cpu()
-        reconstructions = recon_data.view(-1, *self.model.img_size)[:num_images].cpu()
+        # reconstructions of the original image
+        num_images = size[0]
+        originals = input_data.cpu()
+        reconstructions = recon_data.view(-1, *self.model.img_size).cpu()
         # If there are fewer examples given than spaces available in grid,
         # augment with blank images
         num_examples = originals.size()[0]
@@ -63,7 +63,7 @@ class Visualizer():
         else:
             return make_grid(comparison.data, nrow=size[0])
 
-    def samples(self, size=(8, 8), filename='samples.png'):
+    def samples(self, size=(8, 8), filename='imgs/samples.png'):
         """
         Generates samples from learned distribution by sampling prior and
         decoding.
@@ -85,7 +85,7 @@ class Visualizer():
             return make_grid(generated.data, nrow=size[1])
 
     def latent_traversal_line(self, idx=None, size=8,
-                              filename='traversal_line.png'):
+                              filename='imgs/traversal_line.png'):
         """
         Generates an image traversal through a latent dimension.
 
@@ -107,7 +107,7 @@ class Visualizer():
             return make_grid(generated.data, nrow=size)
 
     def latent_traversal_grid(self, idx=None, axis=None, size=(5, 5),
-                              filename='traversal_grid.png'):
+                              filename='imgs/traversal_grid.png'):
         """
         Generates a grid of image traversals through two latent dimensions.
 
@@ -129,7 +129,7 @@ class Visualizer():
         else:
             return make_grid(generated.data, nrow=size[1])
 
-    def all_latent_traversals(self, size=8, filename='all_traversals.png'):
+    def all_latent_traversals(self, size=8, filename='imgs/all_traversals.png'):
         """
         Traverses all latent dimensions one by one and plots a grid of images
         where each row corresponds to a latent traversal of one latent

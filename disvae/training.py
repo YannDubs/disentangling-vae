@@ -6,6 +6,10 @@ import torch
 from torch.nn import functional as F
 from torchvision.utils import make_grid
 
+import sys
+sys.path.append("..")
+from utils.graph_logger import GraphLogger
+
 from disvae.losses import get_loss_f
 
 logger = logging.getLogger(__name__)
@@ -56,18 +60,24 @@ class Trainer():
         self.optimizer = optimizer
         self.print_loss_every = print_loss_every
         self.record_loss_every = record_loss_every
+        self.num_latent_dim = latent_dim
         self.loss_f = get_loss_f(self.loss_type, self.model.is_color, **loss_kwargs)
-        self.losses = {'loss': [],
-                       'recon_loss': [],
-                       'kl_loss': []}
+        self.stored_losses = {
+            'loss': [],
+            'recon_loss': [],
+            'kl_loss': []
+            }
 
         # For every dimension of continuous latent variables
         for i in range(latent_dim):
-            self.losses['kl_loss_' + str(i)] = []
+            self.stored_losses['kl_loss_' + str(i)] = 0
 
         self.logger = logger
         if log_level is not None:
             self.logger.setLevel(log_level.upper())
+
+        self.graph_logger = GraphLogger(latent_dim, 'experiments/kl_data.log', 'KL_logger')
+
 
     def train(self, data_loader, epochs=10, save_training_gif=None):
         """
@@ -95,6 +105,12 @@ class Trainer():
             avg_loss = batch_size * self.model.num_pixels * mean_epoch_loss
             self.logger.info('Epoch: {} Average loss: {:.2f}'.format(epoch + 1,
                                                                      avg_loss))
+            # Log and reset for next epoch
+            avg_kl_per_factor = []
+            for i in range(self.num_latent_dim):
+                avg_kl_per_factor.append(self.stored_losses['kl_loss_' + str(i)])
+                self.stored_losses['kl_loss_' + str(i)] = 0
+            self.graph_logger.log(epoch, avg_kl_per_factor)
 
             if save_training_gif is not None:
                 # Generate batch of images and convert to grid
@@ -147,6 +163,7 @@ class Trainer():
         data : torch.Tensor
             A batch of data. Shape : (batch_size, channel, height, width).
         """
+
         # For factor-vae
         if self.loss_type == 'factorising':
 
@@ -166,4 +183,5 @@ class Trainer():
             self.optimizer.step()
 
             train_loss = loss.item()
+
         return train_loss
