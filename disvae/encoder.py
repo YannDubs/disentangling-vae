@@ -89,4 +89,4 @@ class EncoderBetaB(nn.Module):
         mu = self.mu_gen(x)
         log_var = self.log_var_gen(x)  # Log std-dev in paper (bear in mind)
 
-        return mu, log_var
+        return torch.stack([mu, log_var])
