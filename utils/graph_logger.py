@@ -1,10 +1,12 @@
 import logging
 import os
 
+
 class GraphLogger(object):
     """ Class definition for objects to write data to log files in a
         form which is then easy to be plotted.
     """
+
     def __init__(self, latent_dims, file_path_name, logger_name):
         """ Create a logger to store information for plotting. """
         self.latent_dim = latent_dims
@@ -25,15 +27,11 @@ class GraphLogger(object):
 
     def set_header(self):
         """ Construct and write the header to the log file. """
-        header = 'Epoch'
-        for latent_dim in range(self.latent_dim):
-            header += ',Avg-KL-{}'.format(latent_dim)
+        header_list = ["Avg-KL-{}".format(i) for i in range(self.latent_dim)]
+        header = ",".join(["Epoch"] + header_list)
         self.logger.debug(header)
-
 
     def log(self, epoch, kl_div_list):
         """ Write to the log file """
-        log_string = '{},'.format(epoch)
-        for item in kl_div_list:
-            log_string += ' {},'.format(item)
+        log_string = ",".join(str(item) for item in [epoch] + kl_div_list)
         self.logger.debug(log_string)

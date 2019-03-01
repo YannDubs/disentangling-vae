@@ -98,7 +98,8 @@ def parse_arguments():
 
     # Predefined experiments
     experiment = parser.add_argument_group('Predefined experiments')
-    experiments = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite', 'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs']
+    experiments = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite',
+                    'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs']
     experiment.add_argument('-x', '--experiment',
                             default=default_config['experiment'], choices=experiments,
                             help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
