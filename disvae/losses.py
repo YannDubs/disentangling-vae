@@ -180,7 +180,7 @@ class FactorKLoss(BaseLoss):
 
         discriminator : disvae.discriminator.Discriminator
 
-        optimizer_d : torch.optim.adam.Adam
+        optimizer_d : torch.optim
 
         device : torch.device
 
@@ -206,8 +206,8 @@ class FactorKLoss(BaseLoss):
         batch_size = data.size(dim=0)
         half_batch_size = batch_size // 2
         data = data.split(half_batch_size)
-        data1 = data[0].to(self.device)
-        data2 = data[1].to(self.device)
+        data1 = data[0]
+        data2 = data[1]
 
         # Initialise the targets for cross_entropy loss
         ones = torch.ones(batch_size, dtype=torch.long, device=self.device)
