@@ -5,3 +5,4 @@ scipy
 imageio
 scikit-image
 pytest
+python-resize-image
