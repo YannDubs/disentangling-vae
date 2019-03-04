@@ -27,7 +27,8 @@ class GraphLogger(object):
 
     def set_header(self):
         """ Construct and write the header to the log file. """
-        header = ",".join(["Epoch"] + ["Avg-KL-{}".format(i) for i in range(self.latent_dim)])
+        header_list = ["Avg-KL-{}".format(i) for i in range(self.latent_dim)]
+        header = ",".join(["Epoch"] + header_list)
         self.logger.debug(header)
 
     def log(self, epoch, kl_div_list):

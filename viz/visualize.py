@@ -154,7 +154,6 @@ class Visualizer():
         if self.save_images:
             save_image(generated.data, filename, nrow=size)
         else:
-
             return make_grid(generated.data, nrow=size)
 
     def _decode_latents(self, latent_samples):
