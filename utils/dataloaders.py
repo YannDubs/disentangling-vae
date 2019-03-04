@@ -19,6 +19,7 @@ def get_img_size(dataset):
         img_size = (3, 64, 64)
     return img_size
 
+
 def get_dataloaders(batch_size, dataset, shuffle=False):
     """A generic data loader"""
     dataset_options = {
@@ -32,6 +33,7 @@ def get_dataloaders(batch_size, dataset, shuffle=False):
         return dataset_options[dataset](batch_size=batch_size, shuffle=shuffle)
     else:
         raise Exception("{} is not valid. Please enter a valid dataset".format(dataset))
+
 
 def get_mnist_dataloaders(batch_size=128, shuffle=True,
                           path_to_data=os.path.join(DIR, '../data/mnist')):
@@ -66,13 +68,13 @@ def get_fashion_mnist_dataloaders(batch_size=128, shuffle=True,
 
 
 def get_dsprites_dataloader(batch_size=128, shuffle=True,
-                            path_to_data=os.path.join(DIR, '../data/datadsprites/dsprites_data.npz')):
+                            path_to_data=os.path.join(DIR, '../data/dsprites/dsprites.npy')):
     """DSprites dataloader."""
     dsprites_data = DSpritesDataset(path_to_data,
                                     transform=transforms.ToTensor())
     dsprites_loader = DataLoader(dsprites_data, batch_size=batch_size,
                                  shuffle=shuffle)
-    return dsprites_loader
+    return dsprites_loader, None
 
 
 def get_chairs_dataloader(batch_size=128, shuffle=True,

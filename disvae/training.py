@@ -1,5 +1,6 @@
 import imageio
 import logging
+import os
 
 import numpy as np
 import torch
@@ -8,9 +9,10 @@ from torchvision.utils import make_grid
 
 import sys
 sys.path.append("..")
-from utils.graph_logger import GraphLogger
 
+from utils.graph_logger import GraphLogger
 from disvae.losses import get_loss_f
+from viz.visualize import Visualizer
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,9 @@ class Trainer():
                  print_loss_every=50,
                  record_loss_every=5,
                  device=torch.device("cpu"),
-                 log_level=None):
+                 log_level=None,
+                 save_dir="experiments",
+                 is_viz_gif=True):
         """
         Class to handle training of model.
 
@@ -53,6 +57,12 @@ class Trainer():
 
         loss_type : {"VAE", "betaH", "betaB", "factorising", "batchTC"}
             Type of VAE loss to use.
+
+        save_dir : str
+            Directory for saving logs.
+
+        is_viz_gif : bool
+            Whether to store a gif of samples after every epoch.
         """
         self.device = device
         self.loss_type = loss_type
@@ -66,7 +76,9 @@ class Trainer():
             'loss': [],
             'recon_loss': [],
             'kl_loss': []
-            }
+        }
+        self.save_dir = save_dir
+        self.is_viz_gif = is_viz_gif
 
         # For every dimension of continuous latent variables
         for i in range(latent_dim):
@@ -76,10 +88,15 @@ class Trainer():
         if log_level is not None:
             self.logger.setLevel(log_level.upper())
 
-        self.graph_logger = GraphLogger(latent_dim, 'experiments/kl_data.log', 'KL_logger')
+        self.graph_logger = GraphLogger(latent_dim,
+                                        os.path.join(self.save_dir, "kl_data.log"),
+                                        'KL_logger')
+        if self.is_viz_gif:
+            self.vizualizer = Visualizer(self.model)
 
+        self.logger.info("Training Device: {}".format(self.device))
 
-    def train(self, data_loader, epochs=10, save_training_gif=None):
+    def train(self, data_loader, epochs=10, visualizer=None):
         """
         Trains the model.
 
@@ -89,13 +106,8 @@ class Trainer():
 
         epochs : int
             Number of epochs to train the model for.
-
-        save_training_gif : None or tuple (string, Visualizer instance)
-            If not None, will use visualizer object to create image of samples
-            after every epoch and will save gif of these at location specified
-            by string. Note that string should end with '.gif'.
         """
-        if save_training_gif is not None:
+        if self.is_viz_gif:
             training_progress_images = []
 
         batch_size = data_loader.batch_size
@@ -112,19 +124,17 @@ class Trainer():
                 self.stored_losses['kl_loss_' + str(i)] = 0
             self.graph_logger.log(epoch, avg_kl_per_factor)
 
-            if save_training_gif is not None:
-                # Generate batch of images and convert to grid
-                viz = save_training_gif[1]
-                viz.save_images = False
-                img_grid = viz.all_latent_traversals(size=10)
-                # Convert to numpy and transpose axes to fit imageio convention
-                # i.e. (width, height, channels)
-                img_grid = np.transpose(img_grid.numpy(), (1, 2, 0))
-                # Add image grid to training progress
+            if self.is_viz_gif:
+                self.vizualizer.save_images = False
+                img_grid = self.vizualizer.all_latent_traversals(size=10)
+                # imageio convention as seen:
+                # in https://github.com/pytorch/vision/blob/master/torchvision/utils.py
+                img_grid = img_grid.mul_(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to('cpu', torch.uint8).numpy()
                 training_progress_images.append(img_grid)
 
-        if save_training_gif is not None:
-            imageio.mimsave(save_training_gif[0], training_progress_images,
+        if self.is_viz_gif:
+            imageio.mimsave(os.path.join(self.save_dir, "training.gif"),
+                            training_progress_images,
                             fps=24)
 
     def _train_epoch(self, data_loader):
@@ -163,18 +173,16 @@ class Trainer():
         data : torch.Tensor
             A batch of data. Shape : (batch_size, channel, height, width).
         """
+        data = data.to(self.device)
 
         # For factor-vae
         if self.loss_type == 'factorising':
-
             train_loss = self.loss_f(data, self.model, self.optimizer,
                                      self.model.training, self.stored_losses)
 
         # Generic iteration for other models
         else:
-
             self.optimizer.zero_grad()
-            data = data.to(self.device)
             recon_batch, latent_dist = self.model(data)
             loss = self.loss_f(data, recon_batch, latent_dist, self.model.training, self.stored_losses)
             # make loss independent of number of pixels

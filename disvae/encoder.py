@@ -14,8 +14,7 @@ def get_Encoder(name):
 
 class EncoderBetaB(nn.Module):
     def __init__(self, img_size,
-                 latent_dim=10,
-                 device=torch.device("cpu")):
+                 latent_dim=10):
         r"""Encoder of the model proposed in [1].
 
         Parameters
@@ -25,9 +24,6 @@ class EncoderBetaB(nn.Module):
 
         latent_dim : int
             Dimensionality of latent output.
-
-        device : torch.device
-            Device on which to run the code.
 
         Model Architecture (transposed for decoder)
         ------------
