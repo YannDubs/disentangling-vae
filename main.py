@@ -11,6 +11,7 @@ from torch import optim
 from disvae.vae import VAE
 from disvae.encoder import get_Encoder
 from disvae.decoder import get_Decoder
+from disvae.discriminator import Discriminator
 from disvae.training import Trainer
 from utils.dataloaders import (get_dataloaders, get_img_size)
 from utils.log_plotter import LogPlotter
@@ -97,7 +98,8 @@ def parse_arguments():
 
     # Predefined experiments
     experiment = parser.add_argument_group('Predefined experiments')
-    experiments = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite', 'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs']
+    experiments = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite',
+                    'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs']
     experiment.add_argument('-x', '--experiment',
                             default=default_config['experiment'], choices=experiments,
                             help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
@@ -177,15 +179,22 @@ def main(args):
     decoder = get_Decoder(args.model)
     model = VAE(img_size, encoder, decoder, args.latent_dim, device=device)
 
+    # PREPARES DISCRIMINATOR FOR FACTOR VAE
+    if args.loss == "factorising":
+        discriminator = Discriminator()
+        optimizer_d = optim.Adam(discriminator.parameters(), lr=args.lr, betas=(0.5, 0.9))
+        loss_kwargs = dict(discriminator=discriminator, optimizer_d=optimizer_d, beta=args.beta, device=device)
+    else:
+        loss_kwargs = dict(capacity=args.capacity, beta=args.beta)
+
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     nParams = sum([np.prod(p.size()) for p in model_parameters])
     logger.info('Num parameters in model: {}'.format(nParams))
 
     # TRAINS
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    loss_kwargs = dict(capacity=args.capacity, beta=args.beta)
     trainer = Trainer(model, optimizer,
-                      loss=args.loss,
+                      loss_type=args.loss,
                       latent_dim=args.latent_dim,
                       loss_kwargs=loss_kwargs,
                       print_loss_every=args.print_every,
