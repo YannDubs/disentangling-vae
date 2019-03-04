@@ -3,6 +3,8 @@ import os
 
 import numpy as np
 from skimage.io import imread
+
+import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import datasets, transforms
 
@@ -20,7 +22,7 @@ def get_img_size(dataset):
     return img_size
 
 
-def get_dataloaders(batch_size, dataset, shuffle=False):
+def get_dataloaders(dataset, shuffle=True, pin_memory=True, batch_size=128, **kwargs):
     """A generic data loader"""
     dataset_options = {
         "mnist": get_mnist_dataloaders,
@@ -29,14 +31,15 @@ def get_dataloaders(batch_size, dataset, shuffle=False):
         "chairs": get_chairs_dataloader,
         "celeba": get_celeba_dataloader
     }
+    pin_memory = pin_memory and torch.cuda.is_available  # only pin if GPU available
     if dataset in dataset_options:
-        return dataset_options[dataset](batch_size=batch_size, shuffle=shuffle)
+        return dataset_options[dataset](batch_size=batch_size, shuffle=shuffle,
+                                        pin_memory=pin_memory, **kwargs)
     else:
         raise Exception("{} is not valid. Please enter a valid dataset".format(dataset))
 
 
-def get_mnist_dataloaders(batch_size=128, shuffle=True,
-                          path_to_data=os.path.join(DIR, '../data/mnist')):
+def get_mnist_dataloaders(path_to_data=os.path.join(DIR, '../data/mnist'), **kwargs):
     """MNIST dataloader with (32, 32) images."""
     all_transforms = transforms.Compose([
         transforms.Resize(32),
@@ -46,13 +49,13 @@ def get_mnist_dataloaders(batch_size=128, shuffle=True,
                                 transform=all_transforms)
     test_data = datasets.MNIST(path_to_data, train=False,
                                transform=all_transforms)
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
-    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=shuffle)
+    train_loader = DataLoader(train_data, **kwargs)
+    test_loader = DataLoader(test_data, **kwargs)
     return train_loader, test_loader
 
 
-def get_fashion_mnist_dataloaders(batch_size=128, shuffle=True,
-                                  path_to_data=os.path.join(DIR, '../data/fashion/mnist')):
+def get_fashion_mnist_dataloaders(path_to_data=os.path.join(DIR, '../data/fashion/mnist'),
+                                  **kwargs):
     """FashionMNIST dataloader with (32, 32) images."""
     all_transforms = transforms.Compose([
         transforms.Resize(32),
@@ -62,23 +65,22 @@ def get_fashion_mnist_dataloaders(batch_size=128, shuffle=True,
                                        transform=all_transforms)
     test_data = datasets.FashionMNIST(path_to_data, train=False,
                                       transform=all_transforms)
-    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=shuffle)
-    test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=shuffle)
+    train_loader = DataLoader(train_data, **kwargs)
+    test_loader = DataLoader(test_data, **kwargs)
     return train_loader, test_loader
 
 
-def get_dsprites_dataloader(batch_size=128, shuffle=True,
-                            path_to_data=os.path.join(DIR, '../data/dsprites/dsprites.npy')):
+def get_dsprites_dataloader(path_to_data=os.path.join(DIR, '../data/dsprites/dsprites.npy'),
+                            **kwargs):
     """DSprites dataloader."""
     dsprites_data = DSpritesDataset(path_to_data,
                                     transform=transforms.ToTensor())
-    dsprites_loader = DataLoader(dsprites_data, batch_size=batch_size,
-                                 shuffle=shuffle)
+    dsprites_loader = DataLoader(dsprites_data, **kwargs)
     return dsprites_loader, None
 
 
-def get_chairs_dataloader(batch_size=128, shuffle=True,
-                          path_to_data=os.path.join(DIR, '../data/chairs/rendered_chairs_64')):
+def get_chairs_dataloader(path_to_data=os.path.join(DIR, '../data/chairs/rendered_chairs_64'),
+                          **kwargs):
     """Chairs dataloader. Chairs are center cropped and resized to (64, 64)."""
     all_transforms = transforms.Compose([
         transforms.Grayscale(),
@@ -86,13 +88,12 @@ def get_chairs_dataloader(batch_size=128, shuffle=True,
     ])
     chairs_data = datasets.ImageFolder(root=path_to_data,
                                        transform=all_transforms)
-    chairs_loader = DataLoader(chairs_data, batch_size=batch_size,
-                               shuffle=shuffle)
+    chairs_loader = DataLoader(chairs_data, **kwargs)
     return chairs_loader
 
 
-def get_chairs_test_dataloader(batch_size=62, shuffle=True,
-                               path_to_data=os.path.join(DIR, '../data/chairs/rendered_chairs_64_test')):
+def get_chairs_test_dataloader(path_to_data=os.path.join(DIR, '../data/chairs/rendered_chairs_64_test'),
+                               **kwargs):
     """There are 62 pictures of each chair, so get batches of data containing
     one chair per batch."""
     all_transforms = transforms.Compose([
@@ -101,18 +102,16 @@ def get_chairs_test_dataloader(batch_size=62, shuffle=True,
     ])
     chairs_data = datasets.ImageFolder(root=path_to_data,
                                        transform=all_transforms)
-    chairs_loader = DataLoader(chairs_data, batch_size=batch_size,
-                               shuffle=shuffle)
+    chairs_loader = DataLoader(chairs_data, **kwargs)
     return chairs_loader
 
 
-def get_celeba_dataloader(batch_size=128, shuffle=True,
-                          path_to_data=os.path.join(DIR, '../data/celeba_64')):
+def get_celeba_dataloader(path_to_data=os.path.join(DIR, '../data/celeba_64'),
+                          **kwargs):
     """CelebA dataloader with (64, 64) images."""
     celeba_data = CelebADataset(path_to_data,
                                 transform=transforms.ToTensor())
-    celeba_loader = DataLoader(celeba_data, batch_size=batch_size,
-                               shuffle=shuffle)
+    celeba_loader = DataLoader(celeba_data, **kwargs)
     return celeba_loader
 
 
