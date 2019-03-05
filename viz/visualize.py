@@ -49,15 +49,19 @@ class Visualizer():
             _, latent_dist = self.model(input_data)
             means = latent_dist[1]
 
-            heat_map = torch.zeros([1, 1, heat_map_size[0], heat_map_size[1]], dtype=torch.int32)
+            heat_map_height = heat_map_size[0]
+            heat_map_width = heat_map_size[1]
+
+            heat_map = torch.zeros([1, 1, heat_map_height, heat_map_width], dtype=torch.int32)
 
             for latent_dim in range(means.shape[1]):
-                for y_posn in range(32):
-                    for x_posn in range(32):
-                        heat_map[0, 0, x_posn, y_posn] = means[32 * y_posn + x_posn, latent_dim]
+                for y_posn in range(heat_map_width):
+                    for x_posn in range(heat_map_height):
+                        heat_map[0, 0, x_posn, y_posn] = means[heat_map_width * y_posn + x_posn, latent_dim]
 
                 if self.save_images:
-                    heat_map_name = filename[:-4] + '-{}'.format(latent_dim) + filename[-4:]
+                    [name, extension] = filename.split('.')
+                    heat_map_name = name + '-{}'.format(latent_dim) + '.' + extension
                     save_image(heat_map.data, heat_map_name, nrow=latent_dim)
                 else:
                     return make_grid(heat_map.data, nrow=latent_dim)

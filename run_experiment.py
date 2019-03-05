@@ -19,24 +19,12 @@ def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
 
         data_loader = get_dataloaders(batch_size=batch_size, dataset=dataset_name, shuffle=shuffle)
 
-        for batch_idx, (test_data, label) in enumerate(data_loader):
+        data_list = []
+        for batch_idx, (new_data, label) in enumerate(data_loader):
             if num_samples == batch_idx:
                 break
-            if batch_idx == 0:
-                data = test_data
-            else:
-                data = torch.cat(tensors=(data, test_data))
-        return data
-
-def sprite_location():
-    """ Read the sprite (x,y) locations as a 2 column numpy array.
-    """
-    sprite_dir = './data/dsprites-dataset/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz'
-    dataset_zip = np.load(sprite_dir)
-    latents_values = dataset_zip['latents_values']
-    x_y_posn = latents_values[:32*32, -2:]
-
-    return x_y_posn
+            data_list.append(new_data)
+        return torch.cat(data_list)
 
 def parse_arguments():
     """ Set up a command line interface for directing the experiment to be run.
