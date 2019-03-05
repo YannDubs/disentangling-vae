@@ -3,10 +3,11 @@ from viz.latent_traversals import LatentTraverser
 from scipy import stats
 from torch.autograd import Variable
 from torchvision.utils import make_grid, save_image
+import numpy as np
 
 
 class Visualizer():
-    def __init__(self, model):
+    def __init__(self, model, save_images=True):
         """
         Visualizer is used to generate images of samples, reconstructions,
         latent traversals and so on of the trained model.
@@ -14,11 +15,57 @@ class Visualizer():
         Parameters
         ----------
         model : disvae.vae.VAE
+
+        save_images : bool
+            Whether to save images or return a tensor.
         """
         self.model = model
+        self.device = next(self.model.parameters()).device
         self.latent_traverser = LatentTraverser(self.model.latent_dim)
-        self.save_images = True  # If false, each method returns a tensor
-        # instead of saving image.
+        self.save_images = save_images
+
+    def generate_heat_maps(self, data, heat_map_size=(32, 32), filename='imgs/heatmap.png'):
+        """
+        Generates heat maps of the mean of each latent dimension in the model. The spites are
+        assumed to be in order, therefore no information about (x,y) positions is required.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            Data to be used to generate the heat maps. Shape (N, C, H, W)
+
+        heat_map_size : tuple of ints
+            Size of grid on which heat map will be plotted.
+
+        filename : String
+            The name of the file you want the heat maps to be saved as.
+            Note that a suffix of -* will be used to denote the latent dimension number.
+        """
+        # Plot reconstructions in test mode, i.e. without sampling from latent
+        self.model.eval()
+        # Pass data through VAE to obtain reconstruction
+        with torch.no_grad():
+            input_data = data.to(self.device)
+            _, latent_dist = self.model(input_data)
+            means = latent_dist[1]
+
+            heat_map_height = heat_map_size[0]
+            heat_map_width = heat_map_size[1]
+
+            heat_map = torch.zeros([1, 1, heat_map_height, heat_map_width], dtype=torch.int32)
+
+            for latent_dim in range(means.shape[1]):
+                for y_posn in range(heat_map_width):
+                    for x_posn in range(heat_map_height):
+                        heat_map[0, 0, x_posn, y_posn] = means[heat_map_width * y_posn + x_posn, latent_dim]
+
+                if self.save_images:
+                    [name, extension] = filename.split('.')
+                    heat_map_name = name + '-{}'.format(latent_dim) + '.' + extension
+                    save_image(heat_map.data, heat_map_name, nrow=latent_dim)
+                else:
+                    return make_grid(heat_map.data, nrow=latent_dim)
+    
 
     def reconstructions(self, data, size=(8, 8), filename='imgs/recon.png'):
         """
@@ -38,7 +85,7 @@ class Visualizer():
         self.model.eval()
         # Pass data through VAE to obtain reconstruction
         with torch.no_grad():
-            input_data = data.to(self.model.device)
+            input_data = data.to(self.device)
             recon_data, _ = self.model(input_data)
         self.model.train()
 
@@ -165,7 +212,7 @@ class Visualizer():
             Samples from latent distribution. Shape (N, L) where L is dimension
             of latent distribution.
         """
-        latent_samples = latent_samples.to(self.model.device)
+        latent_samples = latent_samples.to(self.device)
         return self.model.decoder(latent_samples).cpu()
 
 

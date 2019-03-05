@@ -2,24 +2,29 @@ import argparse
 import json
 import torch
 import matplotlib.pyplot as plt
+import numpy as np
 
 from disvae.vae import VAE
-from utils.dataloaders import get_dataloaders
-from viz.visualize import Visualizer as Viz    
+from utils.datasets import get_dataloaders
+from viz.visualize import Visualizer as Viz
+from utils.load_model import load_model
 
 
-def random_samples(experiment_name, num_samples=1):
-    """ generate a number of random samples from the dataset
+def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
+    """ generate a number of samples from the dataset
     """
-    with open('trained_models/{}/specs.json'.format(experiment_name)) as spec_file:
+    with open('experiments/{}/specs.json'.format(experiment_name)) as spec_file:
         spec_data = json.load(spec_file)
         dataset_name = spec_data['dataset']
 
-        _, test_loader = get_dataloaders(batch_size=num_samples, dataset=dataset_name, shuffle=True)
+        data_loader = get_dataloaders(batch_size=batch_size, dataset=dataset_name, shuffle=shuffle)
 
-        for (test_data, _) in test_loader:
-            return test_data
-
+        data_list = []
+        for batch_idx, (new_data, label) in enumerate(data_loader):
+            if num_samples == batch_idx:
+                break
+            data_list.append(new_data)
+        return torch.cat(data_list)
 
 def parse_arguments():
     """ Set up a command line interface for directing the experiment to be run.
@@ -35,24 +40,25 @@ def parse_arguments():
                             help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
 
     visualisation = parser.add_argument_group('Desired Visualisation')
-    visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction']
+    visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction', 'heat_maps']
     visualisation.add_argument('-v', '--visualisation',
-                            default='random_samples', choices=visualisation_options,
-                            help='Predefined visualisation options which can be performed.')
+                               default='random_samples', choices=visualisation_options,
+                               help='Predefined visualisation options which can be performed.')
     visualisation.add_argument('-s', '--sweep_dim',
                             default=0, help='The latent dimension to sweep (if applicable)')
-    visualisation.add_argument('-n', '--num_samples',
+    visualisation.add_argument('-n', '--num_samples', type=int,
                             default=1, help='The number of samples to visualise (if applicable).')
 
     args = parser.parse_args()
     return args
 
+
 def main(args):
     """ The primary entry point for carrying out experiments on pretrained models.
     """
     experiment_name = args.experiment
-
-    model = torch.load('trained_models/{}/model.pt'.format(experiment_name))
+    
+    model = load_model('experiments/{}'.format(experiment_name))
     model.eval()
     viz = Viz(model)
 
@@ -60,10 +66,11 @@ def main(args):
         'random_samples': lambda: viz.samples(),
         'traverse_all_latent_dims': lambda: viz.all_latent_traversals(),
         'traverse_one_latent_dim': lambda: viz.latent_traversal_line(idx=args.sweep_dim),
-        'random_reconstruction': lambda: viz.reconstructions(data=random_samples(experiment_name=experiment_name, num_samples=args.num_samples))
+        'random_reconstruction': lambda: viz.reconstructions(data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True)),
+        'heat_maps': lambda: viz.generate_heat_maps(data=samples(experiment_name=experiment_name, num_samples=32*32, shuffle=False))
     }
 
-    return visualisation_options.get(args.visualisation, lambda : "Invalid visualisation option")()
+    return visualisation_options.get(args.visualisation, lambda: "Invalid visualisation option")()
 
 
 if __name__ == '__main__':

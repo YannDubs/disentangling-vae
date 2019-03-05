@@ -1,8 +1,9 @@
 import argparse
 import os
 import logging
-from timeit import default_timer
+import shutil
 import json
+from timeit import default_timer
 
 import torch
 import numpy as np
@@ -13,9 +14,7 @@ from disvae.encoder import get_Encoder
 from disvae.decoder import get_Decoder
 from disvae.discriminator import Discriminator
 from disvae.training import Trainer
-from utils.dataloaders import (get_dataloaders, get_img_size)
-from utils.log_plotter import LogPlotter
-from viz.visualize import Visualizer
+from utils.datasets import (get_dataloaders, get_img_size)
 
 
 def default_experiment():
@@ -23,7 +22,7 @@ def default_experiment():
             'batch_size': 64,
             'no_cuda': False,
             'seed': 1234,
-            'log-level': "info",
+            'log_level': "info",
             "lr": 1e-3,
             "capacity": [0.0, 5.0, 25000, 30.0],
             "beta": 4.,
@@ -81,7 +80,7 @@ def parse_arguments():
     general = parser.add_argument_group('General options')
     log_levels = ['critical', 'error', 'warning', 'info', 'debug']
     general.add_argument('-L', '--log-level', help="Logging levels.",
-                         default=default_config['log-level'],
+                         default=default_config['log_level'],
                          choices=log_levels)
     parser.add_argument("-P", '--print_every',
                         type=int, default=default_config['print_every'],
@@ -98,11 +97,12 @@ def parse_arguments():
 
     # Predefined experiments
     experiment = parser.add_argument_group('Predefined experiments')
-    experiments = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite',
-                    'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs']
+    experiments = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite', 'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs']
     experiment.add_argument('-x', '--experiment',
                             default=default_config['experiment'], choices=experiments,
                             help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
+    experiment.add_argument('-n', '--name', type=str, default=None,
+                            help="Name for storing the experiment. If not given, uses `experiment`.")
 
     # Learning options
     learn = parser.add_argument_group('Learning options')
@@ -144,10 +144,11 @@ def parse_arguments():
                        help="type of VAE loss function to use.")
 
     args = parser.parse_args()
+    args = set_experiment(args)
+    if args.name is None:
+        args.name = args.experiment
 
-    experiment_config = set_experiment(args)
-
-    return experiment_config
+    return args
 
 
 def main(args):
@@ -157,6 +158,15 @@ def main(args):
                         datefmt="%H:%M:%S")
     logger = logging.getLogger(__name__)
     logger.setLevel(args.log_level.upper())
+
+    # Experiments directory
+    exp_dir = "experiments/{}".format(args.name)
+    if os.path.exists(exp_dir):
+        warn = "Directory {} already exists. Archiving it to {}.zip"
+        logger.warning(warn.format(exp_dir, exp_dir))
+        shutil.make_archive(exp_dir, 'zip', exp_dir)
+        shutil.rmtree(exp_dir)
+    os.makedirs(exp_dir)
 
     if args.seed is not None:
         np.random.seed(args.seed)
@@ -168,7 +178,9 @@ def main(args):
                           else "cpu")
 
     # PREPARES DATA
-    train_loader, test_loader = get_dataloaders(batch_size=args.batch_size, dataset=args.dataset)
+    train_loader = get_dataloaders(args.dataset,
+                                   batch_size=args.batch_size,
+                                   pin_memory=not args.no_cuda)
 
     img_size = get_img_size(args.dataset)
 
@@ -177,7 +189,7 @@ def main(args):
     # PREPARES MODEL
     encoder = get_Encoder(args.model)
     decoder = get_Decoder(args.model)
-    model = VAE(img_size, encoder, decoder, args.latent_dim, device=device)
+    model = VAE(img_size, encoder, decoder, args.latent_dim)
 
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     nParams = sum([np.prod(p.size()) for p in model_parameters])
@@ -193,26 +205,21 @@ def main(args):
                       print_loss_every=args.print_every,
                       record_loss_every=args.record_every,
                       device=device,
-                      log_level=args.log_level)
-    viz = Visualizer(model)
-    trainer.train(train_loader,
-                  epochs=args.epochs,
-                  save_training_gif=('./imgs/training.gif', viz))
+                      log_level=args.log_level,
+                      save_dir=exp_dir)
+    trainer.train(train_loader, epochs=args.epochs)
 
     # SAVE MODEL AND EXPERIMENT INFORMATION
-    model_dir = "trained_models/{}/".format(args.experiment)
-
-    if not os.path.exists(model_dir):
-        os.makedirs(model_dir)
-
-    torch.save(trainer.model, os.path.join(model_dir, 'model.pt'))
-    with open(os.path.join(model_dir, 'specs.json'), 'w') as f:
+    trainer.model.cpu()
+    torch.save(trainer.model.state_dict(), os.path.join(exp_dir, 'model.pt'))
+    with open(os.path.join(exp_dir, 'specs.json'), 'w') as f:
         specs = dict(dataset=args.dataset,
                      latent_dim=args.latent_dim,
                      model_type=args.model,
                      loss=args.loss,
                      loss_kwargs=loss_kwargs,
-                     experiment_name=args.experiment)
+                     experiment_name=args.experiment,
+                     name=args.name)
         json.dump(specs, f)
 
     logger.info('Finished after {:.1f} min.'.format((default_timer() - start) / 60))
