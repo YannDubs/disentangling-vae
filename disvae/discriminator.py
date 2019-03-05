@@ -4,9 +4,11 @@ from torch import nn
 
 class Discriminator(nn.Module):
     def __init__(self,
+                 neg_slope=0.2,
                  latent_dim=10,
+                 hidden_units=1000,
                  device=torch.device("cpu")):
-        r"""Discriminator proposed in [1].
+        """Discriminator proposed in [1].
 
         Parameters
         ----------
@@ -30,12 +32,12 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
 
         # Activation parameters
-        neg_slope = 0.2
+        self.neg_slope = neg_slope
         self.leaky_relu = nn.LeakyReLU(neg_slope, True)
 
         # Layer parameters
         self.z_dim = latent_dim
-        hidden_units = 1000
+        self.hidden_units = hidden_units
         out_units = 2
 
         # Fully connected layers

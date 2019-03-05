@@ -19,7 +19,7 @@ from viz.visualize import Visualizer
 
 
 def default_experiment():
-    return {'epochs': 100,
+    return {'epochs': 10,
             'batch_size': 64,
             'no_cuda': False,
             'seed': 1234,
@@ -27,7 +27,7 @@ def default_experiment():
             "lr": 1e-3,
             "capacity": [0.0, 5.0, 25000, 30.0],
             "beta": 4.,
-            "loss": "betaB",
+            "loss": "factorising",
             "print_every": 50,
             "record_every": 5,
             'model': 'Burgess',  # follows the paper by Burgess et al
@@ -179,20 +179,13 @@ def main(args):
     decoder = get_Decoder(args.model)
     model = VAE(img_size, encoder, decoder, args.latent_dim, device=device)
 
-    # PREPARES DISCRIMINATOR FOR FACTOR VAE
-    if args.loss == "factorising":
-        discriminator = Discriminator()
-        optimizer_d = optim.Adam(discriminator.parameters(), lr=args.lr, betas=(0.5, 0.9))
-        loss_kwargs = dict(discriminator=discriminator, optimizer_d=optimizer_d, beta=args.beta, device=device)
-    else:
-        loss_kwargs = dict(capacity=args.capacity, beta=args.beta)
-
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     nParams = sum([np.prod(p.size()) for p in model_parameters])
     logger.info('Num parameters in model: {}'.format(nParams))
 
     # TRAINS
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    loss_kwargs = dict(capacity=args.capacity, beta=args.beta)
     trainer = Trainer(model, optimizer,
                       loss_type=args.loss,
                       latent_dim=args.latent_dim,

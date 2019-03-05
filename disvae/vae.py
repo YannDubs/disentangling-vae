@@ -55,7 +55,7 @@ class VAE(nn.Module):
             # Reconstruction mode
             return mean
 
-    def forward(self, x):
+    def forward(self, x, get_sample=False):
         """
         Forward pass of model.
 
@@ -63,13 +63,20 @@ class VAE(nn.Module):
         ----------
         x : torch.Tensor
             Batch of data. Shape (batch_size, n_chan, height, width)
+
+        get_sample : bool
+            Returns only the latent sample for factor-VAE
         """
         latent_dist = self.encoder(x)
         latent_sample = self.reparameterize(*latent_dist)
-        reconstruct = self.decoder(latent_sample)
-        if self.is_color:
-            reconstruct = reconstruct * 255
-        return reconstruct, latent_dist
+
+        if get_sample:
+            return latent_sample
+        else:
+            reconstruct = self.decoder(latent_sample)
+            if self.is_color:
+                reconstruct = reconstruct * 255
+            return reconstruct, latent_dist, latent_sample
 
     def reset_parameters(self):
         self.apply(weights_init)
