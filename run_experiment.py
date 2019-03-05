@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from disvae.vae import VAE
-from utils.dataloaders import get_dataloaders
+from utils.datasets import get_dataloaders
 from viz.visualize import Visualizer as Viz
+from utils.load_model import load_model
 
 
 def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
@@ -16,7 +17,7 @@ def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
         spec_data = json.load(spec_file)
         dataset_name = spec_data['dataset']
 
-        data_loader, _ = get_dataloaders(batch_size=batch_size, dataset=dataset_name, shuffle=shuffle)
+        data_loader = get_dataloaders(batch_size=batch_size, dataset=dataset_name, shuffle=shuffle)
 
         for batch_idx, (test_data, label) in enumerate(data_loader):
             if num_samples == batch_idx:
@@ -68,8 +69,8 @@ def main(args):
     """ The primary entry point for carrying out experiments on pretrained models.
     """
     experiment_name = args.experiment
-
-    model = torch.load('experiments/{}/model.pt'.format(experiment_name))
+    
+    model = load_model('experiments/{}'.format(experiment_name))
     model.eval()
     viz = Viz(model)
 

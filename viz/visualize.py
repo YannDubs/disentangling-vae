@@ -45,9 +45,9 @@ class Visualizer():
         self.model.eval()
         # Pass data through VAE to obtain reconstruction
         with torch.no_grad():
-            input_data = data.to(self.model.device)
+            input_data = data.to(self.device)
             _, latent_dist = self.model(input_data)
-            means = latent_dist[0,:,:]
+            means = latent_dist[1]
 
             heat_map = torch.zeros([1, 1, heat_map_size[0], heat_map_size[1]], dtype=torch.int32)
 
