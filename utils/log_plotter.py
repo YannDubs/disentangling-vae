@@ -5,8 +5,20 @@ import pandas as pd
 class LogPlotter(object):
     """ Definition of a class for reading in a log file and plotting the results.
     """
-    def __init__(self, log_dir, output_dir):
-        self.plot(log_dir)
+    def __init__(self, log_dir, output_file_name=None, pdf=False):
+        """ Initialise log plot """
+        plot = self.plot(log_dir)
+
+        if output_file_name is None:
+            plot.show()
+        else:
+            if output_file_name[-4:] == '.png' or output_file_name[-4:] == '.pdf':
+                plot.savefig(output_file_name)
+            else:
+                if pdf:
+                    plot.savefig(output_file_name + '.pdf')
+                else:
+                    plot.savefig(output_file_name + '.png')
 
     def plot(self, log_dir):
         """ Display the content of the log file as a line plot"""
@@ -15,4 +27,4 @@ class LogPlotter(object):
         x_axis = list(df)[0]
         df.plot(x=x_axis, y=headers, grid=True, style='-')
 
-        plt.show()
+        return plt
