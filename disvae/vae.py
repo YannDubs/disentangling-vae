@@ -6,8 +6,7 @@ from disvae.initialization import weights_init
 
 
 class VAE(nn.Module):
-    def __init__(self, img_size, encoder, decoder, latent_dim,
-                 device=torch.device("cpu")):
+    def __init__(self, img_size, encoder, decoder, latent_dim):
         """
         Class which defines model and forward pass.
 
@@ -15,9 +14,6 @@ class VAE(nn.Module):
         ----------
         img_size : tuple of ints
             Size of images. E.g. (1, 32, 32) or (3, 64, 64).
-
-        device : torch.device
-            Device on which to run the code.
         """
         super(VAE, self).__init__()
 
@@ -26,11 +22,10 @@ class VAE(nn.Module):
 
         self.latent_dim = latent_dim
         self.img_size = img_size
-        self.device = device
         self.is_color = self.img_size[0] > 1
         self.num_pixels = self.img_size[1] * self.img_size[2]
-        self.encoder = encoder(img_size, self.latent_dim, self.device)
-        self.decoder = decoder(img_size, self.latent_dim, self.device)
+        self.encoder = encoder(img_size, self.latent_dim)
+        self.decoder = decoder(img_size, self.latent_dim)
 
         self.reset_parameters()
 
