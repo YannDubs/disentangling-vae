@@ -17,6 +17,7 @@ class Visualizer():
         model : disvae.vae.VAE
         """
         self.model = model
+        self.device = next(self.model.parameters()).device
         self.latent_traverser = LatentTraverser(self.model.latent_dim)
         self.save_images = True  # If false, each method returns a tensor
         # instead of saving image.
@@ -78,7 +79,7 @@ class Visualizer():
         self.model.eval()
         # Pass data through VAE to obtain reconstruction
         with torch.no_grad():
-            input_data = data.to(self.model.device)
+            input_data = data.to(self.device)
             recon_data, _ = self.model(input_data)
         self.model.train()
 
@@ -205,7 +206,7 @@ class Visualizer():
             Samples from latent distribution. Shape (N, L) where L is dimension
             of latent distribution.
         """
-        latent_samples = latent_samples.to(self.model.device)
+        latent_samples = latent_samples.to(self.device)
         return self.model.decoder(latent_samples).cpu()
 
 
