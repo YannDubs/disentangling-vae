@@ -55,7 +55,7 @@ def get_dataset(dataset):
     dataset = dataset.lower()
     if dataset == "mnist":
         return MNIST
-    elif dataset == "fashionmnist":
+    elif dataset == "fashion":
         return FashionMNIST
     elif dataset == "dsprites":
         return DSprites

@@ -91,7 +91,7 @@ def parse_arguments():
 
     # Dataset options
     data = parser.add_argument_group('Dataset options')
-    datasets = ['mnist', "celeba", "chairs", "dsprites", "fashion_mnist"]
+    datasets = ['mnist', "celeba", "chairs", "dsprites", "fashion"]
     data.add_argument('-d', '--dataset', help="Path to training data.",
                       default=default_config['dataset'], choices=datasets)
 
