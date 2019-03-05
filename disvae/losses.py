@@ -62,9 +62,9 @@ class BaseLoss(abc.ABC):
         recon_data : torch.Tensor
             Reconstructed data. Shape : (batch_size, n_chan, height, width).
 
-        latent_dist : tuple of torch.tensor
+        latent_dist : torch.Tensor
             sufficient statistics of the latent dimension. E.g. for gaussian
-            (mean, log_var) each of shape : (batch_size, latent_dim).
+            (mean, logvar) each of shape : (batch_size, latent_dim).
 
         storer : dict
             Dictionary in which to store important variables for vizualisation.
@@ -108,7 +108,8 @@ class BetaHLoss(BaseLoss):
         storer = self._pre_call(is_train, storer)
 
         rec_loss = _reconstruction_loss(data, recon_data, self.is_color)
-        kl_loss = _kl_normal_loss(*latent_dist, storer)
+        mean, logvar = latent_dist
+        kl_loss = _kl_normal_loss(mean, logvar, storer)
         loss = rec_loss + self.beta * kl_loss
 
         if storer is not None:
@@ -156,7 +157,8 @@ class BetaBLoss(BaseLoss):
         storer = self._pre_call(is_train, storer)
 
         rec_loss = _reconstruction_loss(data, recon_data, self.is_color)
-        kl_loss = _kl_normal_loss(*latent_dist, storer)
+        mean, logvar = latent_dist
+        kl_loss = _kl_normal_loss(mean, logvar, storer)
 
         # linearly increasing C
         C_delta = (self.C_max - self.C_min)
@@ -218,7 +220,7 @@ class FactorKLoss(BaseLoss):
         rec_loss = _reconstruction_loss(data1, recon_batch, self.is_color)
 
         # Get KL-Divergence (latent_dist[0] = mean, latent_dist[1] = log_var)
-        kl_loss = _kl_normal_loss(*latent_dist, storer)
+        kl_loss = _kl_normal_loss(latent_dist[0], latent_dist[1], storer)
 
         # Run latent distribution through discriminator
         d_z = self.discriminator(latent_dist)
@@ -333,9 +335,9 @@ def _permute_dims(latent_dist):
 
     Parameters
     ----------
-    latent_dist : tuple of torch.tensor
+    latent_dist : torch.Tensor
         sufficient statistics of the latent dimension. E.g. for gaussian
-        (mean, log_var) each of shape : (batch_size, latent_dim).
+        (mean, log_var), each of shape : (batch_size, latent_dim).
 
     References :
         [1] Kim, Hyunjik, and Andriy Mnih. "Disentangling by factorising."

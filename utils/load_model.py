@@ -6,7 +6,9 @@ import torch
 from disvae.vae import VAE
 from disvae.encoder import get_Encoder
 from disvae.decoder import get_Decoder
-from utils.datasets import get_img_size
+from utils.dataloaders import (get_mnist_dataloaders, get_dsprites_dataloader,
+                               get_chairs_dataloader, get_fashion_mnist_dataloaders,
+                               get_img_size)
 
 
 def load_model(path, is_gpu=False):
