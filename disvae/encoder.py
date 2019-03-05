@@ -42,6 +42,7 @@ class EncoderBetaB(nn.Module):
         hid_channels = 32
         kernel_size = 4
         hidden_dim = 256
+        self.latent_dim = latent_dim
         self.img_size = img_size
         # Shape required to start transpose convs
         self.reshape = (hid_channels, kernel_size, kernel_size)
@@ -63,8 +64,7 @@ class EncoderBetaB(nn.Module):
         self.lin2 = nn.Linear(hidden_dim, hidden_dim)
 
         # Fully connected layers for mean and variance
-        self.mu_gen = nn.Linear(hidden_dim, latent_dim)
-        self.log_var_gen = nn.Linear(hidden_dim, latent_dim)
+        self.mu_logvar_gen = nn.Linear(hidden_dim, self.latent_dim * 2)
 
     def forward(self, x):
         batch_size = x.size(0)
@@ -82,7 +82,8 @@ class EncoderBetaB(nn.Module):
         x = torch.relu(self.lin2(x))
 
         # Fully connected layer for log variance and mean
-        mu = self.mu_gen(x)
-        log_var = self.log_var_gen(x)  # Log std-dev in paper (bear in mind)
+        # Log std-dev in paper (bear in mind)
+        mu_logvar = self.mu_logvar_gen(x)
+        mu, logvar = mu_logvar.view(-1, self.latent_dim, 2).unbind(-1)
 
-        return torch.stack([mu, log_var])
+        return mu, logvar

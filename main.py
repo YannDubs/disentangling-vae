@@ -14,7 +14,7 @@ from disvae.encoder import get_Encoder
 from disvae.decoder import get_Decoder
 from disvae.discriminator import Discriminator
 from disvae.training import Trainer
-from utils.dataloaders import (get_dataloaders, get_img_size)
+from utils.datasets import (get_dataloaders, get_img_size)
 
 
 def default_experiment():
@@ -178,9 +178,9 @@ def main(args):
                           else "cpu")
 
     # PREPARES DATA
-    train_loader, test_loader = get_dataloaders(args.dataset,
-                                                batch_size=args.batch_size,
-                                                pin_memory=not args.no_cuda)
+    train_loader = get_dataloaders(args.dataset,
+                                   batch_size=args.batch_size,
+                                   pin_memory=not args.no_cuda)
 
     img_size = get_img_size(args.dataset)
 

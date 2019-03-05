@@ -6,7 +6,7 @@ from torchvision.utils import make_grid, save_image
 
 
 class Visualizer():
-    def __init__(self, model):
+    def __init__(self, model, save_images=True):
         """
         Visualizer is used to generate images of samples, reconstructions,
         latent traversals and so on of the trained model.
@@ -14,12 +14,14 @@ class Visualizer():
         Parameters
         ----------
         model : disvae.vae.VAE
+
+        save_images : bool
+            Whether to save images or return a tensor.
         """
         self.model = model
         self.device = next(self.model.parameters()).device
         self.latent_traverser = LatentTraverser(self.model.latent_dim)
-        self.save_images = True  # If false, each method returns a tensor
-        # instead of saving image.
+        self.save_images = save_images
 
     def reconstructions(self, data, size=(8, 8), filename='imgs/recon.png'):
         """
