@@ -8,7 +8,7 @@ from disvae.vae import VAE
 from utils.datasets import get_dataloaders
 from viz.visualize import Visualizer as Viz
 from utils.load_model import load_model
-
+from viz.log_plotter import LogPlotter
 
 def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
     """ generate a number of samples from the dataset
@@ -19,24 +19,12 @@ def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
 
         data_loader = get_dataloaders(batch_size=batch_size, dataset=dataset_name, shuffle=shuffle)
 
-        for batch_idx, (test_data, label) in enumerate(data_loader):
+        data_list = []
+        for batch_idx, (new_data, label) in enumerate(data_loader):
             if num_samples == batch_idx:
                 break
-            if batch_idx == 0:
-                data = test_data
-            else:
-                data = torch.cat(tensors=(data, test_data))
-        return data
-
-def sprite_location():
-    """ Read the sprite (x,y) locations as a 2 column numpy array.
-    """
-    sprite_dir = './data/dsprites-dataset/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz'
-    dataset_zip = np.load(sprite_dir)
-    latents_values = dataset_zip['latents_values']
-    x_y_posn = latents_values[:32*32, -2:]
-
-    return x_y_posn
+            data_list.append(new_data)
+        return torch.cat(data_list)
 
 def parse_arguments():
     """ Set up a command line interface for directing the experiment to be run.
@@ -52,7 +40,8 @@ def parse_arguments():
                             help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
 
     visualisation = parser.add_argument_group('Desired Visualisation')
-    visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction', 'heat_maps']
+    visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction', 
+                             'heat_maps', 'display_avg_KL']
     visualisation.add_argument('-v', '--visualisation',
                                default='random_samples', choices=visualisation_options,
                                help='Predefined visualisation options which can be performed.')
@@ -61,6 +50,10 @@ def parse_arguments():
     visualisation.add_argument('-n', '--num_samples', type=int,
                             default=1, help='The number of samples to visualise (if applicable).')
 
+    dir_opts = parser.add_argument_group('directory options')
+    dir_opts.add_argument('-l', '--log_dir', help='Path to the log file containing the data to plot.')
+    dir_opts.add_argument('-o', '--output_file_name', help='The full path name to use when saving the plot.')
+
     args = parser.parse_args()
     return args
 
@@ -68,18 +61,20 @@ def parse_arguments():
 def main(args):
     """ The primary entry point for carrying out experiments on pretrained models.
     """
-    experiment_name = args.experiment
-    
-    model = load_model('experiments/{}'.format(experiment_name))
-    model.eval()
-    viz = Viz(model)
+    if not args.visualisation == 'display_avg_KL':
+        experiment_name = args.experiment
+        
+        model = load_model('experiments/{}'.format(experiment_name))
+        model.eval()
+        viz = Viz(model)
 
     visualisation_options = {
         'random_samples': lambda: viz.samples(),
         'traverse_all_latent_dims': lambda: viz.all_latent_traversals(),
         'traverse_one_latent_dim': lambda: viz.latent_traversal_line(idx=args.sweep_dim),
         'random_reconstruction': lambda: viz.reconstructions(data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True)),
-        'heat_maps': lambda: viz.generate_heat_maps(data=samples(experiment_name=experiment_name, num_samples=32*32, shuffle=False))
+        'heat_maps': lambda: viz.generate_heat_maps(data=samples(experiment_name=experiment_name, num_samples=32*32, shuffle=False)),
+        'display_avg_KL': lambda: LogPlotter(log_dir=args.log_dir, output_file_name=args.output_file_name)
     }
 
     return visualisation_options.get(args.visualisation, lambda: "Invalid visualisation option")()
