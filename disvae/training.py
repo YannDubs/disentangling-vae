@@ -70,7 +70,7 @@ class Trainer():
         self.print_loss_every = print_loss_every
         self.record_loss_every = record_loss_every
         self.num_latent_dim = latent_dim
-        self.loss_f = get_loss_f(self.loss_type, self.model.is_color, **loss_kwargs)
+        self.loss_f = get_loss_f(self.loss_type, self.model.is_color, device=self.device, **loss_kwargs)
         self.stored_losses = {
             'loss': [],
             'recon_loss': [],
@@ -182,7 +182,7 @@ class Trainer():
         # Generic iteration for other models
         else:
             self.optimizer.zero_grad()
-            recon_batch, latent_dist = self.model(data)
+            recon_batch, latent_dist, _ = self.model(data)
             loss = self.loss_f(data, recon_batch, latent_dist, self.model.training, self.stored_losses)
             # make loss independent of number of pixels
             loss = loss / self.model.num_pixels

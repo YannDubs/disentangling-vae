@@ -5,9 +5,11 @@ import hashlib
 import zipfile
 import glob
 import logging
+import tarfile
 
 from skimage.io import imread
 from PIL import Image
+from tqdm import tqdm
 import numpy as np
 
 import torch
@@ -25,7 +27,19 @@ def get_img_size(dataset):
 
 def get_dataloaders(dataset, root=None, shuffle=True, pin_memory=True,
                     batch_size=128, **kwargs):
-    """A generic data loader"""
+    """A generic data loader
+
+    Parameters
+    ----------
+    dataset : {"mnist", "fashion", "dsprites", "celeba", "chairs"}
+        Name of the dataset to load
+
+    root : str
+        Path to the dataset root. If `None` uses the default one.
+
+    kwargs :
+        Additional arguments to `DataLoader`. Default values are modified.
+    """
     pin_memory = pin_memory and torch.cuda.is_available  # only pin if GPU available
 
     dataset = get_dataset(dataset)
@@ -41,17 +55,30 @@ def get_dataset(dataset):
     dataset = dataset.lower()
     if dataset == "mnist":
         return MNIST
-    elif dataset == "fashionmnist":
+    elif dataset == "fashion":
         return FashionMNIST
     elif dataset == "dsprites":
         return DSprites
     elif dataset == "celeba":
         return CelebA
+    elif dataset == "chairs":
+        return Chairs
     else:
         raise ValueError("Unkown datset: {}".format(dataset))
 
 
-class DisentangledDataset(Dataset):
+class DisentangledDataset(Dataset, abc.ABC):
+    """Base Class for disentangled VAE datasets.
+
+    Parameters
+    ----------
+    root : string
+        Root directory of dataset.
+
+    transforms_list : list
+        List of `torch.vision.transforms` to apply to the data when loading it.
+    """
+
     def __init__(self, root, transforms_list=[]):
         self.root = root
         self.train_data = os.path.join(root, type(self).files["train"])
@@ -67,12 +94,18 @@ class DisentangledDataset(Dataset):
 
     @abc.abstractmethod
     def __getitem__(self, idx):
-        """Get the image of `idx`
+        """Get the image of `idx`.
+
         Return
         ------
         sample : torch.Tensor
             Tensor in [0.,1.] of shape `img_size`.
         """
+        pass
+
+    @abc.abstractmethod
+    def download(self):
+        """Download the dataset. """
         pass
 
 
@@ -175,7 +208,30 @@ class DSprites(DisentangledDataset):
 
 
 class CelebA(DisentangledDataset):
-    """CelebA dataset."""
+    """CelebA Dataset from [1].
+
+    CelebFaces Attributes Dataset (CelebA) is a large-scale face attributes dataset
+    with more than 200K celebrity images, each with 40 attribute annotations.
+    The images in this dataset cover large pose variations and background clutter.
+    CelebA has large diversities, large quantities, and rich annotations, including
+    10,177 number of identities, and 202,599 number of face images.
+
+    Notes
+    -----
+    - Link : http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html
+
+    Parameters
+    ----------
+    root : string
+        Root directory of dataset.
+
+    References
+    ----------
+    [1] Liu, Z., Luo, P., Wang, X., & Tang, X. (2015). Deep learning face
+        attributes in the wild. In Proceedings of the IEEE international conference
+        on computer vision (pp. 3730-3738).
+
+    """
     urls = {"train": "https://s3-us-west-1.amazonaws.com/udacity-dlnfd/datasets/celeba.zip"}
     files = {"train": "img_align_celeba"}
     img_size = (3, 64, 64)
@@ -202,12 +258,20 @@ class CelebA(DisentangledDataset):
 
         os.remove(save_path)
 
-        imgs = glob.glob(self.train_data + '/*')
         logger.info("Resizing CelebA ...")
-        for img in imgs:
-            resize(img)
+        preprocess(self.train_data, size=type(self).img_size[1:])
 
     def __getitem__(self, idx):
+        """Get the image of `idx`
+
+        Return
+        ------
+        sample : torch.Tensor
+            Tensor in [0.,1.] of shape `img_size`.
+
+        placeholder :
+            Placeholder value as their are no targets.
+        """
         img_path = self.imgs[idx]
         # img values already between 0 and 255
         img = imread(img_path)
@@ -220,8 +284,68 @@ class CelebA(DisentangledDataset):
         return img, 0
 
 
+class Chairs(datasets.ImageFolder):
+    """Chairs Dataset from [1].
+
+
+
+    Notes
+    -----
+    - Link : https://www.di.ens.fr/willow/research/seeing3Dchairs
+
+    Parameters
+    ----------
+    root : string
+        Root directory of dataset.
+
+    References
+    ----------
+    [1] Aubry, M., Maturana, D., Efros, A. A., Russell, B. C., & Sivic, J. (2014).
+        Seeing 3d chairs: exemplar part-based 2d-3d alignment using a large dataset
+        of cad models. In Proceedings of the IEEE conference on computer vision
+        and pattern recognition (pp. 3762-3769).
+
+    """
+    urls = {"train": "https://www.di.ens.fr/willow/research/seeing3Dchairs/data/rendered_chairs.tar"}
+    files = {"train": "chairs_64"}
+    img_size = (1, 64, 64)
+
+    def __init__(self, root=os.path.join(DIR, '../data/chairs')):
+        self.root = root
+        self.train_data = os.path.join(root, type(self).files["train"])
+        self.transforms = transforms.Compose([transforms.Grayscale(),
+                                              transforms.ToTensor()])
+
+        if not os.path.isdir(root):
+            logger.info("Downloading {} ...".format(str(type(self))))
+            self.download()
+            logger.info("Finished Downloading.")
+
+        super().__init__(self.train_data, transform=self.transforms)
+
+    def download(self):
+        """Download the dataset."""
+        save_path = os.path.join(self.root, 'chairs.tar')
+        os.makedirs(self.root)
+        subprocess.check_call(["curl", type(self).urls["train"],
+                               "--output", save_path])
+
+        logger.info("Extracting Chairs ...")
+        tar = tarfile.open(save_path)
+        tar.extractall(self.root)
+        tar.close()
+        os.rename(os.path.join(self.root, 'rendered_chairs'), self.train_data)
+
+        os.remove(save_path)
+
+        logger.info("Preprocessing Chairs ...")
+        preprocess(os.path.join(self.train_data, '*/*'),  # root/*/*/*.png structure
+                   size=type(self).img_size[1:],
+                   center_crop=(400, 400))
+
+
 class MNIST(datasets.MNIST):
-    """Mnist wrapper."""
+    """Mnist wrapper. Docs: `datasets.MNIST.`"""
     img_size = (1, 32, 32)
 
     def __init__(self, root=os.path.join(DIR, '../data/mnist')):
@@ -235,7 +359,7 @@ class MNIST(datasets.MNIST):
 
 
 class FashionMNIST(datasets.FashionMNIST):
-    """Fashion Mnist wrapper."""
+    """Fashion Mnist wrapper. Docs: `datasets.FashionMNIST.`"""
     img_size = (1, 32, 32)
 
     def __init__(self, root=os.path.join(DIR, '../data/fashionMnist')):
@@ -247,11 +371,44 @@ class FashionMNIST(datasets.FashionMNIST):
                              transforms.ToTensor()
                          ]))
 
+
 # HELPERS
+def preprocess(root, size=(64, 64), img_format='JPEG', center_crop=None):
+    """Preprocess a folder of images.
 
+    Parameters
+    ----------
+    root : string
+        Root directory of all images.
 
-def resize(img_path, size=(64, 64), ext='JPEG'):
-    """Downsamples an image."""
-    img = Image.open(img_path)
-    img = img.resize(size, Image.ANTIALIAS)
-    img.save(img_path, ext)
+    size : tuple of int
+        Size (width, height) to rescale the images. If `None` don't rescale.
+
+    img_format : string
+        Format to save the image in. Possible formats:
+        https://pillow.readthedocs.io/en/3.1.x/handbook/image-file-formats.html.
+
+    center_crop : tuple of int
+        Size (width, height) to center-crop the images. If `None` don't center-crop.
+    """
+    imgs = []
+    for ext in [".png", ".jpg", ".jpeg"]:
+        imgs += glob.glob(os.path.join(root, '*' + ext))
+
+    for img_path in tqdm(imgs):
+        img = Image.open(img_path)
+        width, height = img.size
+
+        if size is not None and width != size[1] or height != size[0]:
+            img = img.resize(size, Image.ANTIALIAS)
+
+        if center_crop is not None:
+            new_width, new_height = center_crop
+            left = (width - new_width) // 2
+            top = (height - new_height) // 2
+            right = (width + new_width) // 2
+            bottom = (height + new_height) // 2
+
+            img.crop((left, top, right, bottom))
+
+        img.save(img_path, img_format)

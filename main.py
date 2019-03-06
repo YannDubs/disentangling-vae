@@ -2,7 +2,6 @@ import argparse
 import os
 import logging
 import shutil
-import json
 from timeit import default_timer
 
 import torch
@@ -15,9 +14,11 @@ from disvae.decoder import get_Decoder
 from disvae.discriminator import Discriminator
 from disvae.training import Trainer
 from utils.datasets import (get_dataloaders, get_img_size)
+from utils.modelIO import save_model
 
 
 def default_experiment():
+    """Default arguments."""
     return {'epochs': 100,
             'batch_size': 64,
             'no_cuda': False,
@@ -71,6 +72,7 @@ def set_experiment(default_config):
 
 
 def parse_arguments():
+    """Parse the command line arguments."""
     default_config = default_experiment()
 
     parser = argparse.ArgumentParser(description="PyTorch implementation and evaluation of disentangled Variational AutoEncoders.",
@@ -91,7 +93,7 @@ def parse_arguments():
 
     # Dataset options
     data = parser.add_argument_group('Dataset options')
-    datasets = ['mnist', "celeba", "chairs", "dsprites", "fashion_mnist"]
+    datasets = ['mnist', "celeba", "chairs", "dsprites", "fashion"]
     data.add_argument('-d', '--dataset', help="Path to training data.",
                       default=default_config['dataset'], choices=datasets)
 
@@ -124,7 +126,7 @@ def parse_arguments():
     # Model Options
     model = parser.add_argument_group('Learning options')
     models = ['Burgess']
-    model.add_argument('-m', '--model',
+    model.add_argument('-m', '--model-type',
                        default=default_config['model'], choices=models,
                        help='Type of encoder and decoder to use.')
     model.add_argument('-z', '--latent-dim',
@@ -184,21 +186,12 @@ def main(args):
 
     img_size = get_img_size(args.dataset)
 
-    logger.info("Train {} with {} samples".format(args.dataset, len(train_loader)))
+    logger.info("Train {} with {} samples".format(args.dataset, len(train_loader.dataset)))
 
     # PREPARES MODEL
-    encoder = get_Encoder(args.model)
-    decoder = get_Decoder(args.model)
+    encoder = get_Encoder(args.model_type)
+    decoder = get_Decoder(args.model_type)
     model = VAE(img_size, encoder, decoder, args.latent_dim)
-
-    # PREPARES DISCRIMINATOR FOR FACTOR VAE
-    if args.loss == "factorising":
-        discriminator = Discriminator()
-        optimizer_d = optim.Adam(discriminator.parameters(), lr=args.lr, betas=(0.5, 0.9))
-        loss_kwargs = dict(discriminator=discriminator, optimizer_d=optimizer_d,
-                           beta=args.beta, device=device)
-    else:
-        loss_kwargs = dict(capacity=args.capacity, beta=args.beta)
 
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     nParams = sum([np.prod(p.size()) for p in model_parameters])
@@ -206,6 +199,7 @@ def main(args):
 
     # TRAINS
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    loss_kwargs = dict(capacity=args.capacity, beta=args.beta)
     trainer = Trainer(model, optimizer,
                       loss_type=args.loss,
                       latent_dim=args.latent_dim,
@@ -218,17 +212,7 @@ def main(args):
     trainer.train(train_loader, epochs=args.epochs)
 
     # SAVE MODEL AND EXPERIMENT INFORMATION
-    trainer.model.cpu()
-    torch.save(trainer.model.state_dict(), os.path.join(exp_dir, 'model.pt'))
-    with open(os.path.join(exp_dir, 'specs.json'), 'w') as f:
-        specs = dict(dataset=args.dataset,
-                     latent_dim=args.latent_dim,
-                     model_type=args.model,
-                     loss=args.loss,
-                     loss_kwargs=loss_kwargs,
-                     experiment_name=args.experiment,
-                     name=args.name)
-        json.dump(specs, f)
+    save_model(trainer.model, vars(args), exp_dir)
 
     logger.info('Finished after {:.1f} min.'.format((default_timer() - start) / 60))
 

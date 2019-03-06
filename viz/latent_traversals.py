@@ -42,7 +42,7 @@ class LatentTraverser():
         elif sample_latent_space is None:
             samples = np.zeros(shape=(size, self.latent_dim))
         else:
-            samples = np.repeat(sample_latent_space.numpy(), size, axis=0)
+            samples = np.repeat(sample_latent_space.cpu().numpy(), size, axis=0)
 
         if idx is not None:
             # Sweep over linearly spaced coordinates transformed through the

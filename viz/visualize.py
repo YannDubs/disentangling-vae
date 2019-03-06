@@ -51,7 +51,7 @@ class Visualizer():
         # Pass data through VAE to obtain reconstruction
         with torch.no_grad():
             input_data = data.to(self.device)
-            _, latent_dist = self.model(input_data)
+            _, latent_dist, _ = self.model(input_data)
             means = latent_dist[1]
 
             heat_map_height = heat_map_size[0]
@@ -90,7 +90,7 @@ class Visualizer():
         # Pass data through VAE to obtain reconstruction
         with torch.no_grad():
             input_data = data.to(self.device)
-            _, latent_dist = self.model(input_data)
+            _, latent_dist, _ = self.model(input_data)
         means = latent_dist[1]
         self.all_latent_traversals(sample_latent_space=means, filename=filename)
 
@@ -116,7 +116,7 @@ class Visualizer():
         # Pass data through VAE to obtain reconstruction
         with torch.no_grad():
             input_data = data.to(self.device)
-            recon_data, _ = self.model(input_data)
+            recon_data, _, _ = self.model(input_data)
         self.model.train()
 
         # Upper half of plot will contain data, bottom half will contain

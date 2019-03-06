@@ -4,9 +4,11 @@ Module containing all vae losses.
 import abc
 import torch
 from torch.nn import functional as F
+from torch import optim
+from disvae.discriminator import Discriminator
 
 
-def get_loss_f(name, is_color, capacity=None, beta=None, discriminator=None, optimizer_d=None, device=None):
+def get_loss_f(name, is_color, capacity=None, beta=None, device=None):
     """Return the correct loss function."""
     if name == "betaH":
         return BetaHLoss(is_color, beta)
@@ -21,8 +23,6 @@ def get_loss_f(name, is_color, capacity=None, beta=None, discriminator=None, opt
     elif name == "factorising":
         # Paper: Disentangling by Factorising
         return FactorKLoss(is_color,
-                           discriminator,
-                           optimizer_d,
                            device,
                            beta)
     elif name == "batchTC":
@@ -178,7 +178,7 @@ class FactorKLoss(BaseLoss):
 
         discriminator : disvae.discriminator.Discriminator
 
-        optimizer_d : torch.optim.adam.Adam
+        optimizer_d : torch.optim
 
         device : torch.device
 
@@ -190,12 +190,16 @@ class FactorKLoss(BaseLoss):
             arXiv preprint arXiv:1802.05983 (2018).
         """
 
-    def __init__(self, is_color, discriminator, optimizer_d, device, beta=40.):
+    def __init__(self, is_color, device, beta=40.,
+                 disc_kwargs=dict(neg_slope=0.2, latent_dim=10, hidden_units=1000),
+                 optim_kwargs=dict(lr=1e-4, betas=(0.5, 0.9))):
         super().__init__(is_color)
         self.beta = beta
         self.device = device
-        self.discriminator = discriminator
-        self.optimizer_d = optimizer_d
+
+        self.discriminator = Discriminator(**disc_kwargs).to(self.device)
+
+        self.optimizer_d = optim.Adam(self.discriminator.parameters(), **optim_kwargs)
 
     def __call__(self, data, model, optimizer, is_train, storer):
         storer = self._pre_call(is_train, storer)
@@ -204,15 +208,15 @@ class FactorKLoss(BaseLoss):
         batch_size = data.size(dim=0)
         half_batch_size = batch_size // 2
         data = data.split(half_batch_size)
-        data1 = data[0].to(self.device)
-        data2 = data[1].to(self.device)
+        data1 = data[0]
+        data2 = data[1]
 
         # Initialise the targets for cross_entropy loss
-        ones = torch.ones(batch_size, dtype=torch.long, device=self.device)
-        zeros = torch.zeros(batch_size, dtype=torch.long, device=self.device)
+        ones = torch.ones(half_batch_size, dtype=torch.long, device=self.device)
+        zeros = torch.zeros(half_batch_size, dtype=torch.long, device=self.device)
 
         # Get first sample of latent distribution
-        recon_batch, latent_dist = model(data1)
+        recon_batch, latent_dist, latent_sample1 = model(data1)
 
         # Get reconstruction loss
         rec_loss = _reconstruction_loss(data1, recon_batch, self.is_color)
@@ -220,11 +224,11 @@ class FactorKLoss(BaseLoss):
         # Get KL-Divergence (latent_dist[0] = mean, latent_dist[1] = log_var)
         kl_loss = _kl_normal_loss(*latent_dist, storer)
 
-        # Run latent distribution through discriminator
-        d_z = self.discriminator(latent_dist)
+        # Run latent sample through discriminator
+        d_z = self.discriminator(latent_sample1)
 
         # Calculate the total correlation (TC) loss term
-        tc_loss = (d_z[:, :, :1] - d_z[:, :, 1:]).mean()
+        tc_loss = (d_z[:, :1] - d_z[:, 1:]).mean()
 
         # Factor VAE loss
         vae_loss = rec_loss + kl_loss + self.beta * tc_loss
@@ -241,17 +245,16 @@ class FactorKLoss(BaseLoss):
         optimizer.step()
 
         # Get second sample of latent distribution
-        _, latent_dist = model(data2)
+        latent_sample2 = model.sample_latent(data2)
 
-        # Create a permutation of the latent distribution
-        z_perm = _permute_dims(latent_dist)
+        # Create a permutation of the latent sample
+        z_perm = _permute_dims(latent_sample2).detach()
 
-        # Run permeated latent distribution through discriminator
+        # Run permeated latent sample through discriminator
         d_z_perm = self.discriminator(z_perm)
 
         # Calculate total correlation loss
-        d_tc_loss = 0.5 * (F.cross_entropy(d_z.reshape((batch_size, 2)), zeros)
-                           + F.cross_entropy(d_z_perm.reshape((batch_size, 2)), ones))
+        d_tc_loss = 0.5 * (F.cross_entropy(d_z, zeros) + F.cross_entropy(d_z_perm, ones))
 
         # Run discriminator optimizer
         self.optimizer_d.zero_grad()
@@ -325,7 +328,7 @@ def _kl_normal_loss(mean, logvar, storer=None):
     return total_kl
 
 
-def _permute_dims(latent_dist):
+def _permute_dims(latent_sample):
     """
     Implementation of Algorithm 1 in ref [1]. Randomly permutes the sample from
     q(z) (latent_dist) across the batch for each of the latent dimensions (mean
@@ -333,9 +336,9 @@ def _permute_dims(latent_dist):
 
     Parameters
     ----------
-    latent_dist : tuple of torch.tensor
-        sufficient statistics of the latent dimension. E.g. for gaussian
-        (mean, log_var) each of shape : (batch_size, latent_dim).
+    latent_sample: torch.Tensor
+        sample from the latent dimension using the reparameterisation trick
+        shape : (batch_size, latent_dim).
 
     References :
         [1] Kim, Hyunjik, and Andriy Mnih. "Disentangling by factorising."
@@ -343,12 +346,11 @@ def _permute_dims(latent_dist):
 
     """
 
-    perm = torch.zeros(latent_dist.size())
-    dim_j, batch_size, dim_z = latent_dist.size()
+    perm = torch.zeros_like(latent_sample)
+    batch_size, dim_z = perm.size()
 
-    for j in range(dim_j):
-        for z in range(dim_z):
-            pi = torch.randperm(batch_size)
-            perm[j, :, z] = latent_dist[j, pi, z]
+    for z in range(dim_z):
+        pi = torch.randperm(batch_size).to(latent_sample.device)
+        perm[:, z] = latent_sample[pi, z]
 
     return perm
