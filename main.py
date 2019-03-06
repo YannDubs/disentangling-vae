@@ -18,7 +18,7 @@ from utils.datasets import (get_dataloaders, get_img_size)
 
 
 def default_experiment():
-    return {'epochs': 10,
+    return {'epochs': 100,
             'batch_size': 64,
             'no_cuda': False,
             'seed': 1234,
@@ -26,7 +26,7 @@ def default_experiment():
             "lr": 1e-3,
             "capacity": [0.0, 5.0, 25000, 30.0],
             "beta": 4.,
-            "loss": "factorising",
+            "loss": "betaH",
             "print_every": 50,
             "record_every": 5,
             'model': 'Burgess',  # follows the paper by Burgess et al
