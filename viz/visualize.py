@@ -6,11 +6,12 @@ from torchvision.utils import make_grid, save_image
 from torchvision import transforms
 import numpy as np
 import csv
+import os
 from PIL import Image, ImageFont, ImageDraw
 
 
 class Visualizer():
-    def __init__(self, model, model_dir, save_images=True):
+    def __init__(self, model, model_dir=None, save_images=True):
         """
         Visualizer is used to generate images of samples, reconstructions,
         latent traversals and so on of the trained model.
@@ -69,7 +70,29 @@ class Visualizer():
                     save_image(heat_map.data, heat_map_name, nrow=latent_dim, pad_value=10)
                 else:
                     return make_grid(heat_map.data, nrow=latent_dim, pad_value=10)
-    
+
+    def recon_and_traverse_all(self, data, filename='imgs/recon_and_traverse.png'):
+        """
+        Take 8 sample images, run them through the decoder, obtain the mean latent
+        space vector. With this as the initialisation, traverse each dimension one
+        by one to observe what each latent dimension encodes.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            Data to be reconstructed. Shape (N, C, H, W)
+
+        filename : string
+            Name of file in which results are stored.
+        """
+        # Plot reconstructions in test mode, i.e. without sampling from latent
+        self.model.eval()
+        # Pass data through VAE to obtain reconstruction
+        with torch.no_grad():
+            input_data = data.to(self.device)
+            _, latent_dist = self.model(input_data)
+        means = latent_dist[1]
+        self.all_latent_traversals(sample_latent_space=means, filename=filename)
 
     def reconstructions(self, data, size=(8, 8), filename='imgs/recon.png'):
         """
@@ -84,6 +107,9 @@ class Visualizer():
             Size of grid on which reconstructions will be plotted. The number
             of rows should be even, so that upper half contains true data and
             bottom half contains reconstructions
+
+        filename : string
+            Name of file in which results are stored.
         """
         # Plot reconstructions in test mode, i.e. without sampling from latent
         self.model.eval()
@@ -180,7 +206,7 @@ class Visualizer():
         else:
             return make_grid(generated.data, nrow=size[1], pad_value=10)
 
-    def all_latent_traversals(self, size=8, filename='imgs/all_traversals.png'):
+    def all_latent_traversals(self, sample_latent_space=None, size=8, filename='imgs/all_traversals.png'):
         """
         Traverses all latent dimensions one by one and plots a grid of images
         where each row corresponds to a latent traversal of one latent
@@ -192,13 +218,18 @@ class Visualizer():
             Number of samples for each latent traversal.
         """
         latent_samples = []
-        avg_kl_list = read_avg_kl_from_file(self.model_dir + '/kl_data.log')
+        avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, 'kl_data.log'))
         # Perform line traversal of every latent
         for idx in range(self.model.latent_dim):
             latent_samples.append(self.latent_traverser.traverse_line(idx=idx,
-                                                                      size=size))
-        latent_samples = [latent_sample for _, latent_sample in sorted(zip(avg_kl_list, latent_samples), reverse=True)]
-        sorted_avg_kl_list = [round(float(avg_kl_sample), 3) for avg_kl_sample, _ in sorted(zip(avg_kl_list, latent_samples), reverse=True)]
+                                                                      size=size,
+                                                                      sample_latent_space=sample_latent_space))
+        latent_samples = [
+            latent_sample for _, latent_sample in sorted(zip(avg_kl_list, latent_samples), reverse=True)
+        ]
+        sorted_avg_kl_list = [
+            round(float(avg_kl_sample), 3) for avg_kl_sample, _ in sorted(zip(avg_kl_list, latent_samples), reverse=True)
+        ]
 
         # Decode samples
         generated = self._decode_latents(torch.cat(latent_samples, dim=0))
@@ -214,7 +245,9 @@ class Visualizer():
         # Add KL text alongside each row
         draw = ImageDraw.Draw(traversal_images_with_text)
         for latent_idx, latent_dim in enumerate(sorted_avg_kl_list):
-            draw.text(xy=(int(0.825 * traversal_images_with_text.width), int((latent_idx / len(sorted_avg_kl_list) + 1 / (2 * len(sorted_avg_kl_list))) * all_traversal_im.height)),
+            draw.text(xy=(int(0.825 * traversal_images_with_text.width),
+                          int((latent_idx / len(sorted_avg_kl_list) + \
+                              1 / (2 * len(sorted_avg_kl_list))) * all_traversal_im.height)),
                       text="KL = {}".format(latent_dim),
                       fill=(0,0,0))
 

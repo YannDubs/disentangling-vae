@@ -91,7 +91,7 @@ class Trainer():
                                         os.path.join(self.save_dir, "kl_data.log"),
                                         'KL_logger')
         if self.is_viz_gif:
-            self.vizualizer = Visualizer(self.model)
+            self.vizualizer = Visualizer(model=self.model, model_dir=self.save_dir)
 
         self.logger.info("Training Device: {}".format(self.device))
 
