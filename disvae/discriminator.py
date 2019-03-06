@@ -35,7 +35,7 @@ class Discriminator(nn.Module):
 
         # Activation parameters
         self.neg_slope = neg_slope
-        self.leaky_relu = nn.LeakyReLU(neg_slope, True)
+        self.leaky_relu = nn.LeakyReLU(self.neg_slope, True)
 
         # Layer parameters
         self.z_dim = latent_dim

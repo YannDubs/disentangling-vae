@@ -26,7 +26,7 @@ def default_experiment():
             "lr": 1e-3,
             "capacity": [0.0, 5.0, 25000, 30.0],
             "beta": 4.,
-            "loss": "betaH",
+            "loss": "betaB",
             "print_every": 50,
             "record_every": 5,
             'model': 'Burgess',  # follows the paper by Burgess et al
