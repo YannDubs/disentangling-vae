@@ -197,13 +197,9 @@ class FactorKLoss(BaseLoss):
         self.beta = beta
         self.device = device
 
-        self.discriminator = Discriminator(neg_slope=disc_kwargs['neg_slope'],
-                                           latent_dim=disc_kwargs['latent_dim'],
-                                           hidden_units=disc_kwargs['hidden_units']).to(self.device)
+        self.discriminator = Discriminator(**disc_kwargs).to(self.device)
 
-        self.optimizer_d = optim.Adam(self.discriminator.parameters(),
-                                      lr=optim_kwargs['lr'],
-                                      betas=optim_kwargs['betas'])
+        self.optimizer_d = optim.Adam(self.discriminator.parameters(), **optim_kwargs)
 
     def __call__(self, data, model, optimizer, is_train, storer):
         storer = self._pre_call(is_train, storer)
@@ -220,7 +216,7 @@ class FactorKLoss(BaseLoss):
         zeros = torch.zeros(half_batch_size, dtype=torch.long, device=self.device)
 
         # Get first sample of latent distribution
-        recon_batch, latent_dist, latent_sample = model(data1)
+        recon_batch, latent_dist, latent_sample1 = model(data1)
 
         # Get reconstruction loss
         rec_loss = _reconstruction_loss(data1, recon_batch, self.is_color)
@@ -229,7 +225,7 @@ class FactorKLoss(BaseLoss):
         kl_loss = _kl_normal_loss(*latent_dist, storer)
 
         # Run latent sample through discriminator
-        d_z = self.discriminator(latent_sample)
+        d_z = self.discriminator(latent_sample1)
 
         # Calculate the total correlation (TC) loss term
         tc_loss = (d_z[:, :1] - d_z[:, 1:]).mean()
@@ -249,10 +245,10 @@ class FactorKLoss(BaseLoss):
         optimizer.step()
 
         # Get second sample of latent distribution
-        latent_sample = model(data2, get_sample=True)
+        latent_sample2 = model.sample_latent(data2)
 
-        # Create a permutation of the latent distribution
-        z_perm = _permute_dims(latent_sample).detach()
+        # Create a permutation of the latent sample
+        z_perm = _permute_dims(latent_sample2).detach()
 
         # Run permeated latent sample through discriminator
         d_z_perm = self.discriminator(z_perm)
