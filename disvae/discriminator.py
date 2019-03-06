@@ -4,17 +4,21 @@ from torch import nn
 
 class Discriminator(nn.Module):
     def __init__(self,
+                 neg_slope=0.2,
                  latent_dim=10,
-                 device=torch.device("cpu")):
-        r"""Discriminator proposed in [1].
+                 hidden_units=1000):
+        """Discriminator proposed in [1].
 
         Parameters
         ----------
+        neg_slope: float
+            Hyperparameter for the Leaky ReLu
+
         latent_dim : int
             Dimensionality of latent variables.
 
-        device : torch.device
-            Device on which to run the code.
+        hidden_units: int
+            Number of hidden units in the MLP
 
         Model Architecture
         ------------
@@ -30,12 +34,12 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
 
         # Activation parameters
-        neg_slope = 0.2
-        self.leaky_relu = nn.LeakyReLU(neg_slope, True)
+        self.neg_slope = neg_slope
+        self.leaky_relu = nn.LeakyReLU(self.neg_slope, True)
 
         # Layer parameters
         self.z_dim = latent_dim
-        hidden_units = 1000
+        self.hidden_units = hidden_units
         out_units = 2
 
         # Fully connected layers

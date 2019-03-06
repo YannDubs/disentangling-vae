@@ -64,7 +64,20 @@ class VAE(nn.Module):
         reconstruct = self.decoder(latent_sample)
         if self.is_color:
             reconstruct = reconstruct * 255
-        return reconstruct, latent_dist
+        return reconstruct, latent_dist, latent_sample
 
     def reset_parameters(self):
         self.apply(weights_init)
+
+    def sample_latent(self, x):
+        """
+        Returns a sample from the latent distribution.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Batch of data. Shape (batch_size, n_chan, height, width)
+        """
+        latent_dist = self.encoder(x)
+        latent_sample = self.reparameterize(*latent_dist)
+        return latent_sample
