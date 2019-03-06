@@ -70,7 +70,7 @@ class Trainer():
         self.print_loss_every = print_loss_every
         self.record_loss_every = record_loss_every
         self.num_latent_dim = latent_dim
-        self.loss_f = get_loss_f(self.loss_type, self.model.is_color, **loss_kwargs)
+        self.loss_f = get_loss_f(self.loss_type, self.model.is_color, device=self.device, **loss_kwargs)
         self.stored_losses = {
             'loss': [],
             'recon_loss': [],

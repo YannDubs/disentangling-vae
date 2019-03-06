@@ -199,7 +199,7 @@ class FactorKLoss(BaseLoss):
 
         self.discriminator = Discriminator(neg_slope=disc_kwargs['neg_slope'],
                                            latent_dim=disc_kwargs['latent_dim'],
-                                           hidden_units=disc_kwargs['hidden_units'])
+                                           hidden_units=disc_kwargs['hidden_units']).to(self.device)
 
         self.optimizer_d = optim.Adam(self.discriminator.parameters(),
                                       lr=optim_kwargs['lr'],

@@ -6,17 +6,19 @@ class Discriminator(nn.Module):
     def __init__(self,
                  neg_slope=0.2,
                  latent_dim=10,
-                 hidden_units=1000,
-                 device=torch.device("cpu")):
+                 hidden_units=1000):
         """Discriminator proposed in [1].
 
         Parameters
         ----------
+        neg_slope: float
+            Hyperparameter for the Leaky ReLu
+
         latent_dim : int
             Dimensionality of latent variables.
 
-        device : torch.device
-            Device on which to run the code.
+        hidden_units: int
+            Number of hidden units in the MLP
 
         Model Architecture
         ------------
