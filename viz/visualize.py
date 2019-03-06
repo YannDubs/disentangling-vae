@@ -7,7 +7,9 @@ from torchvision import transforms
 import numpy as np
 import csv
 import os
+import json
 from PIL import Image, ImageFont, ImageDraw
+from utils.datasets import get_background
 
 
 class Visualizer():
@@ -28,6 +30,13 @@ class Visualizer():
         self.latent_traverser = LatentTraverser(self.model.latent_dim)
         self.save_images = save_images
         self.model_dir = model_dir
+        self.dataset = self._dataset_name()
+
+    def _dataset_name(self):
+        """ fetches the name of the dataset. """
+        with open(os.path.join(self.model_dir, 'specs.json')) as spec_file:
+            specs = json.load(spec_file)
+            return specs['dataset']
 
     def generate_heat_maps(self, data, heat_map_size=(32, 32), filename='imgs/heatmap.png'):
         """
@@ -67,9 +76,9 @@ class Visualizer():
                 if self.save_images:
                     [name, extension] = filename.split('.')
                     heat_map_name = name + '-{}'.format(latent_dim) + '.' + extension
-                    save_image(heat_map.data, heat_map_name, nrow=latent_dim, pad_value=10)
+                    save_image(heat_map.data, heat_map_name, nrow=latent_dim, pad_value=(1 - get_background(self.dataset)))
                 else:
-                    return make_grid(heat_map.data, nrow=latent_dim, pad_value=10)
+                    return make_grid(heat_map.data, nrow=latent_dim, pad_value=(1 - get_background(self.dataset)))
 
     def recon_and_traverse_all(self, data, filename='imgs/recon_and_traverse.png'):
         """
@@ -136,9 +145,9 @@ class Visualizer():
         comparison = torch.cat([originals, reconstructions])
 
         if self.save_images:
-            save_image(comparison.data, filename, nrow=size[0], pad_value=10)
+            save_image(comparison.data, filename, nrow=size[0], pad_value=(1 - get_background(self.dataset)))
         else:
-            return make_grid(comparison.data, nrow=size[0], pad_value=10)
+            return make_grid(comparison.data, nrow=size[0], pad_value=(1 - get_background(self.dataset)))
 
     def samples(self, size=(8, 8), filename='imgs/samples.png'):
         """
@@ -157,9 +166,9 @@ class Visualizer():
         generated = self._decode_latents(prior_samples)
 
         if self.save_images:
-            save_image(generated.data, filename, nrow=size[1], pad_value=10)
+            save_image(generated.data, filename, nrow=size[1], pad_value=(1 - get_background(self.dataset)))
         else:
-            return make_grid(generated.data, nrow=size[1], pad_value=10)
+            return make_grid(generated.data, nrow=size[1], pad_value=(1 - get_background(self.dataset)))
 
     def latent_traversal_line(self, idx=None, size=8,
                               filename='imgs/traversal_line.png'):
@@ -179,9 +188,9 @@ class Visualizer():
         generated = self._decode_latents(latent_samples)
 
         if self.save_images:
-            save_image(generated.data, filename, nrow=size, pad_value=10)
+            save_image(generated.data, filename, nrow=size, pad_value=(1 - get_background(self.dataset)))
         else:
-            return make_grid(generated.data, nrow=size, pad_value=10)
+            return make_grid(generated.data, nrow=size, pad_value=(1 - get_background(self.dataset)))
 
     def latent_traversal_grid(self, idx=None, axis=None, size=(5, 5),
                               filename='imgs/traversal_grid.png'):
@@ -202,9 +211,9 @@ class Visualizer():
         generated = self._decode_latents(latent_samples)
 
         if self.save_images:
-            save_image(generated.data, filename, nrow=size[1], pad_value=10)
+            save_image(generated.data, filename, nrow=size[1], pad_value=(1 - get_background(self.dataset)))
         else:
-            return make_grid(generated.data, nrow=size[1], pad_value=10)
+            return make_grid(generated.data, nrow=size[1], pad_value=(1 - get_background(self.dataset)))
 
     def all_latent_traversals(self, sample_latent_space=None, size=8, filename='imgs/all_traversals.png'):
         """
@@ -235,7 +244,7 @@ class Visualizer():
         generated = self._decode_latents(torch.cat(latent_samples, dim=0))
 
         # Convert tensor to PIL Image
-        tensor = make_grid(generated.data, nrow=size, pad_value=10)
+        tensor = make_grid(generated.data, nrow=size, pad_value=(1 - get_background(self.dataset)))
         all_traversal_im = transforms.ToPILImage()(tensor)
         # Resize image
         new_width = int(1.3 * all_traversal_im.width)
@@ -254,7 +263,7 @@ class Visualizer():
         if self.save_images:
             traversal_images_with_text.save(filename)
         else:
-            return make_grid(generated.data, nrow=size, pad_value=10)
+            return make_grid(generated.data, nrow=size, pad_value=(1 - get_background(self.dataset)))
 
     def _decode_latents(self, latent_samples):
         """

@@ -24,6 +24,9 @@ def get_img_size(dataset):
     """Return the correct image size."""
     return get_dataset(dataset).img_size
 
+def get_background(dataset):
+   """Return the image background color."""
+   return get_dataset(dataset).background_color
 
 def get_dataloaders(dataset, root=None, shuffle=True, pin_memory=True,
                     batch_size=128, **kwargs):
@@ -142,6 +145,7 @@ class DSprites(DisentangledDataset):
     lat_names = ('color', 'shape', 'scale', 'orientation', 'posX', 'posY')
     lat_sizes = np.array([1, 3, 6, 40, 32, 32])
     img_size = (1, 64, 64)
+    background_color = 0
     lat_values = {'posX': np.array([0., 0.03225806, 0.06451613, 0.09677419, 0.12903226,
                                     0.16129032, 0.19354839, 0.22580645, 0.25806452,
                                     0.29032258, 0.32258065, 0.35483871, 0.38709677,
@@ -235,6 +239,7 @@ class CelebA(DisentangledDataset):
     urls = {"train": "https://s3-us-west-1.amazonaws.com/udacity-dlnfd/datasets/celeba.zip"}
     files = {"train": "img_align_celeba"}
     img_size = (3, 64, 64)
+    background_color = 1
 
     def __init__(self, root=os.path.join(DIR, '../data/celeba')):
         super().__init__(root, [transforms.ToTensor()])
@@ -287,8 +292,6 @@ class CelebA(DisentangledDataset):
 class Chairs(datasets.ImageFolder):
     """Chairs Dataset from [1].
 
-
-
     Notes
     -----
     - Link : https://www.di.ens.fr/willow/research/seeing3Dchairs
@@ -309,6 +312,7 @@ class Chairs(datasets.ImageFolder):
     urls = {"train": "https://www.di.ens.fr/willow/research/seeing3Dchairs/data/rendered_chairs.tar"}
     files = {"train": "chairs_64"}
     img_size = (1, 64, 64)
+    background_color = 1
 
     def __init__(self, root=os.path.join(DIR, '../data/chairs')):
         self.root = root
@@ -347,6 +351,7 @@ class Chairs(datasets.ImageFolder):
 class MNIST(datasets.MNIST):
     """Mnist wrapper. Docs: `datasets.MNIST.`"""
     img_size = (1, 32, 32)
+    background_color = 0
 
     def __init__(self, root=os.path.join(DIR, '../data/mnist')):
         super().__init__(root,
