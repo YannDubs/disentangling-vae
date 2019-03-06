@@ -66,7 +66,7 @@ def main(args):
         
         model = load_model('experiments/{}'.format(experiment_name))
         model.eval()
-        viz = Viz(model)
+        viz = Viz(model=model, model_dir='experiments/{}'.format(experiment_name))
 
     visualisation_options = {
         'random_samples': lambda: viz.samples(),

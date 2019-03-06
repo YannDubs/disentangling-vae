@@ -3,11 +3,14 @@ from viz.latent_traversals import LatentTraverser
 from scipy import stats
 from torch.autograd import Variable
 from torchvision.utils import make_grid, save_image
+from torchvision import transforms
 import numpy as np
+import csv
+from PIL import Image, ImageFont, ImageDraw
 
 
 class Visualizer():
-    def __init__(self, model, save_images=True):
+    def __init__(self, model, model_dir, save_images=True):
         """
         Visualizer is used to generate images of samples, reconstructions,
         latent traversals and so on of the trained model.
@@ -23,6 +26,7 @@ class Visualizer():
         self.device = next(self.model.parameters()).device
         self.latent_traverser = LatentTraverser(self.model.latent_dim)
         self.save_images = save_images
+        self.model_dir = model_dir
 
     def generate_heat_maps(self, data, heat_map_size=(32, 32), filename='imgs/heatmap.png'):
         """
@@ -62,9 +66,9 @@ class Visualizer():
                 if self.save_images:
                     [name, extension] = filename.split('.')
                     heat_map_name = name + '-{}'.format(latent_dim) + '.' + extension
-                    save_image(heat_map.data, heat_map_name, nrow=latent_dim)
+                    save_image(heat_map.data, heat_map_name, nrow=latent_dim, pad_value=10)
                 else:
-                    return make_grid(heat_map.data, nrow=latent_dim)
+                    return make_grid(heat_map.data, nrow=latent_dim, pad_value=10)
     
 
     def reconstructions(self, data, size=(8, 8), filename='imgs/recon.png'):
@@ -106,9 +110,9 @@ class Visualizer():
         comparison = torch.cat([originals, reconstructions])
 
         if self.save_images:
-            save_image(comparison.data, filename, nrow=size[0])
+            save_image(comparison.data, filename, nrow=size[0], pad_value=10)
         else:
-            return make_grid(comparison.data, nrow=size[0])
+            return make_grid(comparison.data, nrow=size[0], pad_value=10)
 
     def samples(self, size=(8, 8), filename='imgs/samples.png'):
         """
@@ -127,9 +131,9 @@ class Visualizer():
         generated = self._decode_latents(prior_samples)
 
         if self.save_images:
-            save_image(generated.data, filename, nrow=size[1])
+            save_image(generated.data, filename, nrow=size[1], pad_value=10)
         else:
-            return make_grid(generated.data, nrow=size[1])
+            return make_grid(generated.data, nrow=size[1], pad_value=10)
 
     def latent_traversal_line(self, idx=None, size=8,
                               filename='imgs/traversal_line.png'):
@@ -149,9 +153,9 @@ class Visualizer():
         generated = self._decode_latents(latent_samples)
 
         if self.save_images:
-            save_image(generated.data, filename, nrow=size)
+            save_image(generated.data, filename, nrow=size, pad_value=10)
         else:
-            return make_grid(generated.data, nrow=size)
+            return make_grid(generated.data, nrow=size, pad_value=10)
 
     def latent_traversal_grid(self, idx=None, axis=None, size=(5, 5),
                               filename='imgs/traversal_grid.png'):
@@ -172,9 +176,9 @@ class Visualizer():
         generated = self._decode_latents(latent_samples)
 
         if self.save_images:
-            save_image(generated.data, filename, nrow=size[1])
+            save_image(generated.data, filename, nrow=size[1], pad_value=10)
         else:
-            return make_grid(generated.data, nrow=size[1])
+            return make_grid(generated.data, nrow=size[1], pad_value=10)
 
     def all_latent_traversals(self, size=8, filename='imgs/all_traversals.png'):
         """
@@ -188,19 +192,36 @@ class Visualizer():
             Number of samples for each latent traversal.
         """
         latent_samples = []
-
+        avg_kl_list = read_avg_kl_from_file(self.model_dir + '/kl_data.log')
         # Perform line traversal of every latent
         for idx in range(self.model.latent_dim):
             latent_samples.append(self.latent_traverser.traverse_line(idx=idx,
                                                                       size=size))
+        latent_samples = [latent_sample for _, latent_sample in sorted(zip(avg_kl_list, latent_samples), reverse=True)]
+        sorted_avg_kl_list = [round(float(avg_kl_sample), 3) for avg_kl_sample, _ in sorted(zip(avg_kl_list, latent_samples), reverse=True)]
 
         # Decode samples
         generated = self._decode_latents(torch.cat(latent_samples, dim=0))
 
+        # Convert tensor to PIL Image
+        tensor = make_grid(generated.data, nrow=size, pad_value=10)
+        all_traversal_im = transforms.ToPILImage()(tensor)
+        # Resize image
+        new_width = int(1.3 * all_traversal_im.width)
+        new_size = (all_traversal_im.height, new_width)
+        traversal_images_with_text = Image.new("RGB", new_size, color='white')
+        traversal_images_with_text.paste(all_traversal_im, (0, 0))
+        # Add KL text alongside each row
+        draw = ImageDraw.Draw(traversal_images_with_text)
+        for latent_idx, latent_dim in enumerate(sorted_avg_kl_list):
+            draw.text(xy=(int(0.825 * traversal_images_with_text.width), int((latent_idx / len(sorted_avg_kl_list) + 1 / (2 * len(sorted_avg_kl_list))) * all_traversal_im.height)),
+                      text="KL = {}".format(latent_dim),
+                      fill=(0,0,0))
+
         if self.save_images:
-            save_image(generated.data, filename, nrow=size)
+            traversal_images_with_text.save(filename)
         else:
-            return make_grid(generated.data, nrow=size)
+            return make_grid(generated.data, nrow=size, pad_value=10)
 
     def _decode_latents(self, latent_samples):
         """
@@ -251,3 +272,11 @@ def reorder_img(orig_img, reorder, by_row=True, img_size=(3, 32, 32), padding=2)
             reordered_img[:, :, start_pix_new:start_pix_new + width] = orig_img[:, :, start_pix_old:start_pix_old + width]
 
     return reordered_img
+
+
+def read_avg_kl_from_file(log_file_path):
+    """ Read the average KL per latent dimension at the final stage of training from the log file.
+    """
+    with open(log_file_path, 'r') as f:
+        last_line = list(csv.reader(f))[-1:][0]
+        return last_line[1:]
