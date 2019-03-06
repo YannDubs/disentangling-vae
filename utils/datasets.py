@@ -31,7 +31,7 @@ def get_dataloaders(dataset, root=None, shuffle=True, pin_memory=True,
 
     Parameters
     ----------
-    dataset : {"mnist", "fashionMnist", "dsprites", "celeba", "chairs"}
+    dataset : {"mnist", "fashion", "dsprites", "celeba", "chairs"}
         Name of the dataset to load
 
     root : str
@@ -67,7 +67,7 @@ def get_dataset(dataset):
         raise ValueError("Unkown datset: {}".format(dataset))
 
 
-class DisentangledDataset(Dataset):
+class DisentangledDataset(Dataset, abc.ABC):
     """Base Class for disentangled VAE datasets.
 
     Parameters
@@ -104,8 +104,8 @@ class DisentangledDataset(Dataset):
         pass
 
     @abc.abstractmethod
-    def downlaod(self):
-        """Dowanload the dataset. """
+    def download(self):
+        """Download the dataset. """
         pass
 
 
