@@ -1,14 +1,13 @@
 import argparse
 import json
 import torch
-import matplotlib.pyplot as plt
-import numpy as np
 
 from disvae.vae import VAE
 from utils.datasets import get_dataloaders
 from viz.visualize import Visualizer as Viz
-from utils.load_model import load_model
+from utils.modelIO import load_model
 from viz.log_plotter import LogPlotter
+
 
 def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
     """ generate a number of samples from the dataset
@@ -26,6 +25,7 @@ def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
             data_list.append(new_data)
         return torch.cat(data_list)
 
+
 def parse_arguments():
     """ Set up a command line interface for directing the experiment to be run.
     """
@@ -40,15 +40,15 @@ def parse_arguments():
                             help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
 
     visualisation = parser.add_argument_group('Desired Visualisation')
-    visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction', 
+    visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction',
                              'heat_maps', 'display_avg_KL']
     visualisation.add_argument('-v', '--visualisation',
                                default='random_samples', choices=visualisation_options,
                                help='Predefined visualisation options which can be performed.')
     visualisation.add_argument('-s', '--sweep_dim',
-                            default=0, help='The latent dimension to sweep (if applicable)')
+                               default=0, help='The latent dimension to sweep (if applicable)')
     visualisation.add_argument('-n', '--num_samples', type=int,
-                            default=1, help='The number of samples to visualise (if applicable).')
+                               default=1, help='The number of samples to visualise (if applicable).')
 
     dir_opts = parser.add_argument_group('directory options')
     dir_opts.add_argument('-l', '--log_dir', help='Path to the log file containing the data to plot.')
@@ -63,7 +63,7 @@ def main(args):
     """
     if not args.visualisation == 'display_avg_KL':
         experiment_name = args.experiment
-        
+
         model = load_model('experiments/{}'.format(experiment_name))
         model.eval()
         viz = Viz(model)
@@ -73,7 +73,7 @@ def main(args):
         'traverse_all_latent_dims': lambda: viz.all_latent_traversals(),
         'traverse_one_latent_dim': lambda: viz.latent_traversal_line(idx=args.sweep_dim),
         'random_reconstruction': lambda: viz.reconstructions(data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True)),
-        'heat_maps': lambda: viz.generate_heat_maps(data=samples(experiment_name=experiment_name, num_samples=32*32, shuffle=False)),
+        'heat_maps': lambda: viz.generate_heat_maps(data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
         'display_avg_KL': lambda: LogPlotter(log_dir=args.log_dir, output_file_name=args.output_file_name)
     }
 
