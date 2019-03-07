@@ -34,6 +34,13 @@ class LatentTraverser():
             sampled. If None, no latent is traversed and all latent
             dimensions are randomly sampled or kept fixed.
 
+        sample_latent_space : torch.Tensor or None
+            The latent space of a sample which has been processed by the encoder.
+            The dimensions are (size, num_latent_dims)
+
+        idx : int or None
+            Indicates which line (latent dimension) to traverse
+
         size : int
             Number of samples to generate.
         """

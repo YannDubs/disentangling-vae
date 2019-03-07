@@ -13,7 +13,7 @@ from utils.datasets import get_background
 
 
 class Visualizer():
-    def __init__(self, model, model_dir=None, save_images=True):
+    def __init__(self, model, dataset, model_dir=None, save_images=True):
         """
         Visualizer is used to generate images of samples, reconstructions,
         latent traversals and so on of the trained model.
@@ -22,21 +22,21 @@ class Visualizer():
         ----------
         model : disvae.vae.VAE
 
+        model_dir : str
+            The directory that the model is saved to.
+
         save_images : bool
             Whether to save images or return a tensor.
+
+        dataset : str
+            Name of the dataset.
         """
         self.model = model
         self.device = next(self.model.parameters()).device
         self.latent_traverser = LatentTraverser(self.model.latent_dim)
         self.save_images = save_images
         self.model_dir = model_dir
-        self.dataset = self._dataset_name()
-
-    def _dataset_name(self):
-        """ fetches the name of the dataset. """
-        with open(os.path.join(self.model_dir, 'specs.json')) as spec_file:
-            specs = json.load(spec_file)
-            return specs['dataset']
+        self.dataset = dataset
 
     def generate_heat_maps(self, data, heat_map_size=(32, 32), filename='imgs/heatmap.png'):
         """
@@ -223,6 +223,10 @@ class Visualizer():
 
         Parameters
         ----------
+        sample_latent_space : torch.Tensor or None
+            The latent space of a sample which has been processed by the encoder.
+            The dimensions are (size, num_latent_dims)
+
         size : int
             Number of samples for each latent traversal.
         """

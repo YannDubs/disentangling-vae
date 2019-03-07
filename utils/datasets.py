@@ -25,8 +25,12 @@ def get_img_size(dataset):
     return get_dataset(dataset).img_size
 
 def get_background(dataset):
-   """Return the image background color."""
-   return get_dataset(dataset).background_color
+    """Return the image background color."""
+    if dataset is None:
+       # Default to a white background (the integer 0)
+       return 0
+    else:
+        return get_dataset(dataset).background_color
 
 def get_dataloaders(dataset, root=None, shuffle=True, pin_memory=True,
                     batch_size=128, **kwargs):

@@ -8,11 +8,11 @@ from disvae.encoder import get_Encoder
 from disvae.decoder import get_Decoder
 from utils.datasets import get_img_size
 
-MODEL_FILENAME = "model.pt"
+MODEL_FILENAME = "model"
 SPECS_FILENAME = "specs.json"
 
 
-def save_model(model, specs, directory):
+def save_model(model, specs, directory, original_device=None, epoch=None):
     """
     Save a model and corresponding specs.
 
@@ -26,16 +26,26 @@ def save_model(model, specs, directory):
 
     directory : str
         Path to the directory where to save the data.
+
+    original_device : torch.device
+        Original device on which the model runs. Include this parameter to
+        return the model to this device after saving.
     """
     model.cpu()
-    path_to_specs = os.path.join(directory, SPECS_FILENAME)
-    path_to_model = os.path.join(directory, MODEL_FILENAME)
+    if epoch is None:
+        path_to_model = os.path.join(directory, MODEL_FILENAME + '.pt')
+    else:
+        path_to_model = os.path.join(directory, MODEL_FILENAME + "-{}{}".format(epoch, '.pt'))
 
     torch.save(model.state_dict(), path_to_model)
 
-    with open(path_to_specs, 'w') as f:
-        json.dump(specs, f, indent=4, sort_keys=True)
+    if specs is not None:
+        path_to_specs = os.path.join(directory, SPECS_FILENAME)
+        with open(path_to_specs, 'w') as f:
+            json.dump(specs, f, indent=4, sort_keys=True)
 
+    if original_device is not None:
+        model.to(original_device)
 
 def load_model(directory, is_gpu=True):
     """
@@ -53,7 +63,7 @@ def load_model(directory, is_gpu=True):
                           else "cpu")
 
     path_to_specs = os.path.join(directory, SPECS_FILENAME)
-    path_to_model = os.path.join(directory, MODEL_FILENAME)
+    path_to_model = os.path.join(directory, MODEL_FILENAME + '.pt')
 
     # Open specs file
     with open(path_to_specs) as specs_file:

@@ -8,6 +8,7 @@ trained_models/
 imgs/*
 .idea/
 experiments/
+.vscode/
 
 # Byte-compiled / optimized / DLL files
 *.egg-info
