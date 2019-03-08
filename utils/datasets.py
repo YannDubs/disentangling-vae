@@ -287,8 +287,6 @@ class CelebA(DisentangledDataset):
 class Chairs(datasets.ImageFolder):
     """Chairs Dataset from [1].
 
-
-
     Notes
     -----
     - Link : https://www.di.ens.fr/willow/research/seeing3Dchairs

@@ -3,7 +3,6 @@ from viz.latent_traversals import LatentTraverser
 from scipy import stats
 from torch.autograd import Variable
 from torchvision.utils import make_grid, save_image
-import numpy as np
 
 
 class Visualizer():
@@ -64,8 +63,7 @@ class Visualizer():
                     heat_map_name = name + '-{}'.format(latent_dim) + '.' + extension
                     save_image(heat_map.data, heat_map_name, nrow=latent_dim)
                 else:
-                    return make_grid(heat_map.data, nrow=latent_dim)
-    
+                    return make_grid_img(heat_map.data, nrow=latent_dim)
 
     def reconstructions(self, data, size=(8, 8), filename='imgs/recon.png'):
         """
@@ -108,7 +106,7 @@ class Visualizer():
         if self.save_images:
             save_image(comparison.data, filename, nrow=size[0])
         else:
-            return make_grid(comparison.data, nrow=size[0])
+            return make_grid_img(comparison.data, nrow=size[0])
 
     def samples(self, size=(8, 8), filename='imgs/samples.png'):
         """
@@ -129,7 +127,7 @@ class Visualizer():
         if self.save_images:
             save_image(generated.data, filename, nrow=size[1])
         else:
-            return make_grid(generated.data, nrow=size[1])
+            return make_grid_img(generated.data, nrow=size[1])
 
     def latent_traversal_line(self, idx=None, size=8,
                               filename='imgs/traversal_line.png'):
@@ -151,7 +149,7 @@ class Visualizer():
         if self.save_images:
             save_image(generated.data, filename, nrow=size)
         else:
-            return make_grid(generated.data, nrow=size)
+            return make_grid_img(generated.data, nrow=size)
 
     def latent_traversal_grid(self, idx=None, axis=None, size=(5, 5),
                               filename='imgs/traversal_grid.png'):
@@ -174,7 +172,7 @@ class Visualizer():
         if self.save_images:
             save_image(generated.data, filename, nrow=size[1])
         else:
-            return make_grid(generated.data, nrow=size[1])
+            return make_grid_img(generated.data, nrow=size[1])
 
     def all_latent_traversals(self, size=8, filename='imgs/all_traversals.png'):
         """
@@ -200,7 +198,7 @@ class Visualizer():
         if self.save_images:
             save_image(generated.data, filename, nrow=size)
         else:
-            return make_grid(generated.data, nrow=size)
+            return make_grid_img(generated.data, nrow=size)
 
     def _decode_latents(self, latent_samples):
         """
@@ -214,6 +212,27 @@ class Visualizer():
         """
         latent_samples = latent_samples.to(self.device)
         return self.model.decoder(latent_samples).cpu()
+
+
+def make_grid_img(tensor, **kwargs):
+    """Converts a tensor to a grid of images that can be read by imageio.
+
+    Notes
+    -----
+    * from in https://github.com/pytorch/vision/blob/master/torchvision/utils.py
+
+    Parameters
+    ----------
+    tensor (torch.Tensor or list): 4D mini-batch Tensor of shape (B x C x H x W)
+        or a list of images all of the same size.
+
+    kwargs:
+        Additional arguments to `make_grid_img`.
+    """
+    grid = make_grid(tensor, **kwargs)
+    img_grid = grid.mul_(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0)
+    img_grid = img_grid.to('cpu', torch.uint8).numpy()
+    return img_grid
 
 
 def reorder_img(orig_img, reorder, by_row=True, img_size=(3, 32, 32), padding=2):
@@ -235,7 +254,7 @@ def reorder_img(orig_img, reorder, by_row=True, img_size=(3, 32, 32), padding=2)
         Image size following pytorch convention
 
     padding : int
-        Number of pixels used to pad in torchvision.utils.make_grid
+        Number of pixels used to pad in torchvision.utils.make_grid_img
     """
     reordered_img = torch.zeros(orig_img.size())
     _, height, width = img_size
