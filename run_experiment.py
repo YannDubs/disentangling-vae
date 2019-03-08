@@ -8,7 +8,6 @@ from viz.visualize import Visualizer
 from utils.modelIO import load_model
 from viz.log_plotter import LogPlotter
 
-
 def read_dataset_from_specs(path_to_specs):
     """ read the spec file from the path given
     """
