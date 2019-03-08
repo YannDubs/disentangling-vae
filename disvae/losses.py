@@ -100,11 +100,10 @@ class BetaHLoss(BaseLoss):
         kl_loss = _kl_normal_loss(*latent_dist, storer)
         loss = rec_loss + self.beta * kl_loss
 
-        batch_size = data.size(0)
         if storer is not None:
-            storer['loss'].append(loss.item() / batch_size)
+            storer['loss'].append(loss.item())
 
-        return loss / batch_size
+        return loss
 
 
 class BetaBLoss(BaseLoss):
@@ -152,9 +151,9 @@ class BetaBLoss(BaseLoss):
 
         batch_size = data.size(0)
         if storer is not None:
-            storer['loss'].append(loss.item() / batch_size)
+            storer['loss'].append(loss.item())
 
-        return loss / batch_size
+        return loss
 
 
 class FactorKLoss(BaseLoss):
@@ -203,7 +202,7 @@ class FactorKLoss(BaseLoss):
         rec_loss = _reconstruction_loss(data1, recon_batch, storer=storer)
         kl_loss = _kl_normal_loss(*latent_dist, storer)
         d_z = self.discriminator(latent_sample1)
-        tc_loss = (F.logsigmoid(d_z) - F.logsigmoid(1 - d_z)).sum()
+        tc_loss = (F.logsigmoid(d_z) - F.logsigmoid(1 - d_z)).mean()
         vae_loss = rec_loss + kl_loss + self.beta * tc_loss
 
         # Run VAE optimizer
@@ -217,7 +216,7 @@ class FactorKLoss(BaseLoss):
         z_perm = _permute_dims(latent_sample2).detach()
         d_z_perm = self.discriminator(z_perm)
         # Calculate total correlation loss
-        d_tc_loss = - (0.5 * (F.logsigmoid(d_z) + F.logsigmoid(1 - d_z_perm))).sum()
+        d_tc_loss = - (0.5 * (F.logsigmoid(d_z) + F.logsigmoid(1 - d_z_perm))).mean()
 
         # Run discriminator optimizer
         self.optimizer_d.zero_grad()
@@ -225,11 +224,11 @@ class FactorKLoss(BaseLoss):
         self.optimizer_d.step()
 
         if storer is not None:
-            storer['loss'].append(vae_loss.item() / half_batch_size)
-            storer['discrim_loss'].append(d_tc_loss.item() / half_batch_size)
-            storer['tc_loss'].append(tc_loss.item() / half_batch_size)
+            storer['loss'].append(vae_loss.item())
+            storer['discrim_loss'].append(d_tc_loss.item())
+            storer['tc_loss'].append(tc_loss.item())
 
-        return vae_loss / half_batch_size
+        return vae_loss
 
 
 def _reconstruction_loss(data, recon_data, distribution="bernoulli", storer=None):
@@ -278,8 +277,10 @@ def _reconstruction_loss(data, recon_data, distribution="bernoulli", storer=None
     else:
         raise ValueError("Unkown distribution: {}".format(distribution))
 
+    loss = loss / batch_size
+
     if storer is not None:
-        storer['recon_loss'].append(loss.item() / batch_size)
+        storer['recon_loss'].append(loss.item())
 
     return loss
 
@@ -304,14 +305,13 @@ def _kl_normal_loss(mean, logvar, storer=None):
     """
     latent_dim = mean.size(1)
     # batch mean of kl for each latent dimension
-    latent_kl = 0.5 * (-1 - logvar + mean.pow(2) + logvar.exp()).sum(dim=0)
+    latent_kl = 0.5 * (-1 - logvar + mean.pow(2) + logvar.exp()).mean(dim=0)
     total_kl = latent_kl.sum()
 
     if storer is not None:
-        batch_size = mean.size(0)
-        storer['kl_loss'].append(total_kl.item() / batch_size)
+        storer['kl_loss'].append(total_kl.item())
         for i in range(latent_dim):
-            storer['kl_loss_' + str(i)].append(latent_kl[i].item() / batch_size)
+            storer['kl_loss_' + str(i)].append(latent_kl[i].item())
 
     return total_kl
 
