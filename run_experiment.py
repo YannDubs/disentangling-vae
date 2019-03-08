@@ -50,7 +50,7 @@ def parse_arguments():
 
     visualisation = parser.add_argument_group('Desired Visualisation')
     visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction', 
-                             'heat_maps', 'display_avg_KL', 'recon_and_traverse_all']
+                             'heat_maps', 'display_avg_KL', 'recon_and_traverse_all', 'show_disentanglement']
     visualisation.add_argument('-v', '--visualisation',
                                default='random_samples', choices=visualisation_options,
                                help='Predefined visualisation options which can be performed.')
@@ -85,6 +85,7 @@ def main(args):
         'random_reconstruction': lambda: viz.reconstructions(data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True)),
         'recon_and_traverse_all': lambda: viz.recon_and_traverse_all(data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True)),
         'heat_maps': lambda: viz.generate_heat_maps(data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
+        'show_disentanglement': lambda: viz.show_disentanglement_fig2(latent_sweep_data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True), heat_map_data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
         'display_avg_KL': lambda: LogPlotter(log_dir=args.log_dir, output_file_name=args.output_file_name)
     }
 

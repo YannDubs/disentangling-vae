@@ -38,7 +38,15 @@ class Visualizer():
         self.model_dir = model_dir
         self.dataset = dataset
 
-    def generate_heat_maps(self, data, heat_map_size=(32, 32), filename='imgs/heatmap.png'):
+    def show_disentanglement_fig2(self, latent_sweep_data, heat_map_data):
+        """ Reproduce Figure 2 from Burgess https://arxiv.org/pdf/1804.03599.pdf
+            TODO: STILL TO BE IMPLEMENTED
+        """
+        pass
+        # avg_kl_list_descending = self.recon_and_traverse_all(data=latent_sweep_data)
+        # self.generate_heat_maps(data=heat_map_data, latent_order=avg_kl_list_descending)
+
+    def generate_heat_maps(self, data, latent_order=None, heat_map_size=(32, 32), filename='imgs/heatmap.png'):
         """
         Generates heat maps of the mean of each latent dimension in the model. The spites are
         assumed to be in order, therefore no information about (x,y) positions is required.
@@ -65,20 +73,26 @@ class Visualizer():
 
             heat_map_height = heat_map_size[0]
             heat_map_width = heat_map_size[1]
+            num_latent_dims = means.shape[1]
 
-            heat_map = torch.zeros([1, 1, heat_map_height, heat_map_width], dtype=torch.int32)
+            heat_map = torch.zeros([num_latent_dims, 1, heat_map_height, heat_map_width], dtype=torch.int32)
 
-            for latent_dim in range(means.shape[1]):
+            for latent_dim in range(num_latent_dims):
                 for y_posn in range(heat_map_width):
                     for x_posn in range(heat_map_height):
-                        heat_map[0, 0, x_posn, y_posn] = means[heat_map_width * y_posn + x_posn, latent_dim]
+                        heat_map[latent_dim, 0, x_posn, y_posn] = means[heat_map_width * y_posn + x_posn, latent_dim]
 
-                if self.save_images:
-                    [name, extension] = filename.split('.')
-                    heat_map_name = name + '-{}'.format(latent_dim) + '.' + extension
-                    save_image(heat_map.data, heat_map_name, nrow=latent_dim, pad_value=(1 - get_background(self.dataset)))
-                else:
-                    return make_grid(heat_map.data, nrow=latent_dim, pad_value=(1 - get_background(self.dataset)))
+            if latent_order is not None:
+                # Reorder latent samples by average KL
+                heat_map = [
+                    latent_sample for _, latent_sample in sorted(zip(latent_order, heat_map), reverse=True)
+                ]
+                heat_map = torch.stack(heat_map)
+
+            if self.save_images:
+                save_image(heat_map.data, filename=filename, nrow=1, pad_value=(1 - get_background(self.dataset)))
+            else:
+                return make_grid(heat_map.data, nrow=latent_dim, pad_value=(1 - get_background(self.dataset)))
 
     def recon_and_traverse_all(self, data, filename='imgs/recon_and_traverse.png'):
         """
@@ -101,7 +115,7 @@ class Visualizer():
             input_data = data.to(self.device)
             _, latent_dist, _ = self.model(input_data)
         means = latent_dist[1]
-        self.all_latent_traversals(sample_latent_space=means, filename=filename)
+        return self.all_latent_traversals(sample_latent_space=means, filename=filename)
 
     def reconstructions(self, data, size=(8, 8), filename='imgs/recon.png'):
         """
@@ -246,26 +260,11 @@ class Visualizer():
 
         # Decode samples
         generated = self._decode_latents(torch.cat(latent_samples, dim=0))
-
-        # Convert tensor to PIL Image
-        tensor = make_grid(generated.data, nrow=size, pad_value=(1 - get_background(self.dataset)))
-        all_traversal_im = transforms.ToPILImage()(tensor)
-        # Resize image
-        new_width = int(1.3 * all_traversal_im.width)
-        new_size = (all_traversal_im.height, new_width)
-        traversal_images_with_text = Image.new("RGB", new_size, color='white')
-        traversal_images_with_text.paste(all_traversal_im, (0, 0))
-        # Add KL text alongside each row
-        draw = ImageDraw.Draw(traversal_images_with_text)
-        for latent_idx, latent_dim in enumerate(sorted_avg_kl_list):
-            draw.text(xy=(int(0.825 * traversal_images_with_text.width),
-                          int((latent_idx / len(sorted_avg_kl_list) + \
-                              1 / (2 * len(sorted_avg_kl_list))) * all_traversal_im.height)),
-                      text="KL = {}".format(latent_dim),
-                      fill=(0,0,0))
+        traversal_images_with_text = add_kl_labels(generated, size, sorted_avg_kl_list, self.dataset)
 
         if self.save_images:
             traversal_images_with_text.save(filename)
+            return avg_kl_list
         else:
             return make_grid(generated.data, nrow=size, pad_value=(1 - get_background(self.dataset)))
 
@@ -282,6 +281,28 @@ class Visualizer():
         latent_samples = latent_samples.to(self.device)
         return self.model.decoder(latent_samples).cpu()
 
+
+def add_kl_labels(generated, size, sorted_avg_kl_list, dataset):
+    """ Adds the average KL per latent dimension as a label next to the relevant row as in
+        figure 2 of Burgress et al.
+    """
+    # Convert tensor to PIL Image
+    tensor = make_grid(generated.data, nrow=size, pad_value=(1 - get_background(dataset)))
+    all_traversal_im = transforms.ToPILImage()(tensor)
+    # Resize image
+    new_width = int(1.3 * all_traversal_im.width)
+    new_size = (all_traversal_im.height, new_width)
+    traversal_images_with_text = Image.new("RGB", new_size, color='white')
+    traversal_images_with_text.paste(all_traversal_im, (0, 0))
+    # Add KL text alongside each row
+    draw = ImageDraw.Draw(traversal_images_with_text)
+    for latent_idx, latent_dim in enumerate(sorted_avg_kl_list):
+        draw.text(xy=(int(0.825 * traversal_images_with_text.width),
+                        int((latent_idx / len(sorted_avg_kl_list) + \
+                            1 / (2 * len(sorted_avg_kl_list))) * all_traversal_im.height)),
+                    text="KL = {}".format(latent_dim),
+                    fill=(0,0,0))
+    return traversal_images_with_text
 
 def reorder_img(orig_img, reorder, by_row=True, img_size=(3, 32, 32), padding=2):
     """
