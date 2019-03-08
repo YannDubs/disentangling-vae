@@ -21,15 +21,15 @@ __pycache__/
 
 # files
 .gitignore
+
+# extensions
+*.pyc
+*.log
 *.tar
 *.zip
 *.tar
 *.sublime*
-
-# extensions
-*.pyc
-*.egg-info
-*.log
+*.swp
 
 # placeholders to keep directories
 !.keep
