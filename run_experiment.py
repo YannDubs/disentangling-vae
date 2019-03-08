@@ -4,10 +4,19 @@ import torch
 
 from disvae.vae import VAE
 from utils.datasets import get_dataloaders
-from viz.visualize import Visualizer as Viz
+from viz.visualize import Visualizer
 from utils.modelIO import load_model
 from viz.log_plotter import LogPlotter
 
+
+def read_dataset_from_specs(path_to_specs):
+    """ read the spec file from the path given
+    """
+    # Open specs file
+    with open(path_to_specs) as specs_file:
+        specs = json.load(specs_file)
+    dataset = specs["dataset"]
+    return dataset
 
 def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
     """ generate a number of samples from the dataset
@@ -40,8 +49,8 @@ def parse_arguments():
                             help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
 
     visualisation = parser.add_argument_group('Desired Visualisation')
-    visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction',
-                             'heat_maps', 'display_avg_KL']
+    visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction', 
+                             'heat_maps', 'display_avg_KL', 'recon_and_traverse_all', 'show_disentanglement']
     visualisation.add_argument('-v', '--visualisation',
                                default='random_samples', choices=visualisation_options,
                                help='Predefined visualisation options which can be performed.')
@@ -66,14 +75,17 @@ def main(args):
 
         model = load_model('experiments/{}'.format(experiment_name))
         model.eval()
-        viz = Viz(model)
+        dataset = read_dataset_from_specs('experiments/{}/specs.json'.format(experiment_name))
+        viz = Visualizer(model=model, model_dir='experiments/{}'.format(experiment_name), dataset=dataset)
 
     visualisation_options = {
         'random_samples': lambda: viz.samples(),
         'traverse_all_latent_dims': lambda: viz.all_latent_traversals(),
         'traverse_one_latent_dim': lambda: viz.latent_traversal_line(idx=args.sweep_dim),
         'random_reconstruction': lambda: viz.reconstructions(data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True)),
+        'recon_and_traverse_all': lambda: viz.recon_and_traverse_all(data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True)),
         'heat_maps': lambda: viz.generate_heat_maps(data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
+        'show_disentanglement': lambda: viz.show_disentanglement_fig2(latent_sweep_data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True), heat_map_data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
         'display_avg_KL': lambda: LogPlotter(log_dir=args.log_dir, output_file_name=args.output_file_name)
     }
 

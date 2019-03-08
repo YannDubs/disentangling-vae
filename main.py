@@ -33,7 +33,8 @@ def default_experiment():
             'model': 'Burgess',  # follows the paper by Burgess et al
             'dataset': 'mnist',
             'experiment': 'custom',
-            "latent_dim": 10
+            "latent_dim": 10,
+            'save_model_on_epochs': ()
             }
 
 
@@ -90,6 +91,9 @@ def parse_arguments():
     parser.add_argument("-R", '--record_every',
                         type=int, default=default_config['record_every'],
                         help='Every how many batches to save results')
+    parser.add_argument("-S", '--save_model_on_epochs', nargs=2,
+                        default=default_config['save_model_on_epochs'],
+                        help='On which epochs the model will be saved (in addition to at the end of training)')
 
     # Dataset options
     data = parser.add_argument_group('Dataset options')
@@ -99,7 +103,8 @@ def parse_arguments():
 
     # Predefined experiments
     experiment = parser.add_argument_group('Predefined experiments')
-    experiments = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite', 'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs']
+    experiments = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite',
+                   'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs']
     experiment.add_argument('-x', '--experiment',
                             default=default_config['experiment'], choices=experiments,
                             help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
@@ -208,7 +213,9 @@ def main(args):
                       record_loss_every=args.record_every,
                       device=device,
                       log_level=args.log_level,
-                      save_dir=exp_dir)
+                      save_dir=exp_dir,
+                      save_epoch_list=args.save_model_on_epochs,
+                      dataset=args.dataset)
     trainer.train(train_loader, epochs=args.epochs)
 
     # SAVE MODEL AND EXPERIMENT INFORMATION

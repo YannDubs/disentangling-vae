@@ -6,3 +6,6 @@ imageio
 scikit-image
 pytest
 pandas
+csv
+Pillow
+json

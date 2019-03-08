@@ -10,6 +10,7 @@ import sys
 sys.path.append("..")
 
 from utils.graph_logger import GraphLogger
+from utils.modelIO import save_model
 from disvae.losses import get_loss_f
 from viz.visualize import Visualizer
 
@@ -26,7 +27,9 @@ class Trainer():
                  device=torch.device("cpu"),
                  log_level=None,
                  save_dir="experiments",
-                 is_viz_gif=True):
+                 is_viz_gif=True,
+                 save_epoch_list=(),
+                 dataset="mnist"):
         """
         Class to handle training of model.
 
@@ -62,6 +65,13 @@ class Trainer():
 
         is_viz_gif : bool
             Whether to store a gif of samples after every epoch.
+
+        save_epoch_list : tuple
+            A tuple containing the epoch numbers on which to save a snapshot
+            of the model. Note that the first epoch is index 0.
+
+        dataset : str
+            Name of the dataset.
         """
         self.device = device
         self.loss_type = loss_type
@@ -91,9 +101,10 @@ class Trainer():
                                         os.path.join(self.save_dir, "kl_data.log"),
                                         'KL_logger')
         if self.is_viz_gif:
-            self.vizualizer = Visualizer(self.model)
+            self.vizualizer = Visualizer(model=self.model, model_dir=self.save_dir, dataset=dataset)
 
         self.logger.info("Training Device: {}".format(self.device))
+        self.save_epoch_list = [int(i) for i in save_epoch_list]
 
     def train(self, data_loader, epochs=10, visualizer=None):
         """
@@ -116,6 +127,7 @@ class Trainer():
             avg_loss = batch_size * self.model.num_pixels * mean_epoch_loss
             self.logger.info('Epoch: {} Average loss: {:.2f}'.format(epoch + 1,
                                                                      avg_loss))
+
             # Log and reset for next epoch
             avg_kl_per_factor = []
             for i in range(self.num_latent_dim):
@@ -130,6 +142,9 @@ class Trainer():
                 # in https://github.com/pytorch/vision/blob/master/torchvision/utils.py
                 img_grid = img_grid.mul_(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to('cpu', torch.uint8).numpy()
                 training_progress_images.append(img_grid)
+
+            if epoch in self.save_epoch_list:
+                save_model(model=self.model, specs=None, original_device=self.device, directory=self.save_dir, epoch=epoch)
 
         if self.is_viz_gif:
             imageio.mimsave(os.path.join(self.save_dir, "training.gif"),

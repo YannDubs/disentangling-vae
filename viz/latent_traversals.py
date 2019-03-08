@@ -20,7 +20,7 @@ class LatentTraverser():
         self.latent_dim = latent_dim
         self.sample_prior = sample_prior
 
-    def traverse_line(self, idx=None, size=5):
+    def traverse_line(self, sample_latent_space=None, idx=None, size=5):
         """
         Returns a (size, latent_size) latent sample, corresponding to a traversal
         of a continuous latent variable indicated by idx.
@@ -34,13 +34,22 @@ class LatentTraverser():
             sampled. If None, no latent is traversed and all latent
             dimensions are randomly sampled or kept fixed.
 
+        sample_latent_space : torch.Tensor or None
+            The latent space of a sample which has been processed by the encoder.
+            The dimensions are (size, num_latent_dims)
+
+        idx : int or None
+            Indicates which line (latent dimension) to traverse
+
         size : int
             Number of samples to generate.
         """
-        if self.sample_prior:
+        if self.sample_prior and sample_latent_space == None:
             samples = np.random.normal(size=(size, self.latent_dim))
-        else:
+        elif sample_latent_space is None:
             samples = np.zeros(shape=(size, self.latent_dim))
+        else:
+            samples = np.repeat(sample_latent_space.cpu().numpy(), size, axis=0)
 
         if idx is not None:
             # Sweep over linearly spaced coordinates transformed through the
