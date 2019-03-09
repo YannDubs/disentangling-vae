@@ -11,7 +11,6 @@ import json
 from PIL import Image, ImageFont, ImageDraw
 from utils.datasets import get_background
 
-
 class Visualizer():
     def __init__(self, model, dataset, model_dir=None, save_images=True):
         """
@@ -245,7 +244,9 @@ class Visualizer():
             Number of samples for each latent traversal.
         """
         latent_samples = []
-        avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, 'kl_data.log'))
+
+        avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, 'losses.log'),self.model.latent_dim)
+        
         # Perform line traversal of every latent
         for idx in range(self.model.latent_dim):
             latent_samples.append(self.latent_traverser.traverse_line(idx=idx,
@@ -341,9 +342,13 @@ def reorder_img(orig_img, reorder, by_row=True, img_size=(3, 32, 32), padding=2)
     return reordered_img
 
 
-def read_avg_kl_from_file(log_file_path):
+def read_avg_kl_from_file(log_file_path, nr_latent_variables):
     """ Read the average KL per latent dimension at the final stage of training from the log file.
     """
     with open(log_file_path, 'r') as f:
-        last_line = list(csv.reader(f))[-1:][0]
-        return last_line[1:]
+        total_list = list(csv.reader(f))
+        avg_kl = [0]*nr_latent_variables
+        for i in range(1, nr_latent_variables+1):
+            avg_kl[i-1] = total_list[-(2+nr_latent_variables)+i][2]
+
+    return avg_kl
