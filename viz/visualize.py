@@ -117,7 +117,7 @@ class Visualizer():
         means = latent_dist[1]
         return self.all_latent_traversals(sample_latent_space=means, filename=filename)
 
-    def reconstructions(self, data, size=(8, 8), filename='imgs/recon.png'):
+    def reconstruction_comparisons(self, data, size=(8, 8), filename='imgs/recon_comp.png', exclude_original=False, exclude_recon=False):
         """
         Generates reconstructions of data through the model.
 
@@ -134,6 +134,8 @@ class Visualizer():
         filename : string
             Name of file in which results are stored.
         """
+        if exclude_original and exclude_recon:
+            raise Exception('exclude_original and exclude_recon cannot both be True')
         # Plot reconstructions in test mode, i.e. without sampling from latent
         self.model.eval()
         # Pass data through VAE to obtain reconstruction
@@ -155,8 +157,13 @@ class Visualizer():
             originals = torch.cat([originals, blank_images])
             reconstructions = torch.cat([reconstructions, blank_images])
 
-        # Concatenate images and reconstructions
-        comparison = torch.cat([originals, reconstructions])
+        if exclude_original:
+            comparison = reconstructions
+        if exclude_recon:
+            comparison = originals
+        if not exclude_original and not exclude_recon:
+            # Concatenate images and reconstructions
+            comparison = torch.cat([originals, reconstructions])
 
         if self.save_images:
             save_image(comparison.data, filename, nrow=size[0], pad_value=(1 - get_background(self.dataset)))

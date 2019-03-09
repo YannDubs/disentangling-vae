@@ -7,6 +7,8 @@ from utils.datasets import get_dataloaders
 from viz.visualize import Visualizer
 from utils.modelIO import load_model
 from viz.log_plotter import LogPlotter
+from torchvision.utils import save_image
+from utils.datasets import get_background
 
 
 def read_dataset_from_specs(path_to_specs):
@@ -28,12 +30,28 @@ def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
         data_loader = get_dataloaders(batch_size=batch_size, dataset=dataset_name, shuffle=shuffle)
 
         data_list = []
-        for batch_idx, (new_data, label) in enumerate(data_loader):
+        for batch_idx, (new_data, _) in enumerate(data_loader):
             if num_samples == batch_idx:
                 break
             data_list.append(new_data)
-        return torch.cat(data_list)
+        return torch.cat(data_list, dim=0)
 
+def snapshot_reconstruction(viz_list, experiment_name, num_samples, dataset, shuffle=True, file_name='imgs/snapshot_recon.png'):
+    """ Reconstruct some data samples at different stages of training. 
+    """
+    tensor_image_list = []
+    data_samples = samples(experiment_name=experiment_name, num_samples=num_samples, shuffle=True)
+    
+    # Create original
+    tensor_image = viz_list[0].reconstruction_comparisons(data=data_samples, exclude_recon=True)
+    tensor_image_list.append(tensor_image)
+    # Now create reconstructions
+    for viz in viz_list:
+        tensor_image = viz.reconstruction_comparisons(data=data_samples, exclude_original=True)
+        tensor_image_list.append(tensor_image)
+
+    reconstructions = torch.stack(tensor_image_list, dim=0)
+    save_image(reconstructions.data, file_name, nrow=1, pad_value=(1 - get_background(dataset)))
 
 def parse_arguments():
     """ Set up a command line interface for directing the experiment to be run.
@@ -50,7 +68,7 @@ def parse_arguments():
 
     visualisation = parser.add_argument_group('Desired Visualisation')
     visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction', 
-                             'heat_maps', 'display_avg_KL', 'recon_and_traverse_all', 'show_disentanglement']
+                             'heat_maps', 'display_avg_KL', 'recon_and_traverse_all', 'show_disentanglement', 'snapshot_recon']
     visualisation.add_argument('-v', '--visualisation',
                                default='random_samples', choices=visualisation_options,
                                help='Predefined visualisation options which can be performed.')
@@ -69,24 +87,39 @@ def parse_arguments():
 
 def main(args):
     """ The primary entry point for carrying out experiments on pretrained models.
-    """
-    if not args.visualisation == 'display_avg_KL':
-        experiment_name = args.experiment
+    """ 
+    experiment_name = args.experiment
+    dataset = read_dataset_from_specs('experiments/{}/specs.json'.format(experiment_name))
 
+    if args.visualisation == 'snapshot_recon':
+        viz_list = []
+        model_list = load_model(directory='experiments/{}'.format(experiment_name), load_snapshots=True)
+        for _, model in model_list:
+            model.eval()
+            viz_list.append(Visualizer(model=model, model_dir='experiments/{}'.format(experiment_name), dataset=dataset, save_images=False))
+
+    elif not args.visualisation == 'display_avg_KL':
         model = load_model('experiments/{}'.format(experiment_name))
         model.eval()
-        dataset = read_dataset_from_specs('experiments/{}/specs.json'.format(experiment_name))
         viz = Visualizer(model=model, model_dir='experiments/{}'.format(experiment_name), dataset=dataset)
 
     visualisation_options = {
         'random_samples': lambda: viz.samples(),
         'traverse_all_latent_dims': lambda: viz.all_latent_traversals(),
         'traverse_one_latent_dim': lambda: viz.latent_traversal_line(idx=args.sweep_dim),
-        'random_reconstruction': lambda: viz.reconstructions(data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True)),
-        'recon_and_traverse_all': lambda: viz.recon_and_traverse_all(data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True)),
-        'heat_maps': lambda: viz.generate_heat_maps(data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
-        'show_disentanglement': lambda: viz.show_disentanglement_fig2(latent_sweep_data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True), heat_map_data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
-        'display_avg_KL': lambda: LogPlotter(log_dir=args.log_dir, output_file_name=args.output_file_name)
+        'random_reconstruction': lambda: viz.reconstruction_comparisons(
+            data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True)),
+        'recon_and_traverse_all': lambda: viz.recon_and_traverse_all(
+            data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True)),
+        'heat_maps': lambda: viz.generate_heat_maps(
+            data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
+        'show_disentanglement': lambda: viz.show_disentanglement_fig2(
+            latent_sweep_data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True),
+            heat_map_data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
+        'display_avg_KL': lambda: LogPlotter(log_dir=args.log_dir, output_file_name=args.output_file_name),
+        'snapshot_recon': lambda: snapshot_reconstruction(
+            viz_list=viz_list, experiment_name=experiment_name,
+            num_samples=args.num_samples, dataset=dataset, shuffle=True)
     }
 
     return visualisation_options.get(args.visualisation, lambda: "Invalid visualisation option")()
