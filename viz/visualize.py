@@ -74,7 +74,7 @@ class Visualizer():
             heat_map_width = heat_map_size[1]
             num_latent_dims = means.shape[1]
 
-            heat_map = torch.zeros([num_latent_dims, 1, heat_map_height, heat_map_width], dtype=torch.int32)
+            heat_map = torch.zeros([num_latent_dims, 1, heat_map_height, heat_map_width])
 
             for latent_dim in range(num_latent_dims):
                 for y_posn in range(heat_map_width):
@@ -87,6 +87,8 @@ class Visualizer():
                     latent_sample for _, latent_sample in sorted(zip(latent_order, heat_map), reverse=True)
                 ]
                 heat_map = torch.stack(heat_map)
+            # Normalise between 0 and 1
+            heat_map = (heat_map - torch.min(heat_map)) / (torch.max(heat_map) - torch.min(heat_map))
 
             if self.save_images:
                 save_image(heat_map.data, filename=filename, nrow=1, pad_value=(1 - get_background(self.dataset)))
