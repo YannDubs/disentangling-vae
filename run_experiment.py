@@ -10,7 +10,6 @@ from viz.log_plotter import LogPlotter
 from torchvision.utils import save_image
 from utils.datasets import get_background
 
-
 def read_dataset_from_specs(path_to_specs):
     """ read the spec file from the path given
     """
