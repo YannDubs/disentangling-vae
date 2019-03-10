@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 
 from utils.datasets import get_background
 from viz.latent_traversals import LatentTraverser
-from viz.viz_helpers import reorder_img, read_avg_kl_from_file, add_labels
+from viz.viz_helpers import reorder_img, read_avg_kl_from_file, add_labels, upsample
 
 import numpy as np
 import csv
@@ -41,13 +41,110 @@ class Visualizer():
         self.model_dir = model_dir
         self.dataset = dataset
 
-    def show_disentanglement_fig2(self, latent_sweep_data, heat_map_data):
+    def show_disentanglement_fig2(self, reconstruction_data, latent_sweep_data, heat_map_data, latent_order=None, heat_map_size = (32,32), filename='imgs/show_disentanglement.png',size=8, sample_latent_space=None):
         """ Reproduce Figure 2 from Burgess https://arxiv.org/pdf/1804.03599.pdf
             TODO: STILL TO BE IMPLEMENTED
         """
-        pass
-        # avg_kl_list_descending = self.recon_and_traverse_all(data=latent_sweep_data)
-        # self.generate_heat_maps(data=heat_map_data, latent_order=avg_kl_list_descending)
+        # Plot reconstructions in test mode, i.e. without sampling from latent
+        self.model.eval()
+        # Pass data through VAE to obtain reconstruction
+        with torch.no_grad():
+            input_data = reconstruction_data.to(self.device)
+            recon_data, _, _ = self.model(input_data)
+        self.model.train()
+
+        # Upper half of plot will contain data, bottom half will contain
+        # reconstructions of the original image
+        num_images = 9
+        originals = input_data.cpu()
+        reconstructions = recon_data.view(-1, *self.model.img_size).cpu()
+        # If there are fewer examples given than spaces available in grid,
+        # augment with blank images
+        num_examples = originals.size()[0]
+        if num_images > num_examples:
+            blank_images = torch.zeros((num_images - num_examples,) + originals.size()[1:])
+            originals = torch.cat([originals, blank_images])
+            reconstructions = torch.cat([reconstructions, blank_images])
+        comparison = torch.cat([originals, reconstructions])
+        # Plot reconstructions in test mode, i.e. without sampling from latent
+        self.model.eval()
+        # Pass data through VAE to obtain reconstruction
+        with torch.no_grad():
+            input_data = heat_map_data.to(self.device)
+            _, latent_dist, _ = self.model(input_data)
+            means = latent_dist[1]
+
+            heat_map_height = heat_map_size[0]
+            heat_map_width = heat_map_size[1]
+            num_latent_dims = means.shape[1]
+
+            heat_map = torch.zeros([num_latent_dims, 1, heat_map_height, heat_map_width], dtype=torch.int32)
+
+            for latent_dim in range(num_latent_dims):
+                for y_posn in range(heat_map_width):
+                    for x_posn in range(heat_map_height):
+                        heat_map[latent_dim, 0, x_posn, y_posn] = means[heat_map_width * y_posn + x_posn, latent_dim]
+
+            if latent_order is not None:
+                # Reorder latent samples by average KL
+                heat_map = [
+                    latent_sample for _, latent_sample in sorted(zip(latent_order, heat_map), reverse=True)
+                ]
+            heat_map_np = np.array(heat_map)
+            upsampled_heat_map = torch.tensor(upsample(input_data=heat_map_np, scale_factor=2))   
+
+        # Plot reconstructions in test mode, i.e. without sampling from latent
+        self.model.eval()
+        # Pass data through VAE to obtain reconstruction
+        with torch.no_grad():
+            input_data = latent_sweep_data.to(self.device)
+            _, latent_dist, _ = self.model(input_data)
+        means = latent_dist[1]
+
+        avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, 'losses.log'),self.model.latent_dim)
+
+        # Perform line traversal of every latent
+        latent_samples = []
+        for idx in range(self.model.latent_dim):
+            latent_samples.append(self.latent_traverser.traverse_line(idx=idx,
+                                                                      size=size,
+                                                                      sample_latent_space=means))
+        latent_samples = [
+            latent_sample for _, latent_sample in sorted(zip(avg_kl_list, latent_samples), reverse=True)
+        ]
+        
+        sorted_avg_kl_list = [
+            round(float(avg_kl_sample), 3) for avg_kl_sample, _ in sorted(zip(avg_kl_list, latent_samples), reverse=True)
+        ]
+
+        # Decode samples
+        generated = self._decode_latents(torch.cat(latent_samples, dim=0))
+
+        list_heat_map  = []
+        for i in range(0, self.model.latent_dim):
+            list_heat_map.append(upsampled_heat_map[i,0,:,:])
+        
+        heat_map_sorted = [
+            list_heat_map for _, list_heat_map in sorted(zip(avg_kl_list, list_heat_map), reverse=True)
+        ]
+
+        new_torch = torch.tensor(np.zeros((self.model.latent_dim,1,64,64)))
+        for i in range(0, self.model.latent_dim):
+            new_torch[i,0,:,:]=list_heat_map[i]
+        nr_imgs_per_latent = size
+        combined_torch = comparison
+
+        for i in range(0,self.model.latent_dim):
+            combined_torch = torch.cat((combined_torch, generated[nr_imgs_per_latent*i:nr_imgs_per_latent*(i+1),:,:,:].float()))
+            combined_torch = torch.cat((combined_torch, new_torch[i:i+1,:,:,:].float()))
+ 
+        traversal_images_with_text = add_labels('KL',combined_torch, size+1, sorted_avg_kl_list, self.dataset)
+
+        if self.save_images:
+            traversal_images_with_text.save(filename)
+            return avg_kl_list
+        else:
+            return make_grid(combined_torch.data, nrow=size, pad_value=(1 - get_background(self.dataset)))
 
     def generate_heat_maps(self, data, latent_order=None, heat_map_size=(32, 32), filename='imgs/heatmap.png'):
         """
@@ -297,3 +394,4 @@ class Visualizer():
         """
         latent_samples = latent_samples.to(self.device)
         return self.model.decoder(latent_samples).cpu()
+
