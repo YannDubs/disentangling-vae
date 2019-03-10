@@ -9,32 +9,36 @@ from disvae.decoder import get_Decoder
 from utils.datasets import get_img_size
 
 MODEL_FILENAME = "model.pt"
-SPECS_FILENAME = "specs.json"
+META_FILENAME = "specs.json"  # CHANGE TO METADATA.json
 
 
-def save_model(model, specs, directory):
+def save_model(model, directory, metadata=None, filename=MODEL_FILENAME):
     """
-    Save a model and corresponding specs.
+    Save a model and corresponding metadata.
 
     Parameters
     ----------
     model : nn.Module
         Model.
 
-    specs : dict
-        Metadata to save.
-
     directory : str
         Path to the directory where to save the data.
+
+    metadata : dict
+        Metadata to save.
     """
+    device = next(model.parameters()).device
     model.cpu()
-    path_to_specs = os.path.join(directory, SPECS_FILENAME)
-    path_to_model = os.path.join(directory, MODEL_FILENAME)
+    path_to_metadata = os.path.join(directory, META_FILENAME)
+    path_to_model = os.path.join(directory, filename)
 
     torch.save(model.state_dict(), path_to_model)
 
-    with open(path_to_specs, 'w') as f:
-        json.dump(specs, f, indent=4, sort_keys=True)
+    model.to(device)  # restore device
+
+    if metadata is not None:
+        with open(path_to_metadata, 'w') as f:
+            json.dump(metadata, f, indent=4, sort_keys=True)
 
 
 def load_model(directory, is_gpu=True):
@@ -52,7 +56,7 @@ def load_model(directory, is_gpu=True):
     device = torch.device("cuda" if torch.cuda.is_available() and is_gpu
                           else "cpu")
 
-    path_to_specs = os.path.join(directory, SPECS_FILENAME)
+    path_to_specs = os.path.join(directory, META_FILENAME)
     path_to_model = os.path.join(directory, MODEL_FILENAME)
 
     # Open specs file

@@ -178,7 +178,7 @@ class FactorKLoss(BaseLoss):
 
     def __init__(self, device, beta=40.,
                  disc_kwargs=dict(neg_slope=0.2, latent_dim=10, hidden_units=1000),
-                 optim_kwargs=dict(lr=1e-4, betas=(0.5, 0.9))):
+                 optim_kwargs=dict(lr=5e-4, betas=(0.5, 0.9))):
         super().__init__()
         self.beta = beta
         self.device = device

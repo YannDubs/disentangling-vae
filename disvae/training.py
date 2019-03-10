@@ -13,6 +13,7 @@ sys.path.append("..")
 from utils.graph_logger import LossesLogger
 from disvae.losses import get_loss_f
 from viz.visualize import Visualizer
+from utils.modelIO import save_model
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,8 @@ class Trainer():
                  log_level="info",
                  save_dir="experiments",
                  is_viz_gif=True,
-                 is_progress_bar=True):
+                 is_progress_bar=True,
+                 checkpoint_every=10):
         """
         Class to handle training of model.
 
@@ -59,6 +61,9 @@ class Trainer():
 
         is_progress_bar: bool
             Whether to use a progress bar for training.
+
+        checkpoint_every: int
+            Save a checkpoint of the trained model every n epoch.
         """
         self.device = device
         self.loss_type = loss_type
@@ -71,6 +76,7 @@ class Trainer():
         self.save_dir = save_dir
         self.is_viz_gif = is_viz_gif
         self.is_progress_bar = is_progress_bar
+        self.checkpoint_every = checkpoint_every
 
         self.logger = logger
         if log_level is not None:
@@ -100,7 +106,7 @@ class Trainer():
         self.model.train()
         for epoch in range(epochs):
             storer = defaultdict(list)
-            mean_epoch_loss = self._train_epoch(data_loader, storer)
+            mean_epoch_loss = self._train_epoch(data_loader, storer, epoch)
             self.logger.info('Epoch: {} Average loss per image: {:.2f}'.format(epoch + 1,
                                                                                mean_epoch_loss))
             self.losses_logger.log(epoch, storer)
@@ -110,6 +116,10 @@ class Trainer():
                 img_grid = self.vizualizer.all_latent_traversals(size=10)
                 training_progress_images.append(img_grid)
 
+            if epoch % self.checkpoint_every == 0:
+                save_model(self.model, self.save_dir,
+                           filename="model-{}.pt".format(epoch))
+
         if self.is_viz_gif:
             imageio.mimsave(os.path.join(self.save_dir, "training.gif"),
                             training_progress_images,
@@ -117,7 +127,7 @@ class Trainer():
 
         self.model.eval()
 
-    def _train_epoch(self, data_loader, storer):
+    def _train_epoch(self, data_loader, storer, epoch):
         """
         Trains the model for one epoch.
 
@@ -127,9 +137,14 @@ class Trainer():
 
         storer : dict
             Dictionary in which to store important variables for vizualisation.
+
+        epoch: int
+            Epoch number
         """
         epoch_loss = 0.
-        with trange(len(data_loader), leave=False, disable=not self.is_progress_bar) as t:
+        kwargs = dict(desc="Epoch {}".format(epoch), leave=False,
+                      disable=not self.is_progress_bar)
+        with trange(len(data_loader), **kwargs) as t:
             for batch_idx, (data, label) in enumerate(data_loader):
                 iter_loss = self._train_iteration(data, storer)
                 epoch_loss += iter_loss

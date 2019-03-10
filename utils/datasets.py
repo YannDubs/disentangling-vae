@@ -139,8 +139,8 @@ class DSprites(DisentangledDataset):
     """
     urls = {"train": "https://github.com/deepmind/dsprites-dataset/blob/master/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz?raw=true"}
     files = {"train": "dsprite_train.npz"}
-    lat_names = ('color', 'shape', 'scale', 'orientation', 'posX', 'posY')
-    lat_sizes = np.array([1, 3, 6, 40, 32, 32])
+    lat_names = ('shape', 'scale', 'orientation', 'posX', 'posY')
+    lat_sizes = np.array([3, 6, 40, 32, 32])
     img_size = (1, 64, 64)
     lat_values = {'posX': np.array([0., 0.03225806, 0.06451613, 0.09677419, 0.12903226,
                                     0.16129032, 0.19354839, 0.22580645, 0.25806452,
