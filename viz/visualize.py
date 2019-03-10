@@ -1,15 +1,19 @@
 import torch
-from viz.latent_traversals import LatentTraverser
 from scipy import stats
 from torch.autograd import Variable
 from torchvision.utils import make_grid, save_image
 from torchvision import transforms
+from PIL import Image, ImageDraw
+
+from utils.datasets import get_background
+from viz.latent_traversals import LatentTraverser
+from viz.viz_helpers import reorder_img, read_avg_kl_from_file, add_labels
+
 import numpy as np
 import csv
 import os
 import json
-from PIL import Image, ImageFont, ImageDraw
-from utils.datasets import get_background
+
 
 class Visualizer():
     def __init__(self, model, dataset, model_dir=None, save_images=True):
@@ -270,7 +274,12 @@ class Visualizer():
 
         # Decode samples
         generated = self._decode_latents(torch.cat(latent_samples, dim=0))
-        traversal_images_with_text = add_kl_labels(generated, size, sorted_avg_kl_list, self.dataset)
+        traversal_images_with_text = add_labels(
+            label_name='KL',
+            tensor=generated,
+            num_rows=size,
+            sorted_list=sorted_avg_kl_list,
+            dataset=self.dataset)
 
         if self.save_images:
             traversal_images_with_text.save(filename)
@@ -290,74 +299,3 @@ class Visualizer():
         """
         latent_samples = latent_samples.to(self.device)
         return self.model.decoder(latent_samples).cpu()
-
-
-def add_kl_labels(generated, size, sorted_avg_kl_list, dataset):
-    """ Adds the average KL per latent dimension as a label next to the relevant row as in
-        figure 2 of Burgress et al.
-    """
-    # Convert tensor to PIL Image
-    tensor = make_grid(generated.data, nrow=size, pad_value=(1 - get_background(dataset)))
-    all_traversal_im = transforms.ToPILImage()(tensor)
-    # Resize image
-    new_width = int(1.3 * all_traversal_im.width)
-    new_size = (all_traversal_im.height, new_width)
-    traversal_images_with_text = Image.new("RGB", new_size, color='white')
-    traversal_images_with_text.paste(all_traversal_im, (0, 0))
-    # Add KL text alongside each row
-    draw = ImageDraw.Draw(traversal_images_with_text)
-    for latent_idx, latent_dim in enumerate(sorted_avg_kl_list):
-        draw.text(xy=(int(0.825 * traversal_images_with_text.width),
-                        int((latent_idx / len(sorted_avg_kl_list) + \
-                            1 / (2 * len(sorted_avg_kl_list))) * all_traversal_im.height)),
-                    text="KL = {}".format(latent_dim),
-                    fill=(0,0,0))
-    return traversal_images_with_text
-
-def reorder_img(orig_img, reorder, by_row=True, img_size=(3, 32, 32), padding=2):
-    """
-    Reorders rows or columns of an image grid.
-
-    Parameters
-    ----------
-    orig_img : torch.Tensor
-        Original image. Shape (channels, width, height)
-
-    reorder : list of ints
-        List corresponding to desired permutation of rows or columns
-
-    by_row : bool
-        If True reorders rows, otherwise reorders columns
-
-    img_size : tuple of ints
-        Image size following pytorch convention
-
-    padding : int
-        Number of pixels used to pad in torchvision.utils.make_grid
-    """
-    reordered_img = torch.zeros(orig_img.size())
-    _, height, width = img_size
-
-    for new_idx, old_idx in enumerate(reorder):
-        if by_row:
-            start_pix_new = new_idx * (padding + height) + padding
-            start_pix_old = old_idx * (padding + height) + padding
-            reordered_img[:, start_pix_new:start_pix_new + height, :] = orig_img[:, start_pix_old:start_pix_old + height, :]
-        else:
-            start_pix_new = new_idx * (padding + width) + padding
-            start_pix_old = old_idx * (padding + width) + padding
-            reordered_img[:, :, start_pix_new:start_pix_new + width] = orig_img[:, :, start_pix_old:start_pix_old + width]
-
-    return reordered_img
-
-
-def read_avg_kl_from_file(log_file_path, nr_latent_variables):
-    """ Read the average KL per latent dimension at the final stage of training from the log file.
-    """
-    with open(log_file_path, 'r') as f:
-        total_list = list(csv.reader(f))
-        avg_kl = [0]*nr_latent_variables
-        for i in range(1, nr_latent_variables+1):
-            avg_kl[i-1] = total_list[-(2+nr_latent_variables)+i][2]
-
-    return avg_kl

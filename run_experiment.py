@@ -1,6 +1,7 @@
 import argparse
 import json
 import torch
+import numpy as np
 
 from disvae.vae import VAE
 from utils.datasets import get_dataloaders
@@ -9,6 +10,7 @@ from utils.modelIO import load_model
 from viz.log_plotter import LogPlotter
 from torchvision.utils import save_image
 from utils.datasets import get_background
+from viz.viz_helpers import add_labels
 
 def read_dataset_from_specs(path_to_specs):
     """ read the spec file from the path given
@@ -18,6 +20,24 @@ def read_dataset_from_specs(path_to_specs):
         specs = json.load(specs_file)
     dataset = specs["dataset"]
     return dataset
+
+def read_capacity_from_file(path_to_specs):
+    """ Read and return the min capacity, max capacity, interpolation, gamma as a tuple if the capacity
+        is variable. Otherwise return the constant capacity as is.
+    """
+    # Open specs file
+    with open(path_to_specs) as specs_file:
+        specs = json.load(specs_file)
+
+    capacity = specs["capacity"]
+    if isinstance(capacity, list):
+        min_capacity = capacity[0]
+        max_capacity = capacity[1]
+        interp_capacity = capacity[2]
+        gamma = capacity[3]
+        return (min_capacity, max_capacity, interp_capacity, gamma)
+    else:
+        return capacity
 
 def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
     """ generate a number of samples from the dataset
@@ -35,7 +55,7 @@ def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
             data_list.append(new_data)
         return torch.cat(data_list, dim=0)
 
-def snapshot_reconstruction(viz_list, experiment_name, num_samples, dataset, shuffle=True, file_name='imgs/snapshot_recon.png'):
+def snapshot_reconstruction(viz_list, epoch_list, experiment_name, num_samples, dataset, shuffle=True, file_name='imgs/snapshot_recon.png'):
     """ Reconstruct some data samples at different stages of training. 
     """
     tensor_image_list = []
@@ -50,6 +70,27 @@ def snapshot_reconstruction(viz_list, experiment_name, num_samples, dataset, shu
         tensor_image_list.append(tensor_image)
 
     reconstructions = torch.stack(tensor_image_list, dim=0)
+
+    path_to_specs = 'experiments/{}/specs.json'.format(experiment_name)
+    capacity = read_capacity_from_file(path_to_specs)
+
+    if isinstance(capacity, tuple):
+        capacity_list = np.linspace(capacity[0], capacity[1], capacity[2]).tolist()
+    else:
+        capacity_list = [capacity] * (viz_list + 1)
+
+    selected_capacities = []
+    for epoch_idx in epoch_list:
+        selected_capacities.append(capacity_list[epoch_idx]) 
+
+    # traversal_images_with_text = add_labels(
+    #     label_name='C',
+    #     tensor=reconstructions,
+    #     num_rows=1,
+    #     sorted_list=selected_capacities,
+    #     dataset=dataset)
+
+    # traversal_images_with_text.save(file_name)
     save_image(reconstructions.data, file_name, nrow=1, pad_value=(1 - get_background(dataset)))
 
 def parse_arguments():
@@ -92,10 +133,12 @@ def main(args):
 
     if args.visualisation == 'snapshot_recon':
         viz_list = []
+        epoch_list = []
         model_list = load_model(directory='experiments/{}'.format(experiment_name), load_snapshots=True)
-        for _, model in model_list:
+        for epoch_index, model in model_list:
             model.eval()
             viz_list.append(Visualizer(model=model, model_dir='experiments/{}'.format(experiment_name), dataset=dataset, save_images=False))
+            epoch_list.append(epoch_index)
 
     elif not args.visualisation == 'display_avg_KL':
         model = load_model('experiments/{}'.format(experiment_name))
@@ -117,7 +160,7 @@ def main(args):
             heat_map_data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
         'display_avg_KL': lambda: LogPlotter(log_dir=args.log_dir, output_file_name=args.output_file_name),
         'snapshot_recon': lambda: snapshot_reconstruction(
-            viz_list=viz_list, experiment_name=experiment_name,
+            viz_list=viz_list, epoch_list=epoch_list, experiment_name=experiment_name,
             num_samples=args.num_samples, dataset=dataset, shuffle=True)
     }
 

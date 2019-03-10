@@ -56,10 +56,9 @@ class LatentTraverser():
             # inverse CDF (ppf) of a gaussian since the prior of the latent
             # space is gaussian
             cdf_traversal = np.linspace(0.05, 0.95, size)
-            traversal = stats.norm.ppf(cdf_traversal)
-
             for i in range(size):
-                samples[i, idx] = traversal[i]
+                traversal = stats.norm.ppf(cdf_traversal)
+                samples[i, idx] += traversal[i]
 
         return torch.Tensor(samples)
 
