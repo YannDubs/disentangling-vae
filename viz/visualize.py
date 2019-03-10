@@ -118,9 +118,8 @@ class Visualizer():
         # Pass data through VAE to obtain reconstruction
         with torch.no_grad():
             input_data = data.to(self.device)
-            _, latent_dist, _ = self.model(input_data)
-        means = latent_dist[1]
-        return self.all_latent_traversals(sample_latent_space=means, filename=filename)
+            sample = self.model.sample_latent(input_data)
+        return self.all_latent_traversals(sample_latent_space=sample, filename=filename)
 
     def reconstruction_comparisons(self, data, size=(8, 8), filename='imgs/recon_comp.png', exclude_original=False, exclude_recon=False):
         """
