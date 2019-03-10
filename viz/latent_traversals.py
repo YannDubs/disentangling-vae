@@ -44,7 +44,7 @@ class LatentTraverser():
         size : int
             Number of samples to generate.
         """
-        if self.sample_prior and sample_latent_space == None:
+        if self.sample_prior and sample_latent_space is None:
             samples = np.random.normal(size=(size, self.latent_dim))
         elif sample_latent_space is None:
             samples = np.zeros(shape=(size, self.latent_dim))
@@ -55,9 +55,8 @@ class LatentTraverser():
             # Sweep over linearly spaced coordinates transformed through the
             # inverse CDF (ppf) of a gaussian since the prior of the latent
             # space is gaussian
-            cdf_traversal = np.linspace(0.05, 0.95, size)
+            cdf_traversal = np.linspace(0.1, 0.9, size)
             traversal = stats.norm.ppf(cdf_traversal)
-
             for i in range(size):
                 samples[i, idx] = traversal[i]
 

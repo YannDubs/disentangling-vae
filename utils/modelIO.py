@@ -74,20 +74,17 @@ def load_model(directory, load_snapshots=False, is_gpu=True):
     model_type = specs["model_type"]
     img_size = get_img_size(dataset)
 
-
     if load_snapshots:
         model_list = []
         for root, _, names in os.walk(directory):
             for name in names:
                 results = re.search(r'.*?-([0-9].*?).pt', name)
-                if results.group(0) is not None:
-                    print('results.group(0): ' + str(results.group(0)))
-                    print('results.group(1): ' + str(results.group(1)))
+                if results is not None:
                     epoch_idx = int(results.group(1))
 
                     path_to_model = os.path.join(root, name)
                     model = _get_model(model_type, img_size, latent_dim, device, path_to_model)
-                    model_list.append([epoch_idx, model])
+                    model_list.append((epoch_idx, model))
         return model_list
     else:
         path_to_model = os.path.join(directory, MODEL_FILENAME + '.pt')
