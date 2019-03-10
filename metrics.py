@@ -1,6 +1,7 @@
 import os
 import argparse
 import logging
+import math
 from timeit import default_timer
 
 from tqdm import trange
@@ -10,13 +11,13 @@ import torch
 from utils.modelIO import load_model, load_metadata
 from utils.datasets import get_dataloaders
 
-formatter = logging.Formatter('%(asctime)s %(levelname)s - %(funcName)s: %(message)s',
-                              "%H:%M:%S")
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s %(levelname)s - %(funcName)s: %(message)s',
+                    datefmt='%H:%M:%S')
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
-def mutual_information_gap(model, dataset):
+def mutual_information_gap(model, dataset, is_progress_bar=True):
     """Compute the mutual information gap as in [1].
 
     # TO DOC
@@ -33,7 +34,7 @@ def mutual_information_gap(model, dataset):
 
     logger.info("Estimating the marginal entropy.")
     # marginal entropy H(z_j)
-    H_z = estimate_entropies(samples_zCx, params_zCx)
+    H_z = estimate_entropies(samples_zCx, params_zCx, is_progress_bar=is_progress_bar)
 
     samples_zCx = samples_zCx.view(*lat_sizes, latent_dim)
     params_zCx = tuple(p.view(*lat_sizes, latent_dim) for p in params_zCx)
@@ -50,10 +51,10 @@ def mutual_information_gap(model, dataset):
             params_zxCv = tuple(p[idcs].contiguous().view(len_dataset // lat_size, latent_dim)
                                 for p in params_zCx)
 
-            H_zCv[i_fac_var] += estimate_entropies(samples_zxCv, params_zxCv, n_samples=100) / lat_size
+            H_zCv[i_fac_var] += estimate_entropies(samples_zxCv, params_zxCv) / lat_size
 
-    H_z.cpu()
-    H_zCv.cpu()
+    H_z = H_z.cpu()
+    H_zCv = H_zCv.cpu()
 
     # I[z_j;v_k] = E[log \sum_x q(z_j|x)p(x|v_k)] + H[z_j] = - H[z_j|v_k] + H[z_j]
     mut_info = - H_zCv + H_z
@@ -65,7 +66,7 @@ def mutual_information_gap(model, dataset):
     H_v = torch.from_numpy(lat_sizes).float().log()
     metric_per_k = delta_mut_info / H_v
 
-    logger.info("Metric per factor variation.".format(list(metric_per_k)))
+    logger.info("Metric per factor variation: {}.".format(list(metric_per_k)))
     metric = metric_per_k.mean()  # mean over factor of variations
 
     return metric, H_z, H_zCv
@@ -75,8 +76,8 @@ def log_gaussian(x, mu, logvar):
     """Compute the log gaussian density."""
     normalization = - 0.5 * (math.log(2 * math.pi) + logvar)
     inv_sigma = torch.exp(-0.5 * logvar)
-    log_gaussian = normalization - 0.5 * ((x - mu) * inv_sigma)**2
-    return log_gaussian
+    out = normalization - 0.5 * ((x - mu) * inv_sigma)**2
+    return out
 
 
 def estimate_entropies(samples_zCx, params_zCX, n_samples=10000, is_progress_bar=True):
@@ -129,10 +130,11 @@ def estimate_entropies(samples_zCx, params_zCX, n_samples=10000, is_progress_bar
             # log q(z_j|x) for n_samples
             idcs = slice(k, k + mini_batch_size)
             log_q_zCx = log_gaussian(samples_zCx[..., idcs], mean[..., idcs], log_var[..., idcs])
-            # numerically stable log q(z_j) = -log N + logsumexp_{n=1}^N log q(z_j|x_n) for n_samples
-            # i.e. for every z gives the probability to generate it. As we don't know q(z) we appoximate it
-            # with the monte carlo expectation of q(z_j|x_n) over x. => fix a single z and look at proba
-            # of every x to generate it. n_samples is not used here !
+            # numerically stable log q(z_j) for n_samples:
+            # log q(z_j) = -log N + logsumexp_{n=1}^N log q(z_j|x_n)
+            # As we don't know q(z) we appoximate it with the monte carlo
+            # expectation of q(z_j|x_n) over x. => fix a single z and look at
+            # proba for every x to generate it. n_samples is not used here !
             log_q_z = -log_N + torch.logsumexp(log_q_zCx, dim=0, keepdim=False)
             # H(z_j) = E_{z_j}[- log q(z_j)]
             # mean over n_samples over (i.e. dimesnion 1 because already summed over 0).
@@ -200,9 +202,15 @@ if __name__ == '__main__':
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('dir', help="Directory where the model is and where to save the metrics.")
     parser.add_argument('--no-cuda', action='store_true', default=False)
+    parser.add_argument('--no-progress-bar', action='store_true', default=False,
+                        help='Disables progress bar.')
+    log_levels = ['critical', 'error', 'warning', 'info', 'debug']
+    parser.add_argument('-L', '--log-level', help="Logging levels.", default="info",
+                        choices=log_levels)
     # add choices : progress bar / logging
     args = parser.parse_args()
 
+    logger.setLevel(args.log_level.upper())
     model = load_model(args.dir, is_gpu=not args.no_cuda)
     metadata = load_metadata(args.dir)
 
@@ -211,4 +219,4 @@ if __name__ == '__main__':
     torch.save({'metric': metric, 'marginal_entropies': H_z, 'cond_entropies': H_zCv},
                os.path.join(args.dir, 'disentanglement_metric.pth'))
 
-    logger.info('MIG: {:.2f}'.format(metric))
+    logger.info('MIG: {:.3f}'.format(metric))
