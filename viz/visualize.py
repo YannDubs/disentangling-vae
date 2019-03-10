@@ -71,19 +71,18 @@ class Visualizer():
         # Pass data through VAE to obtain reconstruction
         with torch.no_grad():
             input_data = data.to(self.device)
-            _, latent_dist, _ = self.model(input_data)
-            means = latent_dist[1]
+            sample = self.model.sample_latent(input_data)
 
             heat_map_height = heat_map_size[0]
             heat_map_width = heat_map_size[1]
-            num_latent_dims = means.shape[1]
+            num_latent_dims = sample.shape[1]
 
             heat_map = torch.zeros([num_latent_dims, 1, heat_map_height, heat_map_width])
 
             for latent_dim in range(num_latent_dims):
                 for y_posn in range(heat_map_width):
                     for x_posn in range(heat_map_height):
-                        heat_map[latent_dim, 0, x_posn, y_posn] = means[heat_map_width * y_posn + x_posn, latent_dim]
+                        heat_map[latent_dim, 0, x_posn, y_posn] = sample[heat_map_width * y_posn + x_posn, latent_dim]
 
             if latent_order is not None:
                 # Reorder latent samples by average KL
