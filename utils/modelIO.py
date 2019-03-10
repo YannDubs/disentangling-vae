@@ -41,9 +41,24 @@ def save_model(model, directory, metadata=None, filename=MODEL_FILENAME):
             json.dump(metadata, f, indent=4, sort_keys=True)
 
 
-def load_model(directory, is_gpu=True):
+def load_metadata(directory):
+    """Load the metadata of a training directory.
+
+    Parameters
+    ----------
+    directory : string
+        Path to folder where model is saved. For example './experiments/mnist'.
     """
-    Loads a trained model.
+    path_to_metadata = os.path.join(directory, META_FILENAME)
+
+    with open(path_to_metadata) as metadata_file:
+        metadata = json.load(metadata_file)
+
+    return metadata
+
+
+def load_model(directory, is_gpu=True):
+    """Load a trained model.
 
     Parameters
     ----------
@@ -56,16 +71,12 @@ def load_model(directory, is_gpu=True):
     device = torch.device("cuda" if torch.cuda.is_available() and is_gpu
                           else "cpu")
 
-    path_to_specs = os.path.join(directory, META_FILENAME)
     path_to_model = os.path.join(directory, MODEL_FILENAME)
+    metadata = load_metadata(directory)
 
-    # Open specs file
-    with open(path_to_specs) as specs_file:
-        specs = json.load(specs_file)
-
-    dataset = specs["dataset"]
-    latent_dim = specs["latent_dim"]
-    model_type = specs["model_type"]
+    dataset = metadata["dataset"]
+    latent_dim = metadata["latent_dim"]
+    model_type = metadata["model_type"]
     img_size = get_img_size(dataset)
 
     # Get model

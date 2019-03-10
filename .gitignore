@@ -29,6 +29,7 @@ __pycache__/
 *.pyc
 *.egg-info
 *.log
+*.sh
 
 # placeholders to keep directories
 !.keep
