@@ -108,7 +108,7 @@ class Visualizer():
         # Pass data through VAE to obtain reconstruction
         with torch.no_grad():
             input_data = latent_sweep_data.to(self.device)
-            sample = self.model.sample_latent(input_data)
+            sample_posterior = self.model.sample_latent(input_data)
         # means = latent_dist[1]
 
         avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, 'losses.log'),self.model.latent_dim)
@@ -118,7 +118,7 @@ class Visualizer():
         for idx in range(self.model.latent_dim):
             latent_samples.append(self.latent_traverser.traverse_line(idx=idx,
                                                                       size=size,
-                                                                      sample_latent_space=None))
+                                                                      sample_latent_space=sample_posterior))
         latent_samples = [
             latent_sample for _, latent_sample in sorted(zip(avg_kl_list, latent_samples), reverse=True)
         ]
@@ -137,7 +137,7 @@ class Visualizer():
         heat_map_sorted = [
             list_heat_map for _, list_heat_map in sorted(zip(avg_kl_list, list_heat_map), reverse=True)
         ]
-        
+
         new_torch = torch.tensor(np.zeros((self.model.latent_dim,1,64,64)))
         for i in range(0, self.model.latent_dim):
             new_torch[i,0,:,:]=heat_map_sorted[i]

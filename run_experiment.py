@@ -10,7 +10,7 @@ from utils.modelIO import load_model
 from viz.log_plotter import LogPlotter
 from torchvision.utils import save_image
 from utils.datasets import get_background
-from viz.viz_helpers import add_labels
+from viz.viz_helpers import add_labels, add_labels_snapshot
 
 def read_dataset_from_specs(path_to_specs):
     """ read the spec file from the path given
@@ -55,12 +55,18 @@ def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
             data_list.append(new_data)
         return torch.cat(data_list, dim=0)
 
-def snapshot_reconstruction(viz_list, epoch_list, experiment_name, num_samples, dataset, shuffle=True, file_name='imgs/snapshot_recon.png'):
+def snapshot_reconstruction(viz_list, epoch_list, experiment_name, num_samples, dataset, shuffle=True, file_name='imgs/snapshot_recon.png', nr_latent_dimensions=10):
     """ Reconstruct some data samples at different stages of training. 
     """
     tensor_image_list = []
     data_samples = samples(experiment_name=experiment_name, num_samples=num_samples, shuffle=True)
-    
+
+    # calculate capacity
+    path_to_specs = 'experiments/{}/specs.json'.format(experiment_name)
+    (min_capacity, max_capacity, interp_capacity, gamma) = read_capacity_from_file(path_to_specs)
+    capacity_list = np.linspace(min_capacity, max_capacity, len(epoch_list)).tolist()
+    capacity_list.reverse()
+
     # Create original
     tensor_image = viz_list[0].reconstruction_comparisons(data=data_samples, exclude_recon=True)
     tensor_image_list.append(tensor_image)
@@ -69,29 +75,18 @@ def snapshot_reconstruction(viz_list, epoch_list, experiment_name, num_samples, 
         tensor_image = viz.reconstruction_comparisons(data=data_samples, exclude_original=True)
         tensor_image_list.append(tensor_image)
 
+    # remove rows to make figure smaller
+    remove_row_list=[2,3,5,6,8,9]
+    remove_row_list.reverse()
+    for row in remove_row_list:
+        del tensor_image_list[row]
+        del capacity_list[row-1]
+
     reconstructions = torch.stack(tensor_image_list, dim=0)
-
-    path_to_specs = 'experiments/{}/specs.json'.format(experiment_name)
-    capacity = read_capacity_from_file(path_to_specs)
-
-    if isinstance(capacity, tuple):
-        capacity_list = np.linspace(capacity[0], capacity[1], capacity[2]).tolist()
-    else:
-        capacity_list = [capacity] * (viz_list + 1)
-
-    selected_capacities = []
-    for epoch_idx in epoch_list:
-        selected_capacities.append(capacity_list[epoch_idx]) 
-
-    # traversal_images_with_text = add_labels(
-    #     label_name='C',
-    #     tensor=reconstructions,
-    #     num_rows=1,
-    #     sorted_list=selected_capacities,
-    #     dataset=dataset)
-
-    # traversal_images_with_text.save(file_name)
-    save_image(reconstructions.data, file_name, nrow=1, pad_value=(1 - get_background(dataset)))
+    
+    # save figure
+    traversal_images_with_text = add_labels_snapshot('KL',reconstructions, 8, dataset, capacity_list)
+    traversal_images_with_text.save(file_name)
 
 def parse_arguments():
     """ Set up a command line interface for directing the experiment to be run.
@@ -139,6 +134,12 @@ def main(args):
             model.eval()
             viz_list.append(Visualizer(model=model, model_dir='experiments/{}'.format(experiment_name), dataset=dataset, save_images=False))
             epoch_list.append(epoch_index)
+        viz_list = [
+                            viz for _, viz in sorted(zip(epoch_list, viz_list), reverse=True)
+                        ]
+        epoch_list = [
+                            epoch for _, epoch in sorted(zip(epoch_list, viz_list), reverse=True)
+                        ]    
 
     elif not args.visualisation == 'display_avg_KL':
         model = load_model('experiments/{}'.format(experiment_name))
@@ -157,8 +158,8 @@ def main(args):
             data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
         'show_disentanglement': lambda: viz.show_disentanglement_fig2(
             reconstruction_data=samples(experiment_name=experiment_name, num_samples=9, shuffle=True),
-            latent_sweep_data=samples(experiment_name=experiment_name, 
-            num_samples=1, shuffle=True), heat_map_data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
+            latent_sweep_data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True), 
+            heat_map_data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
         'display_avg_KL': lambda: LogPlotter(log_dir=args.log_dir, output_file_name=args.output_file_name),
         'snapshot_recon': lambda: snapshot_reconstruction(
             viz_list=viz_list, epoch_list=epoch_list, experiment_name=experiment_name,
