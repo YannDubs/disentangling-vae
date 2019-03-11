@@ -1,5 +1,6 @@
 import csv
 import torch
+import pandas as pd
 
 from torchvision.utils import make_grid
 from torchvision import transforms
@@ -45,15 +46,13 @@ def reorder_img(orig_img, reorder, by_row=True, img_size=(3, 32, 32), padding=2)
 
 
 def read_avg_kl_from_file(log_file_path, nr_latent_variables):
-    """ Read the average KL per latent dimension at the final stage of training from the log file.
-    """
-    with open(log_file_path, 'r') as f:
-        total_list = list(csv.reader(f))
-        avg_kl = [0]*nr_latent_variables
-        for i in range(1, nr_latent_variables+1):
-            avg_kl[i-1] = total_list[-(2+nr_latent_variables)+i][2]
-
-    return avg_kl
+    """ Read the average KL per latent dimension at the final stage of training from the log file."""
+    logs = pd.read_csv(log_file_path)
+    df_last_epoch = logs[logs.loc[:,"Epoch"] == logs.loc[:,"Epoch"].max()]
+    df_last_epoch = df_last_epoch.loc[df_last_epoch.loc[:, "Loss"].str.startswith("kl_loss_"), :]
+    df_last_epoch.loc[:, "Loss"] = df_last_epoch.loc[:, "Loss"].str.replace("kl_loss_","").astype(int)
+    df_last_epoch = df_last_epoch.sort_values("Loss").loc[:, "Value"]
+    return list(df_last_epoch)
 
 
 def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
