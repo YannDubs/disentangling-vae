@@ -50,15 +50,20 @@ class Visualizer():
         # Pass data through VAE to obtain reconstruction
         with torch.no_grad():
             input_data = reconstruction_data.to(self.device)
-            recon_data, _, _ = self.model(input_data)
+            sample_recon, _, _ = self.model(input_data)
         self.model.train()
 
         # Upper half of plot will contain data, bottom half will contain
         # reconstructions of the original image
         num_images = 9
         originals = input_data.cpu()
-        reconstructions = recon_data.view(-1, *self.model.img_size).cpu()
-        # If there are fewer examples given than spaces available in grid,
+        reconstructions = sample_recon.view(-1, *self.model.img_size).cpu()
+        # Upper half of plot will contain data, bottom half will contain
+        # reconstructions of the original image
+        num_images = 9
+        originals = input_data.cpu()
+        reconstructions = sample_recon.view(-1, *self.model.img_size).cpu()
+        # If there are fewer num_exampleses given than spaces available in grid,
         # augment with blank images
         num_examples = originals.size()[0]
         if num_images > num_examples:
@@ -66,24 +71,27 @@ class Visualizer():
             originals = torch.cat([originals, blank_images])
             reconstructions = torch.cat([reconstructions, blank_images])
         comparison = torch.cat([originals, reconstructions])
+
+        # Function: generateheatmap
+
         # Plot reconstructions in test mode, i.e. without sampling from latent
         self.model.eval()
         # Pass data through VAE to obtain reconstruction
         with torch.no_grad():
             input_data = heat_map_data.to(self.device)
-            _, latent_dist, _ = self.model(input_data)
-            means = latent_dist[1]
+            sample_heat_map = self.model.sample_latent(input_data)
+            # means = latent_dist[1]
 
             heat_map_height = heat_map_size[0]
             heat_map_width = heat_map_size[1]
-            num_latent_dims = means.shape[1]
+            num_latent_dims = sample_heat_map.shape[1]
 
-            heat_map = torch.zeros([num_latent_dims, 1, heat_map_height, heat_map_width], dtype=torch.int32)
+            heat_map = torch.zeros([num_latent_dims, 1, heat_map_height, heat_map_width])
 
             for latent_dim in range(num_latent_dims):
                 for y_posn in range(heat_map_width):
                     for x_posn in range(heat_map_height):
-                        heat_map[latent_dim, 0, x_posn, y_posn] = means[heat_map_width * y_posn + x_posn, latent_dim]
+                        heat_map[latent_dim, 0, x_posn, y_posn] = sample_heat_map[heat_map_width * y_posn + x_posn, latent_dim]
 
             if latent_order is not None:
                 # Reorder latent samples by average KL
@@ -93,13 +101,15 @@ class Visualizer():
             heat_map_np = np.array(heat_map)
             upsampled_heat_map = torch.tensor(upsample(input_data=heat_map_np, scale_factor=2))   
 
+
+        # Function: all_latent_traversals
         # Plot reconstructions in test mode, i.e. without sampling from latent
         self.model.eval()
         # Pass data through VAE to obtain reconstruction
         with torch.no_grad():
             input_data = latent_sweep_data.to(self.device)
-            _, latent_dist, _ = self.model(input_data)
-        means = latent_dist[1]
+            sample = self.model.sample_latent(input_data)
+        # means = latent_dist[1]
 
         avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, 'losses.log'),self.model.latent_dim)
 
@@ -108,7 +118,7 @@ class Visualizer():
         for idx in range(self.model.latent_dim):
             latent_samples.append(self.latent_traverser.traverse_line(idx=idx,
                                                                       size=size,
-                                                                      sample_latent_space=means))
+                                                                      sample_latent_space=None))
         latent_samples = [
             latent_sample for _, latent_sample in sorted(zip(avg_kl_list, latent_samples), reverse=True)
         ]
@@ -127,13 +137,14 @@ class Visualizer():
         heat_map_sorted = [
             list_heat_map for _, list_heat_map in sorted(zip(avg_kl_list, list_heat_map), reverse=True)
         ]
-
+        
         new_torch = torch.tensor(np.zeros((self.model.latent_dim,1,64,64)))
         for i in range(0, self.model.latent_dim):
-            new_torch[i,0,:,:]=list_heat_map[i]
+            new_torch[i,0,:,:]=heat_map_sorted[i]
         nr_imgs_per_latent = size
-        combined_torch = comparison
 
+        # combine all images in the right order
+        combined_torch = comparison
         for i in range(0,self.model.latent_dim):
             combined_torch = torch.cat((combined_torch, generated[nr_imgs_per_latent*i:nr_imgs_per_latent*(i+1),:,:,:].float()))
             combined_torch = torch.cat((combined_torch, new_torch[i:i+1,:,:,:].float()))
