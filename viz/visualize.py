@@ -270,18 +270,22 @@ class Visualizer():
             round(float(avg_kl_sample), 3) for avg_kl_sample, _ in sorted(zip(avg_kl_list, latent_samples), reverse=True)
         ]
 
+        # Only keep the top 5 KL dimensions
+        latent_samples = latent_samples[:5]
+
         # Decode samples
         generated = self._decode_latents(torch.cat(latent_samples, dim=0))
-        traversal_images_with_text = add_labels(
-            label_name='KL',
-            tensor=generated,
-            num_rows=size,
-            sorted_list=sorted_avg_kl_list,
-            dataset=self.dataset)
+        # traversal_images_with_text = add_labels(
+        #     label_name='KL',
+        #     tensor=generated,
+        #     num_rows=size,
+        #     sorted_list=sorted_avg_kl_list,
+        #     dataset=self.dataset)
 
         if self.save_images:
-            traversal_images_with_text.save(filename)
-            return avg_kl_list
+            # traversal_images_with_text.save(filename)
+            # return avg_kl_list
+            save_image(generated.data, filename, nrow=size, pad_value=(1 - get_background(self.dataset)))
         else:
             return make_grid(generated.data, nrow=size, pad_value=(1 - get_background(self.dataset)))
 

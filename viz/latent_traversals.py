@@ -55,7 +55,7 @@ class LatentTraverser():
             # Sweep over linearly spaced coordinates transformed through the
             # inverse CDF (ppf) of a gaussian since the prior of the latent
             # space is gaussian
-            cdf_traversal = np.linspace(0.1, 0.9, size)
+            cdf_traversal = np.linspace(0.05, 0.95, size)
             traversal = stats.norm.ppf(cdf_traversal)
             for i in range(size):
                 samples[i, idx] = traversal[i]

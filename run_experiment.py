@@ -39,27 +39,40 @@ def read_capacity_from_file(path_to_specs):
     else:
         return capacity
 
-def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
+def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True, specify_index=-1):
     """ generate a number of samples from the dataset
     """
+    if not specify_index == -1:
+        # Specifying and index to sample therefore the dataset will not be shuffled
+        # TODO: Replace this with a logger
+        print('Warning: Specifying an index to sample therefore the dataset will not be shuffled')
+        shuffle = False
+
     with open('experiments/{}/specs.json'.format(experiment_name)) as spec_file:
         spec_data = json.load(spec_file)
         dataset_name = spec_data['dataset']
 
         data_loader = get_dataloaders(batch_size=batch_size, dataset=dataset_name, shuffle=shuffle)
-
+        
         data_list = []
+        if not specify_index == -1:
+            chosen_sample = data_loader.dataset[specify_index][0]
+            chosen_sample = chosen_sample[None,:,:,:]
+            data_list.append(chosen_sample) # For the heart sprite
+            num_samples -= 1
+
         for batch_idx, (new_data, _) in enumerate(data_loader):
             if num_samples == batch_idx:
                 break
             data_list.append(new_data)
         return torch.cat(data_list, dim=0)
 
-def snapshot_reconstruction(viz_list, epoch_list, experiment_name, num_samples, dataset, shuffle=True, file_name='imgs/snapshot_recon.png'):
+def snapshot_reconstruction(viz_list, epoch_list, experiment_name, num_samples, dataset, shuffle=True,
+                            specify_index=-1, file_name='imgs/snapshot_recon.png'):
     """ Reconstruct some data samples at different stages of training. 
     """
     tensor_image_list = []
-    data_samples = samples(experiment_name=experiment_name, num_samples=num_samples, shuffle=True)
+    data_samples = samples(experiment_name=experiment_name, num_samples=num_samples, shuffle=False, specify_index=specify_index)
     
     # Create original
     tensor_image = viz_list[0].reconstruction_comparisons(data=data_samples, exclude_recon=True)
@@ -101,7 +114,9 @@ def parse_arguments():
 
     experiment = parser.add_argument_group('Predefined experiments')
     experiment_options = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite',
-                          'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs']
+                          'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs',
+                          'betaB_celeba', 'betaB_chairs', 'betaB_dsprites',
+                          'factor_celeba', 'factor_chairs', 'factor_dsprites']
     experiment.add_argument('-x', '--experiment',
                             default='custom', choices=experiment_options,
                             help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
@@ -147,12 +162,12 @@ def main(args):
 
     visualisation_options = {
         'random_samples': lambda: viz.samples(),
-        'traverse_all_latent_dims': lambda: viz.all_latent_traversals(),
+        'traverse_all_latent_dims': lambda: viz.all_latent_traversals(size=5),
         'traverse_one_latent_dim': lambda: viz.latent_traversal_line(idx=args.sweep_dim),
         'random_reconstruction': lambda: viz.reconstruction_comparisons(
             data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True)),
         'recon_and_traverse_all': lambda: viz.recon_and_traverse_all(
-            data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True)),
+            data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True, specify_index=1)),
         'heat_maps': lambda: viz.generate_heat_maps(
             data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
         'show_disentanglement': lambda: viz.show_disentanglement_fig2(
