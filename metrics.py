@@ -214,7 +214,7 @@ if __name__ == '__main__':
     model = load_model(args.dir, is_gpu=not args.no_cuda)
     metadata = load_metadata(args.dir)
 
-    metric, H_z, H_zCv = mutual_information_gap(model, metadata["dataset"])
+    metric, H_z, H_zCv = mutual_information_gap(model, metadata["dataset"], is_progress_bar=not args.no_progress_bar)
 
     torch.save({'metric': metric, 'marginal_entropies': H_z, 'cond_entropies': H_zCv},
                os.path.join(args.dir, 'disentanglement_metric.pth'))
