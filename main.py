@@ -1,11 +1,7 @@
 import argparse
-import os
 import logging
-import shutil
 from timeit import default_timer
 
-import torch
-import numpy as np
 from torch import optim
 
 from disvae.vae import VAE
@@ -15,6 +11,7 @@ from disvae.discriminator import Discriminator
 from disvae.training import Trainer
 from utils.datasets import (get_dataloaders, get_img_size)
 from utils.modelIO import save_model
+from utils.helpers import create_safe_directory, get_device, set_seed, get_n_param
 
 
 def default_experiment():
@@ -24,17 +21,17 @@ def default_experiment():
             'no_cuda': False,
             'seed': 1234,
             'log_level': "info",
-            "lr": 1e-3,
+            "lr": 5e-4,
             "capacity": [0.0, 5.0, 25000, 30.0],
             "beta": 4.,
-            "loss": "batchTC",
-            "print_every": 50,
-            "record_every": 5,
+            "loss": "betaB",
             'model': 'Burgess',  # follows the paper by Burgess et al
             'dataset': 'mnist',
             'experiment': 'custom',
             "latent_dim": 10,
-            'save_model_on_epochs': ()
+            "no_progress_bar": False,
+            "checkpoint_every": 10,
+            "lr_disc": 5e-4
             }
 
 
@@ -42,32 +39,56 @@ def set_experiment(default_config):
     """ Set up default experiments to replicate the results in the paper:
         "Understanding Disentanglement in Beta-VAE" (https://arxiv.org/pdf/1804.03599.pdf)
     """
+    # SHOULD BE A CONFIG I:I FILE
     if default_config.experiment == 'custom':
         return default_config
-    elif default_config.experiment == 'vae_blob_x_y':
-        default_config.beta = 1
-        default_config.dataset = 'dsprites'
-        default_config.loss = "betaH"
-    elif default_config.experiment == 'beta_vae_blob_x_y':
-        default_config.beta = 150
-        default_config.dataset = 'black_and_white_dsprite'
-        default_config.loss = "betaH"
-    elif default_config.experiment == 'beta_vae_dsprite':
-        default_config.capacity = [0.0, 25.0, 100000, 1000.0]
-        default_config.dataset = 'dsprites'
-        default_config.loss = "betaB"
-    elif default_config.experiment == 'beta_vae_celeba':
-        default_config.capacity = [0.0, 50.0, 100000, 10000.]
-        default_config.dataset = 'celeba'
-        default_config.loss = "betaB"
-    elif default_config.experiment == 'beta_vae_colour_dsprite':
-        default_config.capacity = [0.0, 25.0, 100000, 1000.0]
-        default_config.dataset = 'dsprites'
-        default_config.loss = "betaB"
     elif default_config.experiment == 'beta_vae_chairs':
         default_config.beta = 1000
         default_config.dataset = 'chairs'
         default_config.loss = "betaH"
+    elif default_config.experiment == 'factor_celeba':
+        default_config.beta = 6.4
+        default_config.dataset = 'celeba'
+        default_config.loss = "factor"
+        default_config.epochs = 300
+        default_config.lr_disc = 1e-5
+        default_config.lr = 1e-4
+        default_config.batch_size = 64
+        default_config.latent_dim = 10
+    elif default_config.experiment == 'factor_chairs':
+        default_config.beta = 3.2
+        default_config.dataset = 'chairs'
+        default_config.loss = "factor"
+        default_config.epochs = 300
+        default_config.lr_disc = 1e-5
+        default_config.lr = 1e-4
+        default_config.batch_size = 64
+        default_config.latent_dim = 10
+    elif default_config.experiment == 'factor_dsprites':
+        default_config.beta = 36
+        default_config.dataset = 'dsprites'
+        default_config.loss = "factor"
+        default_config.epochs = 50
+        default_config.lr_disc = 1e-4
+        default_config.lr = 1e-4
+        default_config.batch_size = 64
+        default_config.latent_dim = 10
+    elif default_config.experiment == 'betaB_dsprites':
+        default_config.capacity = [0.0, 25.0, 100000, 1000.0]
+        default_config.dataset = 'dsprites'
+        default_config.loss = "betaB"
+        default_config.epochs = 50
+        default_config.lr = 5e-4
+        default_config.batch_size = 64
+        default_config.latent_dim = 10
+    elif default_config.experiment == 'betaB_celeba':
+        default_config.capacity = [0.0, 50.0, 100000, 1000.0]
+        default_config.dataset = 'celeba'
+        default_config.loss = "betaB"
+        default_config.epochs = 300
+        default_config.lr = 5e-4
+        default_config.batch_size = 64
+        default_config.latent_dim = 10
 
     return default_config
 
@@ -85,15 +106,12 @@ def parse_arguments():
     general.add_argument('-L', '--log-level', help="Logging levels.",
                          default=default_config['log_level'],
                          choices=log_levels)
-    parser.add_argument("-P", '--print_every',
-                        type=int, default=default_config['print_every'],
-                        help='Every how many batches to print results')
-    parser.add_argument("-R", '--record_every',
-                        type=int, default=default_config['record_every'],
-                        help='Every how many batches to save results')
-    parser.add_argument("-S", '--save_model_on_epochs', nargs=2,
-                        default=default_config['save_model_on_epochs'],
-                        help='On which epochs the model will be saved (in addition to at the end of training)')
+    general.add_argument('--no-progress-bar', action='store_true',
+                         default=default_config['no_progress_bar'],
+                         help='Disables progress bar.')
+    general.add_argument('--checkpoint-every',
+                         type=int, default=default_config['checkpoint_every'],
+                         help='Save a checkpoint of the trained model every n epoch.')
 
     # Dataset options
     data = parser.add_argument_group('Dataset options')
@@ -103,8 +121,8 @@ def parse_arguments():
 
     # Predefined experiments
     experiment = parser.add_argument_group('Predefined experiments')
-    experiments = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite',
-                   'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs']
+    experiments = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite', 'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs', "betaB_dsprites",
+                   "factor_dsprites", "factor_chairs", "factor_celeba", "betaB_celeba"]
     experiment.add_argument('-x', '--experiment',
                             default=default_config['experiment'], choices=experiments,
                             help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
@@ -124,9 +142,12 @@ def parse_arguments():
     learn.add_argument('--no-cuda', action='store_true',
                        default=default_config['no_cuda'],
                        help='Disables CUDA training, even when have one.')
-    learn.add_argument('-a', '--lr',
+    learn.add_argument('--lr',
                        type=float, default=default_config['lr'],
                        help='Learning rate.')
+    learn.add_argument('--lr-disc',
+                       type=float, default=default_config['lr_disc'],
+                       help='Additional learning rate for a possible dirscriminator.')
 
     # Model Options
     model = parser.add_argument_group('Learning options')
@@ -145,7 +166,7 @@ def parse_arguments():
     model.add_argument('-B', '--beta',
                        type=float, default=default_config['beta'],
                        help="Weight of the KL term. Only used if `loss=betaH`")
-    losses = ["VAE", "betaH", "betaB", "factorising", "batchTC"]
+    losses = ["VAE", "betaH", "betaB", "factor", "batchTC"]
     model.add_argument('-l', '--loss',
                        choices=losses, default=default_config['loss'],
                        help="type of VAE loss function to use.")
@@ -161,46 +182,38 @@ def parse_arguments():
 def main(args):
     start = default_timer()
 
-    logging.basicConfig(format='%(asctime)s %(levelname)s - %(funcName)s: %(message)s',
-                        datefmt="%H:%M:%S")
+    formatter = logging.Formatter('%(asctime)s %(levelname)s - %(funcName)s: %(message)s',
+                                  "%H:%M:%S")
     logger = logging.getLogger(__name__)
     logger.setLevel(args.log_level.upper())
+    stream = logging.StreamHandler()
+    stream.setLevel(args.log_level.upper())
+    stream.setFormatter(formatter)
+    logger.addHandler(stream)
 
-    # Experiments directory
+    if args.loss == "factor":
+        logger.info("FactorVae needs 2 batches per iteration. To replicate this behavior while being consistent, we double the batch size and the the number of epochs.")
+        args.batch_size *= 2
+        args.epochs *= 2
+
     exp_dir = "experiments/{}".format(args.name)
-    if os.path.exists(exp_dir):
-        warn = "Directory {} already exists. Archiving it to {}.zip"
-        logger.warning(warn.format(exp_dir, exp_dir))
-        shutil.make_archive(exp_dir, 'zip', exp_dir)
-        shutil.rmtree(exp_dir)
-    os.makedirs(exp_dir)
-
-    if args.seed is not None:
-        np.random.seed(args.seed)
-        torch.manual_seed(args.seed)
-        # if want pure determinism could uncomment below: but slower
-        # torch.backends.cudnn.deterministic = True
-
-    device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda
-                          else "cpu")
+    logger.info("Saving experiments to {}".format(exp_dir))
+    create_safe_directory(exp_dir, logger=logger)
+    set_seed(args.seed)
+    device = get_device(is_gpu=not args.no_cuda)
 
     # PREPARES DATA
     train_loader = get_dataloaders(args.dataset,
                                    batch_size=args.batch_size,
                                    pin_memory=not args.no_cuda)
-
     img_size = get_img_size(args.dataset)
-
     logger.info("Train {} with {} samples".format(args.dataset, len(train_loader.dataset)))
 
     # PREPARES MODEL
     encoder = get_Encoder(args.model_type)
     decoder = get_Decoder(args.model_type)
     model = VAE(img_size, encoder, decoder, args.latent_dim)
-
-    model_parameters = filter(lambda p: p.requires_grad, model.parameters())
-    nParams = sum([np.prod(p.size()) for p in model_parameters])
-    logger.info('Num parameters in model: {}'.format(nParams))
+    logger.info('Num parameters in model: {}'.format(get_n_param(model)))
 
     # TRAINS
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -209,17 +222,17 @@ def main(args):
                       loss_type=args.loss,
                       latent_dim=args.latent_dim,
                       loss_kwargs=loss_kwargs,
-                      print_loss_every=args.print_every,
-                      record_loss_every=args.record_every,
                       device=device,
                       log_level=args.log_level,
                       save_dir=exp_dir,
-                      save_epoch_list=args.save_model_on_epochs,
+                      is_progress_bar=not args.no_progress_bar,
+                      checkpoint_every=args.checkpoint_every,
                       dataset=args.dataset)
+
     trainer.train(train_loader, epochs=args.epochs)
 
     # SAVE MODEL AND EXPERIMENT INFORMATION
-    save_model(trainer.model, vars(args), exp_dir)
+    save_model(trainer.model, exp_dir, metadata=vars(args))
 
     logger.info('Finished after {:.1f} min.'.format((default_timer() - start) / 60))
 

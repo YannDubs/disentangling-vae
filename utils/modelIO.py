@@ -9,48 +9,60 @@ from disvae.encoder import get_Encoder
 from disvae.decoder import get_Decoder
 from utils.datasets import get_img_size
 
+
 MODEL_FILENAME = "model"
-SPECS_FILENAME = "specs.json"
+META_FILENAME = "specs.json"  # CHANGE TO METADATA.json
 
 
-def save_model(model, specs, directory, original_device=None, epoch=None):
+def save_model(model, directory, metadata=None, filename=MODEL_FILENAME):
     """
-    Save a model and corresponding specs.
+    Save a model and corresponding metadata.
 
     Parameters
     ----------
     model : nn.Module
         Model.
 
-    specs : dict
-        Metadata to save.
-
     directory : str
         Path to the directory where to save the data.
 
-    original_device : torch.device
-        Original device on which the model runs. Include this parameter to
-        return the model to this device after saving.
+    metadata : dict
+        Metadata to save.
     """
+    device = next(model.parameters()).device
     model.cpu()
-    if epoch is None:
-        path_to_model = os.path.join(directory, MODEL_FILENAME + '.pt')
-    else:
-        path_to_model = os.path.join(directory, MODEL_FILENAME + "-{}{}".format(epoch, '.pt'))
+
+    path_to_metadata = os.path.join(directory, META_FILENAME)
+    path_to_model = os.path.join(directory, filename)
 
     torch.save(model.state_dict(), path_to_model)
 
-    if specs is not None:
-        path_to_specs = os.path.join(directory, SPECS_FILENAME)
-        with open(path_to_specs, 'w') as f:
-            json.dump(specs, f, indent=4, sort_keys=True)
+    model.to(device)  # restore device
 
-    if original_device is not None:
-        model.to(original_device)
+    if metadata is not None:
+        with open(path_to_metadata, 'w') as f:
+            json.dump(metadata, f, indent=4, sort_keys=True)
 
-def load_model(directory, load_snapshots=False, is_gpu=True):
+
+def load_metadata(directory):
+    """Load the metadata of a training directory.
+
+    Parameters
+    ----------
+    directory : string
+        Path to folder where model is saved. For example './experiments/mnist'.
+
     """
-    Loads a trained model.
+    path_to_metadata = os.path.join(directory, META_FILENAME)
+
+    with open(path_to_metadata) as metadata_file:
+        metadata = json.load(metadata_file)
+
+    return metadata
+
+
+def load_model(directory, is_gpu=True):
+    """Load a trained model.
 
     Parameters
     ----------
@@ -63,15 +75,12 @@ def load_model(directory, load_snapshots=False, is_gpu=True):
     device = torch.device("cuda" if torch.cuda.is_available() and is_gpu
                           else "cpu")
 
-    path_to_specs = os.path.join(directory, SPECS_FILENAME)
+    path_to_model = os.path.join(directory, MODEL_FILENAME)
+    metadata = load_metadata(directory)
 
-    # Open specs file
-    with open(path_to_specs) as specs_file:
-        specs = json.load(specs_file)
-
-    dataset = specs["dataset"]
-    latent_dim = specs["latent_dim"]
-    model_type = specs["model_type"]
+    dataset = metadata["dataset"]
+    latent_dim = metadata["latent_dim"]
+    model_type = metadata["model_type"]
     img_size = get_img_size(dataset)
 
     if load_snapshots:
@@ -91,6 +100,7 @@ def load_model(directory, load_snapshots=False, is_gpu=True):
         model = _get_model(model_type, img_size, latent_dim, device, path_to_model)
         return model
 
+
 def _get_model(model_type, img_size, latent_dim, device, path_to_model):
     """ Get model """
     encoder = get_Encoder(model_type)
@@ -101,4 +111,3 @@ def _get_model(model_type, img_size, latent_dim, device, path_to_model):
     model.eval()
 
     return model
-    
