@@ -179,8 +179,8 @@ class Trainer():
         if self.loss_type == 'factor':
             loss = self.loss_f(data, self.model, self.optimizer, storer)
         else:
-            recon_batch, latent_dist, _ = self.model(data)
-            loss = self.loss_f(data, recon_batch, latent_dist,
+            recon_batch, latent_dist, latent_sample = self.model(data)
+            loss = self.loss_f(data, recon_batch, latent_sample, latent_dist,
                                self.model.training, storer)
 
             self.optimizer.zero_grad()

@@ -16,7 +16,7 @@ from utils.helpers import create_safe_directory, get_device, set_seed, get_n_par
 
 def default_experiment():
     """Default arguments."""
-    return {'epochs': 10,
+    return {'epochs': 2,
             'batch_size': 64,
             'no_cuda': False,
             'seed': 1234,
@@ -24,7 +24,7 @@ def default_experiment():
             "lr": 5e-4,
             "capacity": [0.0, 5.0, 25000, 30.0],
             "beta": 4.,
-            "loss": "betaB",
+            "loss": "batchTC",
             'model': 'Burgess',  # follows the paper by Burgess et al
             'dataset': 'mnist',
             'experiment': 'custom',
