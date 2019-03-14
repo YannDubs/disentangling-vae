@@ -116,9 +116,6 @@ class Trainer():
                 img_grid = self.vizualizer.all_latent_traversals(size=10)
                 training_progress_images.append(img_grid)
 
-            if epoch in self.save_epoch_list:
-                save_model(model=self.model, specs=None, original_device=self.device, directory=self.save_dir, epoch=epoch)
-
         if self.is_viz_gif:
             imageio.mimsave(os.path.join(self.save_dir, "training.gif"),
                             training_progress_images,
