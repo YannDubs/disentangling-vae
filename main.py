@@ -226,7 +226,9 @@ def main(args):
                       log_level=args.log_level,
                       save_dir=exp_dir,
                       is_progress_bar=not args.no_progress_bar,
-                      checkpoint_every=args.checkpoint_every)
+                      checkpoint_every=args.checkpoint_every,
+                      dataset=args.dataset)
+
     trainer.train(train_loader, epochs=args.epochs)
 
     # SAVE MODEL AND EXPERIMENT INFORMATION

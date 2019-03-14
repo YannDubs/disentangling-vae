@@ -7,3 +7,5 @@ scikit-image
 pytest
 pandas
 seaborn
+Pillow
+tqdm

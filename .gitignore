@@ -8,6 +8,7 @@ trained_models/
 imgs/*
 .idea/
 experiments/
+.vscode/
 
 # Byte-compiled / optimized / DLL files
 *.egg-info
@@ -20,16 +21,16 @@ __pycache__/
 
 # files
 .gitignore
+
+# extensions
+*.pyc
+*.log
+*.sh
 *.tar
 *.zip
 *.tar
 *.sublime*
-
-# extensions
-*.pyc
-*.egg-info
-*.log
-*.sh
+*.swp
 
 # placeholders to keep directories
 !.keep

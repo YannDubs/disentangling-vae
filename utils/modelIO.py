@@ -1,5 +1,6 @@
 import json
 import os
+import re
 
 import torch
 
@@ -8,7 +9,8 @@ from disvae.encoder import get_Encoder
 from disvae.decoder import get_Decoder
 from utils.datasets import get_img_size
 
-MODEL_FILENAME = "model.pt"
+
+MODEL_FILENAME = "model"
 META_FILENAME = "specs.json"  # CHANGE TO METADATA.json
 
 
@@ -29,6 +31,7 @@ def save_model(model, directory, metadata=None, filename=MODEL_FILENAME):
     """
     device = next(model.parameters()).device
     model.cpu()
+
     path_to_metadata = os.path.join(directory, META_FILENAME)
     path_to_model = os.path.join(directory, filename)
 
@@ -48,6 +51,7 @@ def load_metadata(directory):
     ----------
     directory : string
         Path to folder where model is saved. For example './experiments/mnist'.
+
     """
     path_to_metadata = os.path.join(directory, META_FILENAME)
 
@@ -79,7 +83,26 @@ def load_model(directory, is_gpu=True):
     model_type = metadata["model_type"]
     img_size = get_img_size(dataset)
 
-    # Get model
+    if load_snapshots:
+        model_list = []
+        for root, _, names in os.walk(directory):
+            for name in names:
+                results = re.search(r'.*?-([0-9].*?).pt', name)
+                if results is not None:
+                    epoch_idx = int(results.group(1))
+
+                    path_to_model = os.path.join(root, name)
+                    model = _get_model(model_type, img_size, latent_dim, device, path_to_model)
+                    model_list.append((epoch_idx, model))
+        return model_list
+    else:
+        path_to_model = os.path.join(directory, MODEL_FILENAME + '.pt')
+        model = _get_model(model_type, img_size, latent_dim, device, path_to_model)
+        return model
+
+
+def _get_model(model_type, img_size, latent_dim, device, path_to_model):
+    """ Get model """
     encoder = get_Encoder(model_type)
     decoder = get_Decoder(model_type)
     model = VAE(img_size, encoder, decoder, latent_dim).to(device)

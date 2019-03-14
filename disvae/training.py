@@ -10,6 +10,7 @@ from torch.nn import functional as F
 import sys
 sys.path.append("..")
 
+from utils.modelIO import save_model
 from utils.graph_logger import LossesLogger
 from disvae.losses import get_loss_f
 from viz.visualize import Visualizer
@@ -28,7 +29,8 @@ class Trainer():
                  save_dir="experiments",
                  is_viz_gif=True,
                  is_progress_bar=True,
-                 checkpoint_every=10):
+                 checkpoint_every=10,
+                 dataset="mnist"):
         """
         Class to handle training of model.
 
@@ -59,6 +61,9 @@ class Trainer():
         is_viz_gif : bool
             Whether to store a gif of samples after every epoch.
 
+        dataset : str
+            Name of the dataset.
+
         is_progress_bar: bool
             Whether to use a progress bar for training.
 
@@ -85,7 +90,7 @@ class Trainer():
         self.losses_logger = LossesLogger(os.path.join(self.save_dir, "losses.log"),
                                           log_level=log_level)
         if self.is_viz_gif:
-            self.vizualizer = Visualizer(self.model)
+            self.vizualizer = Visualizer(model=self.model, model_dir=self.save_dir, dataset=dataset)
 
         self.logger.info("Training Device: {}".format(self.device))
 
@@ -105,6 +110,7 @@ class Trainer():
 
         self.model.train()
         for epoch in range(epochs):
+
             storer = defaultdict(list)
             mean_epoch_loss = self._train_epoch(data_loader, storer, epoch)
             self.logger.info('Epoch: {} Average loss per image: {:.2f}'.format(epoch + 1,
