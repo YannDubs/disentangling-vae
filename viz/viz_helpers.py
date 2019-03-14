@@ -1,11 +1,11 @@
 import csv
+import numpy as np
 import torch
 
 from torchvision.utils import make_grid
 from torchvision import transforms
 from utils.datasets import get_background
 from PIL import Image, ImageDraw
-import numpy as np
 
 
 def reorder_img(orig_img, reorder, by_row=True, img_size=(3, 32, 32), padding=2):
@@ -65,15 +65,11 @@ def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
     tensor = make_grid(tensor.data, nrow=num_rows, pad_value=(1 - get_background(dataset)))
     all_traversal_im = transforms.ToPILImage()(tensor)
     # Resize image
-    if num_rows == 8:
-        mult_x = 1.3
-    elif num_rows == 9:
-        mult_x = 1.2
-    # Resize image
-    new_width = int(mult_x * all_traversal_im.width)
-    new_size = (new_width, all_traversal_im.height)
+    new_width = int(1.3 * all_traversal_im.width)
+    new_size = (all_traversal_im.height, new_width)
     traversal_images_with_text = Image.new("RGB", new_size, color='white')
     traversal_images_with_text.paste(all_traversal_im, (0, 0))
+
     # Add KL text alongside each row
     fraction_x = 1 / mult_x + 0.050
     text_list = ['orig', 'recon']
