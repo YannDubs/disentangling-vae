@@ -21,7 +21,7 @@ def default_experiment():
             'no_cuda': False,
             'seed': 1234,
             'log_level': "info",
-            "lr": 1e-3,
+            "lr": 5e-4,
             "capacity": [0.0, 5.0, 25000, 30.0],
             "beta": 4.,
             "loss": "betaB",
@@ -29,7 +29,9 @@ def default_experiment():
             'dataset': 'mnist',
             'experiment': 'custom',
             "latent_dim": 10,
-            "no_progress_bar": False
+            "no_progress_bar": False,
+            "checkpoint_every": 10,
+            "lr_disc": 5e-4
             }
 
 
@@ -37,32 +39,56 @@ def set_experiment(default_config):
     """ Set up default experiments to replicate the results in the paper:
         "Understanding Disentanglement in Beta-VAE" (https://arxiv.org/pdf/1804.03599.pdf)
     """
+    # SHOULD BE A CONFIG I:I FILE
     if default_config.experiment == 'custom':
         return default_config
-    elif default_config.experiment == 'vae_blob_x_y':
-        default_config.beta = 1
-        default_config.dataset = 'dsprites'
-        default_config.loss = "betaH"
-    elif default_config.experiment == 'beta_vae_blob_x_y':
-        default_config.beta = 150
-        default_config.dataset = 'black_and_white_dsprite'
-        default_config.loss = "betaH"
-    elif default_config.experiment == 'beta_vae_dsprite':
-        default_config.capacity = [0.0, 25.0, 100000, 1000.0]
-        default_config.dataset = 'dsprites'
-        default_config.loss = "betaB"
-    elif default_config.experiment == 'beta_vae_celeba':
-        default_config.capacity = [0.0, 50.0, 100000, 10000.]
-        default_config.dataset = 'celeba'
-        default_config.loss = "betaB"
-    elif default_config.experiment == 'beta_vae_colour_dsprite':
-        default_config.capacity = [0.0, 25.0, 100000, 1000.0]
-        default_config.dataset = 'dsprites'
-        default_config.loss = "betaB"
     elif default_config.experiment == 'beta_vae_chairs':
         default_config.beta = 1000
         default_config.dataset = 'chairs'
         default_config.loss = "betaH"
+    elif default_config.experiment == 'factor_celeba':
+        default_config.beta = 6.4
+        default_config.dataset = 'celeba'
+        default_config.loss = "factor"
+        default_config.epochs = 300
+        default_config.lr_disc = 1e-5
+        default_config.lr = 1e-4
+        default_config.batch_size = 64
+        default_config.latent_dim = 10
+    elif default_config.experiment == 'factor_chairs':
+        default_config.beta = 3.2
+        default_config.dataset = 'chairs'
+        default_config.loss = "factor"
+        default_config.epochs = 300
+        default_config.lr_disc = 1e-5
+        default_config.lr = 1e-4
+        default_config.batch_size = 64
+        default_config.latent_dim = 10
+    elif default_config.experiment == 'factor_dsprites':
+        default_config.beta = 36
+        default_config.dataset = 'dsprites'
+        default_config.loss = "factor"
+        default_config.epochs = 50
+        default_config.lr_disc = 1e-4
+        default_config.lr = 1e-4
+        default_config.batch_size = 64
+        default_config.latent_dim = 10
+    elif default_config.experiment == 'betaB_dsprites':
+        default_config.capacity = [0.0, 25.0, 100000, 1000.0]
+        default_config.dataset = 'dsprites'
+        default_config.loss = "betaB"
+        default_config.epochs = 50
+        default_config.lr = 5e-4
+        default_config.batch_size = 64
+        default_config.latent_dim = 10
+    elif default_config.experiment == 'betaB_celeba':
+        default_config.capacity = [0.0, 50.0, 100000, 1000.0]
+        default_config.dataset = 'celeba'
+        default_config.loss = "betaB"
+        default_config.epochs = 300
+        default_config.lr = 5e-4
+        default_config.batch_size = 64
+        default_config.latent_dim = 10
 
     return default_config
 
@@ -83,6 +109,9 @@ def parse_arguments():
     general.add_argument('--no-progress-bar', action='store_true',
                          default=default_config['no_progress_bar'],
                          help='Disables progress bar.')
+    general.add_argument('--checkpoint-every',
+                         type=int, default=default_config['checkpoint_every'],
+                         help='Save a checkpoint of the trained model every n epoch.')
 
     # Dataset options
     data = parser.add_argument_group('Dataset options')
@@ -92,8 +121,8 @@ def parse_arguments():
 
     # Predefined experiments
     experiment = parser.add_argument_group('Predefined experiments')
-    experiments = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite',
-                   'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs']
+    experiments = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite', 'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs', "betaB_dsprites",
+                   "factor_dsprites", "factor_chairs", "factor_celeba", "betaB_celeba"]
     experiment.add_argument('-x', '--experiment',
                             default=default_config['experiment'], choices=experiments,
                             help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
@@ -116,6 +145,9 @@ def parse_arguments():
     learn.add_argument('--lr',
                        type=float, default=default_config['lr'],
                        help='Learning rate.')
+    learn.add_argument('--lr-disc',
+                       type=float, default=default_config['lr_disc'],
+                       help='Additional learning rate for a possible dirscriminator.')
 
     # Model Options
     model = parser.add_argument_group('Learning options')
@@ -193,12 +225,14 @@ def main(args):
                       device=device,
                       log_level=args.log_level,
                       save_dir=exp_dir,
-                      dataset=args.dataset,
-                      is_progress_bar=not args.no_progress_bar)
+                      is_progress_bar=not args.no_progress_bar,
+                      checkpoint_every=args.checkpoint_every,
+                      dataset=args.dataset)
+
     trainer.train(train_loader, epochs=args.epochs)
 
     # SAVE MODEL AND EXPERIMENT INFORMATION
-    save_model(trainer.model, vars(args), exp_dir)
+    save_model(trainer.model, exp_dir, metadata=vars(args))
 
     logger.info('Finished after {:.1f} min.'.format((default_timer() - start) / 60))
 

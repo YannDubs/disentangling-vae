@@ -25,6 +25,7 @@ __pycache__/
 # extensions
 *.pyc
 *.log
+*.sh
 *.tar
 *.zip
 *.tar

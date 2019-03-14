@@ -31,6 +31,11 @@ def get_device(is_gpu=True):
                         else "cpu")
 
 
+def get_model_device(model):
+    """Return the device on which a model is."""
+    return next(model.parameters()).device
+
+
 def get_n_param(model):
     """Return the number of parameters."""
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
