@@ -3,28 +3,50 @@ import argparse
 import logging
 import math
 from timeit import default_timer
+from collections import defaultdict
+import json
 
-from tqdm import trange
+from tqdm import trange, tqdm
 import numpy as np
 import torch
 
 from utils.modelIO import load_model, load_metadata
 from utils.datasets import get_dataloaders
-
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s %(levelname)s - %(funcName)s: %(message)s',
-                    datefmt='%H:%M:%S')
-logger = logging.getLogger(__name__)
+from disvae.losses import get_loss_f
+from utils.helpers import get_device, set_seed, get_model_device
 
 
-def mutual_information_gap(model, dataset, is_progress_bar=True):
+TEST_LOSSES = "test_losses.log"
+
+
+def evaluate(model, dataloader, metadata, is_progress_bar=True):
+    """
+    # TO DOC
+    """
+    device = get_model_device(model)
+    loss_f = get_loss_f(metadata["loss"],
+                        capacity=metadata.get("capacity", None),
+                        beta=metadata.get("beta", None),
+                        device=device)
+    storer = defaultdict(list)
+    for data, _ in tqdm(dataloader, leave=False, disable=not is_progress_bar):
+        data = data.to(device)
+        if metadata["loss"] == "factor":
+            losses = loss_f(data, model, None, storer)
+        else:
+            recon_batch, latent_dist, _ = model(data)
+            losses = loss_f(data, recon_batch, latent_dist, model.training, storer)
+    losses = {k: sum(v) / len(dataloader.dataset) for k, v in storer.items()}
+    return losses
+
+
+def mutual_information_gap(model, dataloader, is_progress_bar=True):
     """Compute the mutual information gap as in [1].
 
     # TO DOC
 
     """
     device = get_device(model)
-    dataloader = get_dataloaders(dataset, batch_size=1000, shuffle=False)
     lat_sizes = dataloader.dataset.lat_sizes
     lat_names = dataloader.dataset.lat_names
 
@@ -191,32 +213,49 @@ def compute_q_zCx(model, dataloader):
     return samples_zCx, params_zCX
 
 
-# SHOULD BE IN HELPERS.PY
-def get_device(model):
-    """Return the device on which a model is."""
-    return next(model.parameters()).device
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="PyTorch metrics for disentangling.",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('dir', help="Directory where the model is and where to save the metrics.")
     parser.add_argument('--no-cuda', action='store_true', default=False)
+    parser.add_argument('--no-metrics', action='store_true', default=False)
+    parser.add_argument('--no-losses', action='store_true', default=False)
     parser.add_argument('--no-progress-bar', action='store_true', default=False,
                         help='Disables progress bar.')
     log_levels = ['critical', 'error', 'warning', 'info', 'debug']
     parser.add_argument('-L', '--log-level', help="Logging levels.", default="info",
                         choices=log_levels)
-    # add choices : progress bar / logging
+    # add choices : logging / seed (set_seed(args.seed)) / helpers
     args = parser.parse_args()
 
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s %(levelname)s - %(funcName)s: %(message)s',
+                        datefmt='%H:%M:%S')
+    logger = logging.getLogger(__name__)
     logger.setLevel(args.log_level.upper())
     model = load_model(args.dir, is_gpu=not args.no_cuda)
+    device = get_device(is_gpu=not args.no_cuda)
     metadata = load_metadata(args.dir)
 
-    metric, H_z, H_zCv = mutual_information_gap(model, metadata["dataset"], is_progress_bar=not args.no_progress_bar)
+    dataloader = get_dataloaders(metadata["dataset"], batch_size=1000, shuffle=False)
 
-    torch.save({'metric': metric, 'marginal_entropies': H_z, 'cond_entropies': H_zCv},
-               os.path.join(args.dir, 'disentanglement_metric.pth'))
+    if not args.no_metrics:
+        logger.info('Computing metrics...')
+        metric, H_z, H_zCv = mutual_information_gap(model, dataloader,
+                                                    is_progress_bar=not args.no_progress_bar)
 
-    logger.info('MIG: {:.3f}'.format(metric))
+        torch.save({'metric': metric, 'marginal_entropies': H_z, 'cond_entropies': H_zCv},
+                   os.path.join(args.dir, 'disentanglement_metric.pth'))
+
+        logger.info('MIG: {:.3f}'.format(metric))
+
+    if not args.no_losses:
+        logger.info('Computing losses...')
+        losses = evaluate(model, dataloader, metadata,
+                          is_progress_bar=not args.no_progress_bar)
+
+        logger.info('Losses: {}'.format(losses))
+
+        path_to_test = os.path.join(args.dir, TEST_LOSSES)
+        with open(path_to_test, 'w') as f:
+            json.dump(losses, f, indent=4, sort_keys=True)

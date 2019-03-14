@@ -67,7 +67,7 @@ class BaseLoss(abc.ABC):
         if is_train:
             self.n_train_steps += 1
 
-        if is_train and self.n_train_steps % self.record_loss_every == 1:
+        if not is_train or self.n_train_steps % self.record_loss_every == 1:
             storer = storer
         else:
             storer = None
@@ -142,10 +142,13 @@ class BetaBLoss(BaseLoss):
         rec_loss = _reconstruction_loss(data, recon_data, storer=storer)
         kl_loss = _kl_normal_loss(*latent_dist, storer)
 
-        # linearly increasing C
-        assert self.C_max > self.C_min
-        C_delta = (self.C_max - self.C_min)
-        C = min(self.C_min + C_delta * self.n_train_steps / self.C_n_interp, self.C_max)
+        if is_train:
+            # linearly increasing C
+            assert self.C_max > self.C_min
+            C_delta = (self.C_max - self.C_min)
+            C = min(self.C_min + C_delta * self.n_train_steps / self.C_n_interp, self.C_max)
+        else:
+            C = self.C_max
 
         loss = rec_loss + self.gamma * (kl_loss - C).abs()
 
@@ -187,8 +190,8 @@ class FactorKLoss(BaseLoss):
 
         self.optimizer_d = optim.Adam(self.discriminator.parameters(), **optim_kwargs)
 
-    def __call__(self, data, model, optimizer, is_train, storer):
-        storer = self._pre_call(is_train, storer)
+    def __call__(self, data, model, optimizer, storer):
+        storer = self._pre_call(model.training, storer)
 
         # factor-vae split data into two batches. In the paper they sample 2 batches
         batch_size = data.size(dim=0)
@@ -202,8 +205,17 @@ class FactorKLoss(BaseLoss):
         rec_loss = _reconstruction_loss(data1, recon_batch, storer=storer)
         kl_loss = _kl_normal_loss(*latent_dist, storer)
         d_z = self.discriminator(latent_sample1)
-        tc_loss = (F.logsigmoid(d_z) - F.logsigmoid(1 - d_z)).mean()
+        # clamping to 0 because TC cannot be negative : TESTTTTTTTT
+        tc_loss = (F.logsigmoid(d_z) - F.logsigmoid(1 - d_z)).clamp(0).mean()
         vae_loss = rec_loss + kl_loss + self.beta * tc_loss
+
+        if storer is not None:
+            storer['loss'].append(vae_loss.item())
+            storer['tc_loss'].append(tc_loss.item())
+
+        if not model.training:
+            # don't backprop if evalutaing
+            return vae_loss
 
         # Run VAE optimizer
         optimizer.zero_grad()
@@ -224,9 +236,7 @@ class FactorKLoss(BaseLoss):
         self.optimizer_d.step()
 
         if storer is not None:
-            storer['loss'].append(vae_loss.item())
             storer['discrim_loss'].append(d_tc_loss.item())
-            storer['tc_loss'].append(tc_loss.item())
 
         return vae_loss
 

@@ -6,3 +6,4 @@ imageio
 scikit-image
 pytest
 pandas
+seaborn
