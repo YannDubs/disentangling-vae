@@ -19,7 +19,7 @@ from utils.modelIO import save_model
 
 def default_experiment():
     """Default arguments."""
-    return {'epochs': 100,
+    return {'epochs': 10,
             'batch_size': 64,
             'no_cuda': False,
             'seed': 1234,
@@ -27,7 +27,7 @@ def default_experiment():
             "lr": 1e-3,
             "capacity": [0.0, 5.0, 25000, 30.0],
             "beta": 4.,
-            "loss": "betaB",
+            "loss": "batchTC",
             "print_every": 50,
             "record_every": 5,
             'model': 'Burgess',  # follows the paper by Burgess et al
@@ -204,7 +204,7 @@ def main(args):
 
     # TRAINS
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    loss_kwargs = dict(capacity=args.capacity, beta=args.beta)
+    loss_kwargs = dict(capacity=args.capacity, beta=args.beta, latent_dim=args.latent_dim, data_size=len(train_loader.dataset))
     trainer = Trainer(model, optimizer,
                       loss_type=args.loss,
                       latent_dim=args.latent_dim,

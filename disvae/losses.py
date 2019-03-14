@@ -6,9 +6,12 @@ import torch
 from torch.nn import functional as F
 from torch import optim
 from disvae.discriminator import Discriminator
+from torch.nn import Module
+import numpy as np
+import math
+from numbers import Number
 
-
-def get_loss_f(name, is_color, capacity=None, beta=None, device=None):
+def get_loss_f(name, is_color, capacity=None, beta=None, latent_dim=None, data_size=None, device=None):
     """Return the correct loss function."""
     if name == "betaH":
         return BetaHLoss(is_color, beta)
@@ -26,7 +29,10 @@ def get_loss_f(name, is_color, capacity=None, beta=None, device=None):
                            device,
                            beta)
     elif name == "batchTC":
-        raise ValueError("{} loss not yet implemented".format(name))
+        return BatchTCLoss(is_color,
+                           data_size,
+                           latent_dim,
+                           beta)
         # Paper : Isolating Sources of Disentanglement in VAEs
         # return BatchTCLoss(**kwargs)
     else:
@@ -230,8 +236,13 @@ class FactorKLoss(BaseLoss):
         # Calculate the total correlation (TC) loss term
         tc_loss = (d_z[:, :1] - d_z[:, 1:]).mean()
 
+        dw_kl_loss = (-0.5 * latent_dist[1] + 0.5*(torch.exp(latent_dist[1] + torch.pow(latent_dist[0], 2))) - 0.5).sum(1).mean()
+
+        #dw_kl_loss = dw_kl_loss.mean()
         # Factor VAE loss
-        vae_loss = rec_loss + kl_loss + self.beta * tc_loss
+        #vae_loss = rec_loss + kl_loss + self.beta * tc_loss
+        # copy this without KL loss and add dim-wise KL
+        vae_loss = rec_loss + self.beta * tc_loss + dw_kl_loss
 
         # Make loss independent of number of pixels
         vae_loss = vae_loss / model.num_pixels
@@ -262,6 +273,95 @@ class FactorKLoss(BaseLoss):
         self.optimizer_d.step()
 
         return train_loss
+
+class BatchTCLoss(BaseLoss, Module):
+
+    def __init__(self, is_color, data_size, z_dim, beta):
+        super().__init__(is_color)
+
+        self.eps = 1e-8
+        self.z_dim = z_dim
+        self.dataset_size = data_size
+        self.beta = beta
+
+        # hyperparameters for prior p(z)
+        #self.register_buffer('prior_params', torch.zeros(self.z_dim, 2))
+        self.prior_params = torch.zeros(self.z_dim, 2)
+    def __call__(self, data, recon_batch, latent_sample, latent_dist, is_train, storer):
+        storer = self._pre_call(is_train, storer)
+        batch_size = data.size(0)
+        # Get reconstruction loss
+        rec_loss = _reconstruction_loss(data, recon_batch, self.is_color)
+        dw_kl_loss = (-0.5 * latent_dist[1] + 0.5 * (torch.exp(latent_dist[1] + torch.pow(latent_dist[0], 2))) - 0.5).sum(1).mean()
+
+        latent_dist = torch.stack((latent_dist[0], latent_dist[1]), dim=2)
+
+        #prior_params = self._get_prior_params(batch_size)
+
+
+        #logpz = self._log_density_normal(latent_sample, params=prior_params).view(batch_size, -1).sum(1)
+        logqz_condx = self._log_density_normal(latent_sample, params=latent_dist).view(batch_size, -1).sum(1)
+        _logqz = self._log_density_normal(latent_sample.view(batch_size, 1, self.z_dim),latent_dist.view(1, batch_size, self.z_dim, 2))
+
+        logqz_prodmarginals = (self._logsumexp(_logqz, dim=1, keepdim=False) - math.log(batch_size * self.dataset_size)).sum(1)
+        logqz = (self._logsumexp(_logqz.sum(2), dim=1, keepdim=False) - math.log(batch_size * self.dataset_size))
+
+        tc_loss = (logqz - logqz_prodmarginals).mean()
+        mi_loss = (logqz_condx - logqz).mean()
+
+        #elbo = rec_loss + mi_loss + self.beta * tc_loss + dw_kl_loss
+        elbo = rec_loss + tc_loss + dw_kl_loss
+
+        return elbo
+
+    # return prior parameters wrapped in a suitable Variable
+    def _get_prior_params(self, batch_size=1):
+        expanded_size = (batch_size,) + self.prior_params.size()
+        prior_params = self.prior_params.expand(expanded_size)
+
+        return prior_params
+
+    def _log_density_normal(self, sample, params=None):
+        mu = params.select(-1, 0)
+        logvar = params.select(-1, 1)
+
+        inv_var = torch.exp(logvar)
+        tmp = (sample - mu)
+
+        return -0.5 * (torch.pow(tmp,2) * inv_var + logvar + np.log(2*np.pi))
+        # c = torch.Tensor([np.log(2 * np.pi)]).type_as(sample.data)
+        # inv_sigma = torch.exp(-logsigma)
+        # tmp = (sample - mu) * inv_sigma
+        # return -0.5 * (tmp * tmp + 2 * logsigma + c)
+
+        #return logp
+
+    def _log_density_bernoulli(self, sample, params=None):
+        presigm_ps = params.expand(sample.size())
+        p = (F.sigmoid(presigm_ps) + self.eps) * (1 - 2 * self.eps)
+        logp = sample * torch.log(p + self.eps) + (1 - sample) * torch.log(1 - p + self.eps)
+
+        return logp
+
+    def _logsumexp(self, value, dim=None, keepdim=False):
+        """Numerically stable implementation of the operation
+
+        value.exp().sum(dim, keepdim).log()
+        """
+        if dim is not None:
+            m, _ = torch.max(value, dim=dim, keepdim=True)
+            value0 = value - m
+            if keepdim is False:
+                m = m.squeeze(dim)
+            return m + torch.log(torch.sum(torch.exp(value0),
+                                           dim=dim, keepdim=keepdim))
+        else:
+            m = torch.max(value)
+            sum_exp = torch.sum(torch.exp(value - m))
+            if isinstance(sum_exp, Number):
+                return m + math.log(sum_exp)
+            else:
+                return m + torch.log(sum_exp)
 
 
 def _reconstruction_loss(data, recon_data, is_color):

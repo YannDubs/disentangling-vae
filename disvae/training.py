@@ -197,8 +197,8 @@ class Trainer():
         # Generic iteration for other models
         else:
             self.optimizer.zero_grad()
-            recon_batch, latent_dist, _ = self.model(data)
-            loss = self.loss_f(data, recon_batch, latent_dist, self.model.training, self.stored_losses)
+            recon_batch, latent_dist, latent_sample = self.model(data)
+            loss = self.loss_f(data, recon_batch, latent_sample, latent_dist, self.model.training, self.stored_losses)
             # make loss independent of number of pixels
             loss = loss / self.model.num_pixels
             loss.backward()

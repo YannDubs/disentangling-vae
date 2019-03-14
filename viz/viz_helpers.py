@@ -51,7 +51,7 @@ def read_avg_kl_from_file(log_file_path, nr_latent_variables):
         total_list = list(csv.reader(f))
         avg_kl = [0]*nr_latent_variables
         for i in range(1, nr_latent_variables+1):
-            avg_kl[i-1] = total_list[-(2+nr_latent_variables)+i][2]
+            avg_kl[i-1] = total_list[1][-(2+nr_latent_variables)+i]
 
     return avg_kl
 

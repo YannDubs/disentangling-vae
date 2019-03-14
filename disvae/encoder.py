@@ -8,6 +8,8 @@ def get_Encoder(name):
     """Return the correct encoder."""
     if name == "Burgess":
         return EncoderBetaB
+    elif name == "BatchTC":
+        return EncoderBatchTC
     else:
         raise ValueError("Uknown encoder : {}".format(name))
 
@@ -47,7 +49,6 @@ class EncoderBetaB(nn.Module):
         # Shape required to start transpose convs
         self.reshape = (hid_channels, kernel_size, kernel_size)
         n_chan = self.img_size[0]
-        self.img_size = img_size
 
         # Convolutional layers
         cnn_kwargs = dict(stride=2, padding=1)
@@ -85,5 +86,39 @@ class EncoderBetaB(nn.Module):
         # Log std-dev in paper (bear in mind)
         mu_logvar = self.mu_logvar_gen(x)
         mu, logvar = mu_logvar.view(-1, self.latent_dim, 2).unbind(-1)
+
+        return mu, logvar
+
+class EncoderBatchTC(nn.Module):
+    def __init__(self, img_size, output_dim):
+        super(EncoderBatchTC, self).__init__()
+        self.img_size = img_size
+        self.output_dim = output_dim
+
+        self.conv1 = nn.Conv2d(1, 32, 4, 2, 1)  # 32 x 32
+        self.bn1 = nn.BatchNorm2d(32)
+        self.conv2 = nn.Conv2d(32, 32, 4, 2, 1)  # 16 x 16
+        self.bn2 = nn.BatchNorm2d(32)
+        self.conv3 = nn.Conv2d(32, 64, 4, 2, 1)  # 8 x 8
+        self.bn3 = nn.BatchNorm2d(64)
+        self.conv4 = nn.Conv2d(64, 64, 4, 2, 1)  # 4 x 4
+        self.bn4 = nn.BatchNorm2d(64)
+        self.conv5 = nn.Conv2d(64, 512, 4)
+        self.bn5 = nn.BatchNorm2d(512)
+        self.conv_z = nn.Conv2d(512, output_dim * 2, 1)
+
+        # setup the non-linearity
+        self.act = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        h = x.view(-1, 1, 64, 64)
+        h = self.act(self.bn1(self.conv1(h)))
+        h = self.act(self.bn2(self.conv2(h)))
+        h = self.act(self.bn3(self.conv3(h)))
+        h = self.act(self.bn4(self.conv4(h)))
+        h = self.act(self.bn5(self.conv5(h)))
+        z = self.conv_z(h).view(x.size(0), self.output_dim*2)
+
+        mu, logvar = z.view(-1, self.output_dim, 2).unbind(-1)
 
         return mu, logvar
