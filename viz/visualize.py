@@ -370,7 +370,7 @@ class Visualizer():
         size : int
             Number of samples for each latent traversal.
         """
-        #TODO
+        #TODO Need to sort the visualisation issue here, we no longer use KL divergence in the same way for all losses
 
         latent_samples = []
 
