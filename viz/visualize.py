@@ -370,6 +370,8 @@ class Visualizer():
         size : int
             Number of samples for each latent traversal.
         """
+        #TODO
+
         latent_samples = []
 
         avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, 'losses.log'), self.model.latent_dim)

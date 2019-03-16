@@ -6,11 +6,12 @@ import torch
 from torch.nn import functional as F
 from torch import optim
 from disvae.discriminator import Discriminator
-import numpy as np
+from utils.math import log_density_normal, log_importance_weight_matrix
 import math
 
+
 def get_loss_f(name, capacity=None, alpha=None, beta=None, gamma=None,
-               latent_dim=None, data_size=None, mss=False, mutual_info=True, device=None):
+               data_size=None, is_mss=False, is_mutual_info=True, device=None):
     """Return the correct loss function."""
     if name == "betaH":
         return BetaHLoss(beta)
@@ -24,14 +25,13 @@ def get_loss_f(name, capacity=None, alpha=None, beta=None, gamma=None,
     elif name == "factor":
         return FactorKLoss(device,
                            beta,
-                           mutual_info)
+                           is_mutual_info)
     elif name == "batchTC":
-        return BatchTCLoss(alpha,
+        return BatchTCLoss(data_size,
+                           alpha,
                            beta,
                            gamma,
-                           data_size,
-                           latent_dim,
-                           mss)
+                           is_mss)
         # Paper : Isolating Sources of Disentanglement in VAEs
     else:
         raise ValueError("Uknown loss : {}".format(name))
@@ -194,13 +194,13 @@ class FactorKLoss(BaseLoss):
         """
 
     def __init__(self, device, beta=40.,
-                 mutual_info=True,
+                 is_mutual_info=True,
                  disc_kwargs=dict(neg_slope=0.2, latent_dim=10, hidden_units=1000),
                  optim_kwargs=dict(lr=5e-4, betas=(0.5, 0.9))):
         super().__init__()
         self.beta = beta
         self.device = device
-        self.mutual_info = mutual_info
+        self.is_mutual_info = is_mutual_info
 
         self.discriminator = Discriminator(**disc_kwargs).to(self.device)
 
@@ -219,19 +219,35 @@ class FactorKLoss(BaseLoss):
         # Factor VAE Loss
         recon_batch, latent_dist, latent_sample1 = model(data1)
         rec_loss = _reconstruction_loss(data1, recon_batch, storer=storer)
+        # TODO: remove this kl_loss term once viz is sorted
+        #https://github.com/YannDubs/disentangling-vae/pull/25#issuecomment-473535863
         kl_loss = _kl_normal_loss(*latent_dist, storer)
         d_z = self.discriminator(latent_sample1)
         
-        # clamping to 0 because TC cannot be negative : TESTTTTTTTT
+        # clamping to 0 because TC cannot be negative : TEST
         tc_loss = (F.logsigmoid(d_z) - F.logsigmoid(1 - d_z)).clamp(0).mean()
 
-        if self.mutual_info:
+
+        # TODO replace this code with the following commented out code after viz is fixed
+        # https://github.com/YannDubs/disentangling-vae/pull/25#issuecomment-473535863
+        if self.is_mutual_info:
             # return vae loss
             vae_loss = rec_loss + kl_loss + self.beta * tc_loss
         else:
             # return vae loss without mutual information term
             dw_kl_loss = _dimwise_kl_loss(*latent_dist, storer)
             vae_loss = rec_loss + self.beta * tc_loss + dw_kl_loss
+
+        # if self.is_mutual_info:
+        #     beta = self.beta
+        #     kl_loss = _kl_normal_loss(*latent_dist, storer)
+        # else:
+        #     # beta has to be increased by one for correct comparaison
+        #     # as the TC term is included in `_kl_normal_loss`
+        #     beta = self.beta + 1
+        #     kl_loss = _dimwise_kl_loss(*latent_dist, storer)
+        #
+        # vae_loss = rec_loss + kl_loss + beta * tc_loss
 
         if storer is not None:
             storer['loss'].append(vae_loss.item())
@@ -292,15 +308,14 @@ class BatchTCLoss(BaseLoss):
            autoencoders." Advances in Neural Information Processing Systems. 2018.
     """
 
-    def __init__(self, alpha, beta, gamma, data_size, latent_dim, mss=False):
+    def __init__(self, data_size, alpha=1., beta=6., gamma=1., is_mss=False):
         super().__init__()
-
-        self.latent_dim = latent_dim
+        #beta values: dsprites: 6, celeba: 15
         self.dataset_size = data_size
         self.beta = beta
         self.alpha = alpha
         self.gamma = gamma
-        self.mss = mss # minibatch stratified sampling
+        self.is_mss = is_mss # minibatch stratified sampling
 
     def __call__(self, data, recon_batch, latent_dist, is_train, storer, latent_sample=None):
         storer = self._pre_call(is_train, storer)
@@ -310,10 +325,10 @@ class BatchTCLoss(BaseLoss):
         latent_dist = torch.stack((latent_dist[0], latent_dist[1]), dim=2)
 
         # calculate log q(z|x) and _log q(z) matrix
-        logqz_condx = self._log_density_normal(latent_sample, latent_dist, batch_size, return_matrix=False).sum(dim=1)
-        _logqz = self._log_density_normal(latent_sample, latent_dist, batch_size, return_matrix=True)
+        logqz_condx = log_density_normal(latent_sample, latent_dist, batch_size, return_matrix=False).sum(dim=1)
+        _logqz = log_density_normal(latent_sample, latent_dist, batch_size, return_matrix=True)
 
-        if not self.mss:
+        if not self.is_mss:
             # minibatch weighted sampling
             logqz_prodmarginals = (torch.logsumexp(_logqz, dim=1, keepdim=False)
                                    - math.log(batch_size * self.dataset_size)).sum(dim=1)
@@ -321,7 +336,7 @@ class BatchTCLoss(BaseLoss):
                     - math.log(batch_size * self.dataset_size)
         else:
             # minibatch stratified sampling
-            logiw_matrix = self._log_importance_weight_matrix(batch_size, self.dataset_size)
+            logiw_matrix = log_importance_weight_matrix(batch_size, self.dataset_size)
             logqz = torch.logsumexp(logiw_matrix + _logqz.sum(2), dim=1, keepdim=False)
             logqz_prodmarginals = torch.logsumexp(logiw_matrix.view(batch_size, batch_size, 1)
                                                   + _logqz, dim=1, keepdim=False).sum(1)
@@ -342,66 +357,10 @@ class BatchTCLoss(BaseLoss):
 
             # TODO Remove this when visualisation fixed
             tc_loss_vec = (logqz - logqz_prodmarginals)
-            for i in range(self.latent_dim):
+            for i in range(latent_dist.size(1)):
                 storer['kl_loss_' + str(i)].append(tc_loss_vec[i].item())
 
         return loss
-
-    def _log_density_normal(self, latent_sample, latent_dist, batch_size, return_matrix=False):
-        """
-            Calculates log density of a normal distribution with latent samples
-            and latent distribution parameters.
-
-            Parameters
-            ----------
-            latent_sample: torch.Tensor
-                sample from the latent dimension using the reparameterisation trick
-                shape : (batch_size, latent_dim).
-
-            latent_dist: torch.Tensor
-                parameters of the latent distribution: mean and logvar
-                shape: (batch_size, latent_dim, 2)
-
-            batch_size: int
-                number of training images in the batch
-
-            return_matrix: bool
-                True returns size (batch_size, batch_size, latent_dim) - used for mws and mss
-                False returns size (batch_size, latent_dim)
-            """
-        if return_matrix:
-            latent_sample = latent_sample.view(batch_size, 1, self.latent_dim)
-            latent_dist = latent_dist.view(1, batch_size, self.latent_dim, 2)
-
-        mu = latent_dist.select(-1, 0)
-        logvar = latent_dist.select(-1, 1)
-
-        inv_var = torch.exp(-logvar)
-        tmp = (latent_sample - mu)
-        log_density = -0.5 * (torch.pow(tmp,2) * inv_var + logvar + np.log(2*np.pi))
-
-        return log_density
-
-    def _log_importance_weight_matrix(self, batch_size, dataset_size):
-        """
-            Calculates a log importance weight matrix
-
-            Parameters
-            ----------
-            batch_size: int
-                number of training images in the batch
-
-            dataset_size: int
-            number of training images in the dataset
-        """
-        N = dataset_size
-        M = batch_size - 1
-        strat_weight = (N - M) / (N * M)
-        W = torch.Tensor(batch_size, batch_size).fill_(1 / M)
-        W.view(-1)[::M+1] = 1 / N
-        W.view(-1)[1::M+1] = strat_weight
-        W[M-1, 0] = strat_weight
-        return W.log()
 
 def _dimwise_kl_loss(mean, logvar, storer=None):
     """
