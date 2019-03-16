@@ -16,7 +16,7 @@ from utils.helpers import create_safe_directory, get_device, set_seed, get_n_par
 
 def default_experiment():
     """Default arguments."""
-    return {'epochs': 2,
+    return {'epochs': 1,
             'batch_size': 64,
             'no_cuda': False,
             'seed': 1234,
@@ -24,14 +24,18 @@ def default_experiment():
             "lr": 5e-4,
             "capacity": [0.0, 5.0, 25000, 30.0],
             "beta": 4.,
-            "loss": "batchTC",
+            "loss": "betaB",
             'model': 'Burgess',  # follows the paper by Burgess et al
             'dataset': 'mnist',
             'experiment': 'custom',
             "latent_dim": 10,
             "no_progress_bar": False,
             "checkpoint_every": 10,
-            "lr_disc": 5e-4
+            "lr_disc": 5e-4,
+            "mss": True, # minibatch stratified sampling (batchTC)
+            "alpha": 1.,
+            "gamma": 1.,
+            "mutual_info": False # Include mutual information term in factor-VAE
             }
 
 
@@ -163,9 +167,21 @@ def parse_arguments():
                        metavar=('MIN_C, MAX_C, C_N_INTERP, GAMMA'),
                        nargs='*',
                        help="Capacity of latent channel. Only used if `loss=betaB`")
+    model.add_argument('-A', '--alpha',
+                       type=float, default=default_config['alpha'],
+                       help="Weight of the MI term. Only used if `loss=batchTC`")
     model.add_argument('-B', '--beta',
                        type=float, default=default_config['beta'],
-                       help="Weight of the KL term. Only used if `loss=betaH`")
+                       help="Weight of the KL / TC term. Used if `loss=betaH` / `loss=batchTC`")
+    model.add_argument('-G', '--gamma',
+                       type=float, default=default_config['gamma'],
+                       help="Weight of the dim-wise KL term. Only used if `loss=batchTC`")
+    model.add_argument('-S', '--mss',
+                       type=bool, default=default_config['mss'],
+                       help="Weight of the MI term. Only used if `loss=batchTC`")
+    model.add_argument('-MI', '--mi',
+                       type=bool, default=default_config['mutual_info'],
+                       help="Include mutual information in factor-VAE. Only used if `loss=factor`")
     losses = ["VAE", "betaH", "betaB", "factor", "batchTC"]
     model.add_argument('-l', '--loss',
                        choices=losses, default=default_config['loss'],
@@ -217,7 +233,9 @@ def main(args):
 
     # TRAINS
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    loss_kwargs = dict(capacity=args.capacity, beta=args.beta, latent_dim=args.latent_dim, data_size=len(train_loader.dataset))
+    loss_kwargs = dict(capacity=args.capacity, beta=args.beta, latent_dim=args.latent_dim,
+                       data_size=len(train_loader.dataset), mss=args.mss, alpha=args.alpha,
+                       gamma=args.gamma)
     trainer = Trainer(model, optimizer,
                       loss_type=args.loss,
                       latent_dim=args.latent_dim,

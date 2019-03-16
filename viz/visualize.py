@@ -355,7 +355,7 @@ class Visualizer():
                                  nrow=size[1],
                                  pad_value=(1 - get_background(self.dataset)))
 
-    def all_latent_traversals(self, sample_latent_space=None, size=8, filename='imgs/all_traversals.png'):
+    def all_latent_traversals(self, sample_latent_space=None, size=8, filename='imgs/all_traversals.png', is_sort_kl=False):
         """
         Traverses all latent dimensions one by one and plots a grid of images
         where each row corresponds to a latent traversal of one latent
@@ -370,6 +370,7 @@ class Visualizer():
         size : int
             Number of samples for each latent traversal.
         """
+
         latent_samples = []
 
         avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, 'losses.log'), self.model.latent_dim)

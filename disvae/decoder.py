@@ -8,8 +8,6 @@ def get_Decoder(name):
     """Return the correct decoder."""
     if name == "Burgess":
         return DecoderBetaB
-    elif name == "BatchTC":
-        return DecoderBatchTC
     else:
         raise ValueError("Uknown encoder : {}".format(name))
 
@@ -83,32 +81,3 @@ class DecoderBetaB(nn.Module):
         x = torch.sigmoid(self.convT3(x))
 
         return x
-
-class DecoderBatchTC(nn.Module):
-    def __init__(self, img_size, input_dim):
-        super(DecoderBatchTC, self).__init__()
-        self.img_size = img_size
-        self.conv1 = nn.ConvTranspose2d(input_dim, 512, 1, 1, 0)  # 1 x 1
-        self.bn1 = nn.BatchNorm2d(512)
-        self.conv2 = nn.ConvTranspose2d(512, 64, 4, 1, 0)  # 4 x 4
-        self.bn2 = nn.BatchNorm2d(64)
-        self.conv3 = nn.ConvTranspose2d(64, 64, 4, 2, 1)  # 8 x 8
-        self.bn3 = nn.BatchNorm2d(64)
-        self.conv4 = nn.ConvTranspose2d(64, 32, 4, 2, 1)  # 16 x 16
-        self.bn4 = nn.BatchNorm2d(32)
-        self.conv5 = nn.ConvTranspose2d(32, 32, 4, 2, 1)  # 32 x 32
-        self.bn5 = nn.BatchNorm2d(32)
-        self.conv_final = nn.ConvTranspose2d(32, 1, 4, 2, 1)
-
-        # setup the non-linearity
-        self.act = nn.ReLU(inplace=True)
-
-    def forward(self, z):
-        h = z.view(z.size(0), z.size(1), 1, 1)
-        h = self.act(self.bn1(self.conv1(h)))
-        h = self.act(self.bn2(self.conv2(h)))
-        h = self.act(self.bn3(self.conv3(h)))
-        h = self.act(self.bn4(self.conv4(h)))
-        h = self.act(self.bn5(self.conv5(h)))
-        mu_img = self.conv_final(h)
-        return mu_img

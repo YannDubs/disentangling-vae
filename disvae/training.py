@@ -180,8 +180,11 @@ class Trainer():
             loss = self.loss_f(data, self.model, self.optimizer, storer)
         else:
             recon_batch, latent_dist, latent_sample = self.model(data)
-            loss = self.loss_f(data, recon_batch, latent_sample, latent_dist,
-                               self.model.training, storer)
+            if self.loss_type == 'batchTC':
+                loss_kwargs = dict(latent_sample=latent_sample)
+            else:
+                loss_kwargs = dict()
+            loss = self.loss_f(data, recon_batch, latent_dist, self.model.training, storer, **loss_kwargs)
 
             self.optimizer.zero_grad()
             loss.backward()
