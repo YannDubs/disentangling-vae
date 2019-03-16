@@ -180,7 +180,7 @@ class FactorKLoss(BaseLoss):
         beta : float, optional
             Weight of the TC loss term. `gamma` in the paper.
 
-        mutual_info : bool
+        is_mutual_info : bool
             True : includes the mutual information term in the loss
             False : removes mutual information
 
@@ -235,8 +235,9 @@ class FactorKLoss(BaseLoss):
             vae_loss = rec_loss + kl_loss + self.beta * tc_loss
         else:
             # return vae loss without mutual information term
+            beta = self.beta + 1
             dw_kl_loss = _dimwise_kl_loss(*latent_dist, storer)
-            vae_loss = rec_loss + self.beta * tc_loss + dw_kl_loss
+            vae_loss = rec_loss + beta * tc_loss + dw_kl_loss
 
         # if self.is_mutual_info:
         #     beta = self.beta
@@ -299,7 +300,7 @@ class BatchTCLoss(BaseLoss):
         latent_dim: int
             Dimension of the latent variable
 
-        mss : bool
+        is_mss : bool
             Selects either minibatch stratified sampling (True) or minibatch
             weighted  sampling (False)
 
