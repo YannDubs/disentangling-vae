@@ -371,7 +371,8 @@ class Visualizer():
             Number of samples for each latent traversal.
         """
         #TODO Need to sort the visualisation issue here, we no longer use KL divergence in the same way for all losses
-
+        # https://github.com/YannDubs/disentangling-vae/pull/25#issuecomment-473535863
+        
         latent_samples = []
 
         avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, 'losses.log'), self.model.latent_dim)
