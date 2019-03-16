@@ -16,7 +16,7 @@ from utils.helpers import create_safe_directory, get_device, set_seed, get_n_par
 
 def default_experiment():
     """Default arguments."""
-    return {'epochs': 1,
+    return {'epochs': 100,
             'batch_size': 64,
             'no_cuda': False,
             'seed': 1234,

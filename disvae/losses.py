@@ -6,10 +6,8 @@ import torch
 from torch.nn import functional as F
 from torch import optim
 from disvae.discriminator import Discriminator
-from torch.nn import Module
 import numpy as np
 import math
-from numbers import Number
 
 def get_loss_f(name, capacity=None, alpha=None, beta=None, gamma=None,
                latent_dim=None, data_size=None, mss=False, mutual_info=True, device=None):
@@ -33,7 +31,7 @@ def get_loss_f(name, capacity=None, alpha=None, beta=None, gamma=None,
                            gamma,
                            data_size,
                            latent_dim,
-                           mss) # mss
+                           mss)
         # Paper : Isolating Sources of Disentanglement in VAEs
     else:
         raise ValueError("Uknown loss : {}".format(name))
