@@ -175,14 +175,18 @@ class FactorKLoss(BaseLoss):
 
         Parameters
         ----------
-        discriminator : disvae.discriminator.Discriminator
-
-        optimizer_d : torch.optim
-
         device : torch.device
 
         beta : float, optional
             Weight of the TC loss term. `gamma` in the paper.
+
+        mutual_info : bool
+            True : includes the mutual information term in the loss
+            False : removes mutual information
+
+        discriminator : disvae.discriminator.Discriminator
+
+        optimizer_d : torch.optim
 
         References :
             [1] Kim, Hyunjik, and Andriy Mnih. "Disentangling by factorising."
