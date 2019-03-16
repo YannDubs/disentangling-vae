@@ -7,7 +7,6 @@ from torch import optim
 from disvae.vae import VAE
 from disvae.encoder import get_Encoder
 from disvae.decoder import get_Decoder
-from disvae.discriminator import Discriminator
 from disvae.training import Trainer
 from utils.datasets import (get_dataloaders, get_img_size)
 from utils.modelIO import save_model
@@ -31,7 +30,11 @@ def default_experiment():
             "latent_dim": 10,
             "no_progress_bar": False,
             "checkpoint_every": 10,
-            "lr_disc": 5e-4
+            "lr_disc": 5e-4,
+            "is_mss": True, # minibatch stratified sampling (batchTC)
+            "alpha": 1.,
+            "gamma": 1.,
+            "is_mutual_info": True # Include mutual information term in factor-VAE
             }
 
 
@@ -163,9 +166,21 @@ def parse_arguments():
                        metavar=('MIN_C, MAX_C, C_N_INTERP, GAMMA'),
                        nargs='*',
                        help="Capacity of latent channel. Only used if `loss=betaB`")
+    model.add_argument('-A', '--alpha',
+                       type=float, default=default_config['alpha'],
+                       help="Weight of the MI term. Only used if `loss=batchTC`")
     model.add_argument('-B', '--beta',
                        type=float, default=default_config['beta'],
-                       help="Weight of the KL term. Only used if `loss=betaH`")
+                       help="Weight of the KL / TC term. Used if `loss=betaH` / `loss=batchTC`")
+    model.add_argument('-G', '--gamma',
+                       type=float, default=default_config['gamma'],
+                       help="Weight of the dim-wise KL term. Only used if `loss=batchTC`")
+    model.add_argument('-S', '--is_mss',
+                       type=bool, default=default_config['is_mss'],
+                       help="Weight of the MI term. Only used if `loss=batchTC`")
+    model.add_argument('-MI', '--is_mutual_info',
+                       type=bool, default=default_config['is_mutual_info'],
+                       help="Include mutual information in factor-VAE. Only used if `loss=factor`")
     losses = ["VAE", "betaH", "betaB", "factor", "batchTC"]
     model.add_argument('-l', '--loss',
                        choices=losses, default=default_config['loss'],
@@ -217,7 +232,8 @@ def main(args):
 
     # TRAINS
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    loss_kwargs = dict(capacity=args.capacity, beta=args.beta)
+    loss_kwargs = dict(capacity=args.capacity, beta=args.beta, data_size=len(train_loader.dataset), is_mss=args.is_mss,
+                       alpha=args.alpha, gamma=args.gamma, is_mutual_info=args.is_mutual_info)
     trainer = Trainer(model, optimizer,
                       loss_type=args.loss,
                       latent_dim=args.latent_dim,
