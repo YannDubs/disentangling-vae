@@ -220,13 +220,12 @@ class FactorKLoss(BaseLoss):
         recon_batch, latent_dist, latent_sample1 = model(data1)
         rec_loss = _reconstruction_loss(data1, recon_batch, storer=storer)
         # TODO: remove this kl_loss term once viz is sorted
-        #https://github.com/YannDubs/disentangling-vae/pull/25#issuecomment-473535863
+        # https://github.com/YannDubs/disentangling-vae/pull/25#issuecomment-473535863
         kl_loss = _kl_normal_loss(*latent_dist, storer)
         d_z = self.discriminator(latent_sample1)
-        
+
         # clamping to 0 because TC cannot be negative : TEST
         tc_loss = (F.logsigmoid(d_z) - F.logsigmoid(1 - d_z)).clamp(0).mean()
-
 
         # TODO replace this code with the following commented out code after viz is fixed
         # https://github.com/YannDubs/disentangling-vae/pull/25#issuecomment-473535863
@@ -281,6 +280,7 @@ class FactorKLoss(BaseLoss):
 
         return vae_loss
 
+
 class BatchTCLoss(BaseLoss):
     """
         Compute the decomposed KL loss with either minibatch weighted sampling or
@@ -311,12 +311,12 @@ class BatchTCLoss(BaseLoss):
 
     def __init__(self, data_size, alpha=1., beta=6., gamma=1., is_mss=False):
         super().__init__()
-        #beta values: dsprites: 6, celeba: 15
+        # beta values: dsprites: 6, celeba: 15
         self.dataset_size = data_size
         self.beta = beta
         self.alpha = alpha
         self.gamma = gamma
-        self.is_mss = is_mss # minibatch stratified sampling
+        self.is_mss = is_mss  # minibatch stratified sampling
 
     def __call__(self, data, recon_batch, latent_dist, is_train, storer, latent_sample=None):
         storer = self._pre_call(is_train, storer)
@@ -326,27 +326,30 @@ class BatchTCLoss(BaseLoss):
         latent_dist = torch.stack((latent_dist[0], latent_dist[1]), dim=2)
 
         # calculate log q(z|x) and _log q(z) matrix
-        logqz_condx = log_density_normal(latent_sample, latent_dist, batch_size, return_matrix=False).sum(dim=1)
-        _logqz = log_density_normal(latent_sample, latent_dist, batch_size, return_matrix=True)
+        logqz_condx = log_density_normal(latent_sample, latent_dist, batch_size,
+                                         return_matrix=False).sum(dim=1)
+        _logqz = log_density_normal(latent_sample, latent_dist, batch_size,
+                                    return_matrix=True)
 
         if not self.is_mss:
             # minibatch weighted sampling
-            logqz_prodmarginals = (torch.logsumexp(_logqz, dim=1, keepdim=False)
-                                   - math.log(batch_size * self.dataset_size)).sum(dim=1)
+            logqz_prodmarginals = (torch.logsumexp(_logqz, dim=1, keepdim=False) -
+                                   math.log(batch_size * self.dataset_size)).sum(dim=1)
             logqz = torch.logsumexp(_logqz.sum(2), dim=1, keepdim=False) \
-                    - math.log(batch_size * self.dataset_size)
+                - math.log(batch_size * self.dataset_size)
         else:
             # minibatch stratified sampling
-            logiw_matrix = log_importance_weight_matrix(batch_size, self.dataset_size)
+            logiw_matrix = log_importance_weight_matrix(batch_size, self.dataset_size
+                                                        ).to(latent_dist.device)
             logqz = torch.logsumexp(logiw_matrix + _logqz.sum(2), dim=1, keepdim=False)
-            logqz_prodmarginals = torch.logsumexp(logiw_matrix.view(batch_size, batch_size, 1)
-                                                  + _logqz, dim=1, keepdim=False).sum(1)
+            logqz_prodmarginals = torch.logsumexp(logiw_matrix.view(batch_size, batch_size, 1) +
+                                                  _logqz, dim=1, keepdim=False).sum(1)
 
         # rec loss, mutual information, total correlation and dim-wise kl
         rec_loss = _reconstruction_loss(data, recon_batch, storer=storer)
         mi_loss = (logqz_condx - logqz).mean()
         tc_loss = (logqz - logqz_prodmarginals).mean()
-        dw_kl_loss = _dimwise_kl_loss(latent_dist[::,0],latent_dist[::,1], storer=storer)
+        dw_kl_loss = _dimwise_kl_loss(latent_dist[::, 0], latent_dist[::, 1], storer=storer)
 
         # total loss
         loss = rec_loss + self.alpha * mi_loss + self.beta * tc_loss + self.gamma * dw_kl_loss
@@ -362,6 +365,7 @@ class BatchTCLoss(BaseLoss):
                 storer['kl_loss_' + str(i)].append(tc_loss_vec[i].item())
 
         return loss
+
 
 def _dimwise_kl_loss(mean, logvar, storer=None):
     """
@@ -388,6 +392,7 @@ def _dimwise_kl_loss(mean, logvar, storer=None):
         storer['dw_kl_loss'].append(dw_kl.item())
 
     return dw_kl
+
 
 def _reconstruction_loss(data, recon_data, distribution="bernoulli", storer=None):
     """

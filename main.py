@@ -231,8 +231,9 @@ def main(args):
 
     # TRAINS
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    loss_kwargs = dict(capacity=args.capacity, beta=args.beta, data_size=len(train_loader.dataset), is_mss=args.is_mss,
-                       alpha=args.alpha, gamma=args.gamma, is_mutual_info=args.is_mutual_info)
+    loss_kwargs = dict(capacity=args.capacity, beta=args.beta,
+                       data_size=len(train_loader.dataset), is_mss=not args.no_mss,
+                       alpha=args.alpha, gamma=args.gamma, is_mutual_info=not args.no_mutual_info)
     trainer = Trainer(model, optimizer,
                       loss_type=args.loss,
                       latent_dim=args.latent_dim,
