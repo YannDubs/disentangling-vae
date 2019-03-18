@@ -31,10 +31,10 @@ def default_experiment():
             "no_progress_bar": False,
             "checkpoint_every": 10,
             "lr_disc": 5e-4,
-            "is_mss": True, # minibatch stratified sampling (batchTC)
+            "no_mss": False,  # minibatch stratified sampling (batchTC)
             "alpha": 1.,
             "gamma": 1.,
-            "is_mutual_info": True # Include mutual information term in factor-VAE
+            "no_mutual_info": False  # Include mutual information term in factor-VAE
             }
 
 
@@ -175,11 +175,11 @@ def parse_arguments():
     model.add_argument('-G', '--gamma',
                        type=float, default=default_config['gamma'],
                        help="Weight of the dim-wise KL term. Only used if `loss=batchTC`")
-    model.add_argument('-S', '--is_mss',
-                       type=bool, default=default_config['is_mss'],
+    model.add_argument('-S', '--no-mss',
+                       type=bool, default=default_config['no_mss'],
                        help="Weight of the MI term. Only used if `loss=batchTC`")
-    model.add_argument('-MI', '--is_mutual_info',
-                       type=bool, default=default_config['is_mutual_info'],
+    model.add_argument('-MI', '--no-mutual-info',
+                       type=bool, default=default_config['no_mutual_info'],
                        help="Include mutual information in factor-VAE. Only used if `loss=factor`")
     losses = ["VAE", "betaH", "betaB", "factor", "batchTC"]
     model.add_argument('-l', '--loss',
