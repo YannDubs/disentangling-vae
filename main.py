@@ -175,12 +175,11 @@ def parse_arguments():
     model.add_argument('-G', '--gamma',
                        type=float, default=default_config['gamma'],
                        help="Weight of the dim-wise KL term. Only used if `loss=batchTC`")
-    model.add_argument('-S', '--no-mss',
-                       type=bool, default=default_config['no_mss'],
-                       help="Weight of the MI term. Only used if `loss=batchTC`")
-    model.add_argument('-MI', '--no-mutual-info',
-                       type=bool, default=default_config['no_mutual_info'],
-                       help="Include mutual information in factor-VAE. Only used if `loss=factor`")
+    model.add_argument('--no-mss', default=default_config['no_mss'], action='store_true',
+                       help="Use minibatch weighted sampling instead of stratified. Only used if `loss=batchTC`")
+    model.add_argument('--no-mutual-info', action='store_true',
+                       default=default_config['no_mutual_info'],
+                       help="Remove mutual information in factor-VAE. Only used if `loss=factor`")
     losses = ["VAE", "betaH", "betaB", "factor", "batchTC"]
     model.add_argument('-l', '--loss',
                        choices=losses, default=default_config['loss'],
