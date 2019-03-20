@@ -116,7 +116,8 @@ def parse_arguments():
     experiment_options = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite',
                           'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs',
                           'betaB_celeba', 'betaB_chairs', 'betaB_dsprites',
-                          'factor_celeba', 'factor_chairs', 'factor_dsprites']
+                          'factor_celeba', 'factor_chairs', 'factor_dsprites',
+                          'betaH_dsprites_1', 'betaH_dsprites_4', 'betaH_dsprites_50', 'betaH_dsprites_150']
     experiment.add_argument('-x', '--experiment',
                             default='custom', choices=experiment_options,
                             help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')

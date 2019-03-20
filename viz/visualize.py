@@ -132,15 +132,15 @@ class Visualizer():
 
         list_heat_map  = []
         for i in range(0, self.model.latent_dim):
-            list_heat_map.append(upsampled_heat_map[i,0,:,:])
+            list_heat_map.append(upsampled_heat_map[i, 0, :, :])
         
         heat_map_sorted = [
             list_heat_map for _, list_heat_map in sorted(zip(avg_kl_list, list_heat_map), reverse=True)
         ]
         
-        new_torch = torch.tensor(np.zeros((self.model.latent_dim,1,64,64)))
+        new_torch = torch.tensor(np.zeros((self.model.latent_dim, 1, 64, 64)))
         for i in range(0, self.model.latent_dim):
-            new_torch[i,0,:,:]=heat_map_sorted[i]
+            new_torch[i,0,:,:] = heat_map_sorted[i]
         nr_imgs_per_latent = size
 
         # combine all images in the right order
@@ -149,7 +149,19 @@ class Visualizer():
             combined_torch = torch.cat((combined_torch, generated[nr_imgs_per_latent*i:nr_imgs_per_latent*(i+1),:,:,:].float()))
             combined_torch = torch.cat((combined_torch, new_torch[i:i+1,:,:,:].float()))
  
-        traversal_images_with_text = add_labels('KL',combined_torch, size+1, sorted_avg_kl_list, self.dataset)
+        # print('combined_torch.shape: ' + str(combined_torch.shape))
+
+        # # Select the top 7 rows (orig + recon + 5 latent dims)
+        # num_rows = 7
+        # combined_torch = combined_torch[:num_rows,:,:,:]
+        # sorted_avg_kl_list = sorted_avg_kl_list[:num_rows]
+
+        traversal_images_with_text = add_labels(
+            label_name='KL', 
+            tensor=combined_torch,
+            num_rows=size + 1,
+            sorted_list=sorted_avg_kl_list,
+            dataset=self.dataset)
 
         if self.save_images:
             traversal_images_with_text.save(filename)
