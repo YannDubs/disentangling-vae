@@ -172,7 +172,13 @@ def main(args):
     elif not args.visualisation == 'display_avg_KL':
         model = load_model('experiments/{}'.format(experiment_name))
         model.eval()
-        viz = Visualizer(model=model, model_dir='experiments/{}'.format(experiment_name), dataset=dataset)
+
+        if args.visualisation == 'show_disentanglement':
+            reorder_latent_dims = True
+        else:
+            reorder_latent_dims = False
+
+        viz = Visualizer(model=model, model_dir='experiments/{}'.format(experiment_name), dataset=dataset, reorder_latent_dims=reorder_latent_dims)
 
     visualisation_options = {
         'random_samples': lambda: viz.samples(),
