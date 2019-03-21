@@ -44,7 +44,8 @@ class Trainer():
             Dimensionality of latent output.
 
         loss_kwargs : dict.
-            Additional arguments to the loss function.
+            Additional arguments to the loss function. FOrmat need to be the
+            loss specific argparse arguments.
 
         device : torch.device
             Device on which to run the code.
@@ -75,9 +76,8 @@ class Trainer():
         self.model = model.to(self.device)
         self.optimizer = optimizer
         self.num_latent_dim = latent_dim
-        self.loss_f = get_loss_f(self.loss_type,
-                                 device=self.device,
-                                 **loss_kwargs)
+        loss_kwargs["device"] = device
+        self.loss_f = get_loss_f(self.loss_type, kwargs_parse=loss_kwargs)
         self.save_dir = save_dir
         self.is_viz_gif = is_viz_gif
         self.is_progress_bar = is_progress_bar
