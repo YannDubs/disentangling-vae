@@ -22,7 +22,6 @@ class VAE(nn.Module):
 
         self.latent_dim = latent_dim
         self.img_size = img_size
-        self.is_color = self.img_size[0] > 1
         self.num_pixels = self.img_size[1] * self.img_size[2]
         self.encoder = encoder(img_size, self.latent_dim)
         self.decoder = decoder(img_size, self.latent_dim)
@@ -62,8 +61,6 @@ class VAE(nn.Module):
         latent_dist = self.encoder(x)
         latent_sample = self.reparameterize(*latent_dist)
         reconstruct = self.decoder(latent_sample)
-        if self.is_color:
-            reconstruct = reconstruct * 255
         return reconstruct, latent_dist, latent_sample
 
     def reset_parameters(self):

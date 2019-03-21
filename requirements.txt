@@ -6,6 +6,6 @@ imageio
 scikit-image
 pytest
 pandas
-csv
+seaborn
 Pillow
-json
+tqdm

@@ -1,5 +1,6 @@
 import argparse
 import json
+import logging
 import torch
 import numpy as np
 
@@ -39,13 +40,13 @@ def read_capacity_from_file(path_to_specs):
     else:
         return capacity
 
-def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True, specify_index=-1):
+def samples(experiment_name, logger, num_samples=1, batch_size=1, shuffle=True, specify_index=-1):
     """ generate a number of samples from the dataset
     """
     if not specify_index == -1:
         # Specifying and index to sample therefore the dataset will not be shuffled
-        # TODO: Replace this with a logger
-        print('Warning: Specifying an index to sample therefore the dataset will not be shuffled')
+        if logger is not None:
+            logger.info('Specifying an index to sample therefore the dataset will not be shuffled')
         shuffle = False
 
     with open('experiments/{}/specs.json'.format(experiment_name)) as spec_file:
@@ -58,7 +59,7 @@ def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True, specify_
         if not specify_index == -1:
             chosen_sample = data_loader.dataset[specify_index][0]
             chosen_sample = chosen_sample[None,:,:,:]
-            data_list.append(chosen_sample) # For the heart sprite
+            data_list.append(chosen_sample)
             num_samples -= 1
 
         for batch_idx, (new_data, _) in enumerate(data_loader):
@@ -68,11 +69,11 @@ def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True, specify_
         return torch.cat(data_list, dim=0)
 
 def snapshot_reconstruction(viz_list, epoch_list, experiment_name, num_samples, dataset, shuffle=True,
-                            specify_index=-1, file_name='imgs/snapshot_recon.png'):
+                            specify_index=-1, logger=None, file_name='imgs/snapshot_recon.png'):
     """ Reconstruct some data samples at different stages of training. 
     """
     tensor_image_list = []
-    data_samples = samples(experiment_name=experiment_name, num_samples=num_samples, shuffle=False, specify_index=specify_index)
+    data_samples = samples(experiment_name=experiment_name, logger=logger, num_samples=num_samples, shuffle=False, specify_index=specify_index)
     
     # Create original
     tensor_image = viz_list[0].reconstruction_comparisons(data=data_samples, exclude_recon=True)
@@ -96,14 +97,6 @@ def snapshot_reconstruction(viz_list, epoch_list, experiment_name, num_samples, 
     for epoch_idx in epoch_list:
         selected_capacities.append(capacity_list[epoch_idx]) 
 
-    # traversal_images_with_text = add_labels(
-    #     label_name='C',
-    #     tensor=reconstructions,
-    #     num_rows=1,
-    #     sorted_list=selected_capacities,
-    #     dataset=dataset)
-
-    # traversal_images_with_text.save(file_name)
     save_image(reconstructions.data, file_name, nrow=1, pad_value=(1 - get_background(dataset)))
 
 def parse_arguments():
@@ -112,15 +105,15 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="The primary script for running experiments on locally saved models.",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    experiment = parser.add_argument_group('Predefined experiments')
-    experiment_options = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite',
-                          'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs',
-                          'betaB_celeba', 'betaB_chairs', 'betaB_dsprites',
-                          'factor_celeba', 'factor_chairs', 'factor_dsprites',
-                          'betaH_dsprites_1', 'betaH_dsprites_4', 'betaH_dsprites_50', 'betaH_dsprites_150']
-    experiment.add_argument('-x', '--experiment',
-                            default='custom', choices=experiment_options,
-                            help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
+    model_dir = parser.add_argument_group('The directory where the model is located.')
+    model_dir.add_argument('-m', '--model_dir', default='custom',
+                           help='The name of the directory that the model has been saved to. This is usually the name of the experiment.')
+
+    general = parser.add_argument_group('General configuration')
+    log_levels = ['critical', 'error', 'warning', 'info', 'debug']
+    general.add_argument('-L', '--log-level', help="Logging levels.",
+                         default='info',
+                         choices=log_levels)
 
     visualisation = parser.add_argument_group('Desired Visualisation')
     visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction', 
@@ -138,19 +131,39 @@ def parse_arguments():
     dir_opts.add_argument('-o', '--output_file_name', help='The full path name to use when saving the plot.')
 
     args = parser.parse_args()
+
+    if args.log_dir is None:
+        args.log_dir = args.model_dir + 'losses.log'
+
     return args
 
 
 def main(args):
     """ The primary entry point for carrying out experiments on pretrained models.
     """ 
-    experiment_name = args.experiment
+    formatter = logging.Formatter('%(asctime)s %(levelname)s - %(funcName)s: %(message)s',
+                                  "%H:%M:%S")
+    logger = logging.getLogger(__name__)
+    logger.setLevel(args.log_level.upper())
+    stream = logging.StreamHandler()
+    stream.setLevel(args.log_level.upper())
+    stream.setFormatter(formatter)
+    logger.addHandler(stream)
+
+    experiment_name = args.model_dir
     dataset = read_dataset_from_specs('experiments/{}/specs.json'.format(experiment_name))
 
     if args.visualisation == 'snapshot_recon':
         viz_list = []
         epoch_list = []
-        model_list = load_model(directory='experiments/{}'.format(experiment_name), load_snapshots=True)
+
+        model_list = load_model(
+            directory='experiments/{}'.format(experiment_name),
+            load_snapshots=True
+            )
+        if not model_list:
+            raise Exception('Please target a trained model which has snapshot models stored in the form:\nmodel-0.pt, model-1.pt, etc.')
+
         for epoch_index, model in model_list:
             model.eval()
             viz_list.append(Visualizer(model=model, model_dir='experiments/{}'.format(experiment_name), dataset=dataset, save_images=False))
@@ -166,19 +179,19 @@ def main(args):
         'traverse_all_latent_dims': lambda: viz.all_latent_traversals(size=5),
         'traverse_one_latent_dim': lambda: viz.latent_traversal_line(idx=args.sweep_dim),
         'random_reconstruction': lambda: viz.reconstruction_comparisons(
-            data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True)),
+            data=samples(experiment_name=experiment_name, logger=logger, num_samples=args.num_samples, shuffle=True)),
         'recon_and_traverse_all': lambda: viz.recon_and_traverse_all(
-            data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True, specify_index=1)),
+            data=samples(experiment_name=experiment_name, logger=logger, num_samples=1, shuffle=True, specify_index=1)),
         'heat_maps': lambda: viz.generate_heat_maps(
-            data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
+            data=samples(experiment_name=experiment_name, logger=logger, num_samples=32 * 32, shuffle=False)),
         'show_disentanglement': lambda: viz.show_disentanglement_fig2(
-            reconstruction_data=samples(experiment_name=experiment_name, num_samples=9, shuffle=True),
-            latent_sweep_data=samples(experiment_name=experiment_name, 
-            num_samples=1, shuffle=True), heat_map_data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
+            reconstruction_data=samples(experiment_name=experiment_name, logger=logger, num_samples=9, shuffle=True),
+            latent_sweep_data=samples(experiment_name=experiment_name, logger=logger, num_samples=1, shuffle=True),
+            heat_map_data=samples(experiment_name=experiment_name, logger=logger, num_samples=32 * 32, shuffle=False)),
         'display_avg_KL': lambda: LogPlotter(log_dir=args.log_dir, output_file_name=args.output_file_name),
         'snapshot_recon': lambda: snapshot_reconstruction(
             viz_list=viz_list, epoch_list=epoch_list, experiment_name=experiment_name,
-            num_samples=args.num_samples, dataset=dataset, shuffle=True)
+            logger=logger, num_samples=args.num_samples, dataset=dataset, shuffle=True)
     }
 
     return visualisation_options.get(args.visualisation, lambda: "Invalid visualisation option")()

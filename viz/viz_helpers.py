@@ -1,4 +1,5 @@
 import csv
+import numpy as np
 import torch
 import pandas as pd
 
@@ -74,12 +75,13 @@ def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
     new_size = (new_width, all_traversal_im.height)
     traversal_images_with_text = Image.new("RGB", new_size, color='white')
     traversal_images_with_text.paste(all_traversal_im, (0, 0))
+
     # Add KL text alongside each row
-    fraction_x = 1/mult_x + 0.005
+    fraction_x = 1 / mult_x + 0.005
     text_list = ['orig', 'recon']
     fnt = ImageFont.truetype('Pillow/Tests/fonts/FreeMono.ttf', 20)
     draw = ImageDraw.Draw(traversal_images_with_text)
-    for i in range(0,2):
+    for i in range(0, 2):
         draw.text(xy=(int(fraction_x * traversal_images_with_text.width),
                         int((i / (len(sorted_list)+2) + \
                             1 / (2 * (len(sorted_list)+2))) * all_traversal_im.height)),
@@ -98,10 +100,32 @@ def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
    
 
 def upsample(input_data, scale_factor):
-    # dubplicate
-    new_array = np.zeros((input_data.shape[0], input_data.shape[1], input_data.shape[2]*scale_factor, input_data.shape[3]*scale_factor))
+    """
+    """
+    new_array = np.zeros((input_data.shape[0], input_data.shape[1], input_data.shape[2] * scale_factor, input_data.shape[3] * scale_factor))
     for latent_dim in range(0, input_data.shape[0]):
-        for x in range(0,input_data.shape[2]):
-            for y in range(0,input_data.shape[2]):
-                new_array[latent_dim,0,x*scale_factor:x*scale_factor+scale_factor-1,y*scale_factor:y*scale_factor+scale_factor-1]=input_data[latent_dim,0,x,y]
+        for x in range(0, input_data.shape[2]):
+            for y in range(0, input_data.shape[2]):
+                new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor - 1, y * scale_factor:y * scale_factor + scale_factor - 1] = input_data[latent_dim, 0, x, y]
     return new_array
+
+
+def make_grid_img(tensor, **kwargs):
+    """Converts a tensor to a grid of images that can be read by imageio.
+
+    Notes
+    -----
+    * from in https://github.com/pytorch/vision/blob/master/torchvision/utils.py
+
+    Parameters
+    ----------
+    tensor (torch.Tensor or list): 4D mini-batch Tensor of shape (B x C x H x W)
+        or a list of images all of the same size.
+
+    kwargs:
+        Additional arguments to `make_grid_img`.
+    """
+    grid = make_grid(tensor, **kwargs)
+    img_grid = grid.mul_(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0)
+    img_grid = img_grid.to('cpu', torch.uint8).numpy()
+    return img_grid
