@@ -99,7 +99,7 @@ def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
     traversal_images_with_text = Image.new("RGB", new_size, color='white')
     traversal_images_with_text.paste(all_traversal_im, (0, 0))
 
-    # Add KL text alongside each row
+    # Add text alongside each row
     fraction_x = 1 / mult_x + 0.005
     text_list = ['orig', 'recon']
     fnt = ImageFont.truetype('Pillow/Tests/fonts/FreeMono.ttf', 20)
@@ -116,7 +116,7 @@ def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
         draw.text(xy=(int(fraction_x * traversal_images_with_text.width),
                         int(((latent_idx+2) / (len(sorted_list)+2) + \
                             1 / (2 * (len(sorted_list)+2))) * all_traversal_im.height)),
-                    text="KL={}".format(latent_dim),
+                    text="{}={}".format(label_name, latent_dim),
                     fill=(0,0,0),
                     font=fnt)
     return traversal_images_with_text   
