@@ -271,7 +271,7 @@ class Visualizer():
         
         latent_samples = []
 
-        avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, 'losses.log'), self.model.latent_dim)
+        avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, 'losses.log'))
 
         # Perform line traversal of every latent
         for idx in range(self.model.latent_dim):

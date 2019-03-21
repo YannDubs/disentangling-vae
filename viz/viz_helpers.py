@@ -46,8 +46,14 @@ def reorder_img(orig_img, reorder, by_row=True, img_size=(3, 32, 32), padding=2)
     return reordered_img
 
 
-def read_avg_kl_from_file(log_file_path, nr_latent_variables):
-    """ Read the average KL per latent dimension at the final stage of training from the log file."""
+def read_avg_kl_from_file(log_file_path):
+    """ Read the average KL per latent dimension at the final stage of training from the log file.
+
+        Parameters
+        ----------
+        log_file_path : str
+            Full path and file name for the log file. For example 'experiments/custom/losses.log'. 
+    """
     logs = pd.read_csv(log_file_path)
     df_last_epoch = logs[logs.loc[:,"Epoch"] == logs.loc[:,"Epoch"].max()]
     df_last_epoch = df_last_epoch.loc[df_last_epoch.loc[:, "Loss"].str.startswith("kl_loss_"), :]
@@ -57,8 +63,25 @@ def read_avg_kl_from_file(log_file_path, nr_latent_variables):
 
 
 def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
-    """ Adds the average KL per latent dimension as a label next to the relevant row as in
+    """ Adds the label next to the relevant row as in an image. This is used to reproduce
         figure 2 of Burgress et al.
+
+        Parameters
+        ----------
+        label_name : str
+            The name of the labels to add, for sample 'KL' or 'C'.
+
+        tensor : torch.Tensor
+            The image to plot in tensor form.
+
+        num_rows : int
+            The number of rows of images to display
+
+        sorted_list : list
+            The list of sorted objects.
+
+        dataset : str
+            The dataset name.
     """
     # Convert tensor to PIL Image
     tensor = make_grid(tensor.data, nrow=num_rows, pad_value=(1 - get_background(dataset)))
@@ -100,7 +123,7 @@ def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
    
 
 def upsample(input_data, scale_factor):
-    """
+    """ TODO: @Bart fill in the docstrings here.
     """
     new_array = np.zeros((input_data.shape[0], input_data.shape[1], input_data.shape[2] * scale_factor, input_data.shape[3] * scale_factor))
     for latent_dim in range(0, input_data.shape[0]):

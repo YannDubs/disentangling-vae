@@ -54,7 +54,7 @@ def samples(experiment_name, logger, num_samples=1, batch_size=1, shuffle=True, 
         dataset_name = spec_data['dataset']
 
         data_loader = get_dataloaders(batch_size=batch_size, dataset=dataset_name, shuffle=shuffle)
-        
+
         data_list = []
         if not specify_index == -1:
             chosen_sample = data_loader.dataset[specify_index][0]
