@@ -1,7 +1,6 @@
 import argparse
 import logging
 import sys
-from timeit import default_timer
 from configparser import ConfigParser
 
 from torch import optim
@@ -10,24 +9,35 @@ from disvae.vae import VAE
 from disvae.encoder import get_Encoder
 from disvae.decoder import get_Decoder
 from disvae.training import Trainer
+from disvae.evaluate import Evaluator
 from utils.datasets import get_dataloaders, get_img_size
-from utils.modelIO import save_model
+from utils.modelIO import save_model, load_model, load_metadata
 from utils.helpers import (create_safe_directory, get_device, set_seed, get_n_param,
                            get_config_section, update_namespace_)
 
 
 CONFIG_FILE = "hyperparam.ini"
+TEST_FILE = "test_losses.log"
 
 
 def parse_arguments(args_to_parse):
-    """Parse the command line arguments."""
+    """Parse the command line arguments.
+
+    Parameters
+    ----------
+    args_to_parse: str
+        String of arguments to parse
+    """
     default_config = get_config_section([CONFIG_FILE], "Custom")
 
-    parser = argparse.ArgumentParser(description="PyTorch implementation and evaluation of disentangled Variational AutoEncoders.",
+    description = "PyTorch implementation and evaluation of disentangled Variational AutoEncoders and metrics."
+    parser = argparse.ArgumentParser(description=description,
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     # General options
     general = parser.add_argument_group('General options')
+    general.add_argument('name', type=str,
+                         help="Name of the model for storing or loading purposes.")
     log_levels = ['critical', 'error', 'warning', 'info', 'debug']
     general.add_argument('-L', '--log-level', help="Logging levels.",
                          default=default_config['log_level'],
@@ -35,40 +45,38 @@ def parse_arguments(args_to_parse):
     general.add_argument('--no-progress-bar', action='store_true',
                          default=default_config['no_progress_bar'],
                          help='Disables progress bar.')
-    general.add_argument('--checkpoint-every',
-                         type=int, default=default_config['checkpoint_every'],
-                         help='Save a checkpoint of the trained model every n epoch.')
-    datasets = ['mnist', "celeba", "chairs", "dsprites", "fashion"]
-    general.add_argument('-d', '--dataset', help="Path to training data.",
-                         default=default_config['dataset'], choices=datasets)
-    experiments = ['custom'] + ["{}_{}".format(loss, data)
-                                for loss in ["betaH", "betaB", "factor", "batchTC"]
-                                for data in ["celeba", "chairs", "dsprites"]]
-    general.add_argument('-x', '--experiment',
-                         default=default_config['experiment'], choices=experiments,
-                         help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
-    general.add_argument('-n', '--name', type=str, default=None,
-                         help="Name for storing the experiment. If not given, uses `experiment`.")
+    general.add_argument('--no-cuda', action='store_true',
+                         default=default_config['no_cuda'],
+                         help='Disables CUDA training, even when have one.')
+    general.add_argument('-s', '--seed', type=int, default=default_config['seed'],
+                         help='Random seed. Can be `None` for stochastic behavior.')
 
     # Learning options
-    learn = parser.add_argument_group('Learning options')
-    learn.add_argument('-e', '--epochs',
-                       type=int, default=default_config['epochs'],
-                       help='Maximum number of epochs to run for.')
-    learn.add_argument('-b', '--batch-size',
-                       type=int, default=default_config['batch_size'],
-                       help='Batch size for training.')
-    learn.add_argument('--no-cuda', action='store_true',
-                       default=default_config['no_cuda'],
-                       help='Disables CUDA training, even when have one.')
-    learn.add_argument('-s', '--seed', type=int, default=default_config['seed'],
-                       help='Random seed. Can be `None` for stochastic behavior.')
-    learn.add_argument('--lr',
-                       type=float, default=default_config['lr'],
-                       help='Learning rate.')
+    training = parser.add_argument_group('Training specific options')
+    training.add_argument('--checkpoint-every',
+                          type=int, default=default_config['checkpoint_every'],
+                          help='Save a checkpoint of the trained model every n epoch.')
+    datasets = ['mnist', "celeba", "chairs", "dsprites", "fashion"]
+    training.add_argument('-d', '--dataset', help="Path to training data.",
+                          default=default_config['dataset'], choices=datasets)
+    experiments = ['custom', "debug"] + ["{}_{}".format(loss, data)
+                                         for loss in ["betaH", "betaB", "factor", "batchTC"]
+                                         for data in ["celeba", "chairs", "dsprites"]]
+    training.add_argument('-x', '--experiment',
+                          default=default_config['experiment'], choices=experiments,
+                          help='Predefined experiments to run. If not `custom` this will overwrite some other arguments.')
+    training.add_argument('-e', '--epochs',
+                          type=int, default=default_config['epochs'],
+                          help='Maximum number of epochs to run for.')
+    training.add_argument('-b', '--batch-size',
+                          type=int, default=default_config['batch_size'],
+                          help='Batch size for training.')
+    training.add_argument('--lr',
+                          type=float, default=default_config['lr'],
+                          help='Learning rate.')
 
     # Model Options
-    model = parser.add_argument_group('Model options')
+    model = parser.add_argument_group('Model specfic options')
     models = ['Burgess']
     model.add_argument('-m', '--model-type',
                        default=default_config['model'], choices=models,
@@ -126,6 +134,19 @@ def parse_arguments(args_to_parse):
                          default=default_config['no_mss'],
                          help="Whether to use minibatch weighted sampling instead of stratified.`")
 
+    # Learning options
+    evaluation = parser.add_argument_group('Evaluation specific options')
+    evaluation.add_argument('--is-eval-only',
+                            action='store_true', default=default_config['is_eval_only'],
+                            help='Whether to only evaluate using precomputed model `name`.')
+    evaluation.add_argument('--is-metrics', action='store_true', default=default_config['is_metrics'],
+                            help="Whether to compute the disentangled metrcics.`")
+    evaluation.add_argument('--no-test', action='store_true', default=default_config['no_test'],
+                            help="Whether not to compute the test losses.`")
+    evaluation.add_argument('-eb', '--eval-batchsize',
+                            type=int, default=default_config['eval_batchsize'],
+                            help='Batch size for evaluation.')
+
     args = parser.parse_args(args_to_parse)
     if args.experiment != 'custom':
         experiments_config = get_config_section([CONFIG_FILE], args.experiment)
@@ -138,8 +159,13 @@ def parse_arguments(args_to_parse):
 
 
 def main(args):
-    start = default_timer()
+    """Main train and evaluation function.
 
+    Parameters
+    ----------
+    args: argparse.Namespace
+        Arguments
+    """
     formatter = logging.Formatter('%(asctime)s %(levelname)s - %(funcName)s: %(message)s',
                                   "%H:%M:%S")
     logger = logging.getLogger(__name__)
@@ -149,52 +175,72 @@ def main(args):
     stream.setFormatter(formatter)
     logger.addHandler(stream)
 
-    if args.loss == "factor":
-        logger.info("FactorVae needs 2 batches per iteration. To replicate this behavior while being consistent, we double the batch size and the the number of epochs.")
-        args.batch_size *= 2
-        args.epochs *= 2
-
-    exp_dir = "experiments/{}".format(args.name)
-    logger.info("Saving experiments to {}".format(exp_dir))
-    create_safe_directory(exp_dir, logger=logger)
     set_seed(args.seed)
     device = get_device(is_gpu=not args.no_cuda)
+    exp_dir = "experiments/{}".format(args.name)
+    logger.info("Root directory for saving and loading experiments: {}".format(exp_dir))
 
-    # PREPARES DATA
-    train_loader = get_dataloaders(args.dataset,
-                                   batch_size=args.batch_size,
-                                   pin_memory=not args.no_cuda)
-    img_size = get_img_size(args.dataset)
-    logger.info("Train {} with {} samples".format(args.dataset, len(train_loader.dataset)))
+    if not args.is_eval_only:
 
-    # PREPARES MODEL
-    encoder = get_Encoder(args.model_type)
-    decoder = get_Decoder(args.model_type)
-    model = VAE(img_size, encoder, decoder, args.latent_dim)
-    logger.info('Num parameters in model: {}'.format(get_n_param(model)))
+        create_safe_directory(exp_dir, logger=logger)
 
-    # TRAINS
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+        if args.loss == "factor":
+            logger.info("FactorVae needs 2 batches per iteration. To replicate this behavior while being consistent, we double the batch size and the the number of epochs.")
+            args.batch_size *= 2
+            args.epochs *= 2
 
-    loss_kwargs = vars(args).copy()
-    loss_kwargs["data_size"] = len(train_loader.dataset)
-    trainer = Trainer(model, optimizer,
-                      loss_type=args.loss,
-                      latent_dim=args.latent_dim,
-                      loss_kwargs=loss_kwargs,
-                      device=device,
-                      log_level=args.log_level,
-                      save_dir=exp_dir,
-                      is_progress_bar=not args.no_progress_bar,
-                      checkpoint_every=args.checkpoint_every,
-                      dataset=args.dataset)
+        # PREPARES DATA
+        train_loader = get_dataloaders(args.dataset,
+                                       batch_size=args.batch_size,
+                                       pin_memory=not args.no_cuda)
+        img_size = get_img_size(args.dataset)
+        logger.info("Train {} with {} samples".format(args.dataset, len(train_loader.dataset)))
 
-    trainer.train(train_loader, epochs=args.epochs)
+        # PREPARES MODEL
+        encoder = get_Encoder(args.model_type)
+        decoder = get_Decoder(args.model_type)
+        model = VAE(img_size, encoder, decoder, args.latent_dim)
+        logger.info('Num parameters in model: {}'.format(get_n_param(model)))
 
-    # SAVE MODEL AND EXPERIMENT INFORMATION
-    save_model(trainer.model, exp_dir, metadata=vars(args))
+        # TRAINS
+        optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-    logger.info('Finished after {:.1f} min.'.format((default_timer() - start) / 60))
+        loss_kwargs = vars(args).copy()
+        loss_kwargs["data_size"] = len(train_loader.dataset)
+        trainer = Trainer(model, optimizer,
+                          loss_type=args.loss,
+                          latent_dim=args.latent_dim,
+                          loss_kwargs=loss_kwargs,
+                          device=device,
+                          logger=logger,
+                          save_dir=exp_dir,
+                          is_progress_bar=not args.no_progress_bar,
+                          checkpoint_every=args.checkpoint_every,
+                          dataset=args.dataset)
+
+        trainer(train_loader, epochs=args.epochs)
+
+        # SAVE MODEL AND EXPERIMENT INFORMATION
+        save_model(trainer.model, exp_dir, metadata=vars(args))
+
+    if args.is_metrics or not args.no_test:
+        model = load_model(exp_dir, is_gpu=not args.no_cuda)
+        metadata = load_metadata(exp_dir)
+        # TO-DO: currently uses train datatset
+        test_loader = get_dataloaders(metadata["dataset"],
+                                      batch_size=args.eval_batchsize, shuffle=False)
+
+        loss_kwargs = vars(args).copy()
+        loss_kwargs["data_size"] = len(test_loader.dataset)
+        evaluator = Evaluator(model,
+                              loss_type=args.loss,
+                              loss_kwargs=loss_kwargs,
+                              device=device,
+                              logger=logger,
+                              save_dir=exp_dir,
+                              is_progress_bar=not args.no_progress_bar)
+
+        evaluator(test_loader, is_metrics=args.is_metrics, is_losses=not args.no_test)
 
 
 if __name__ == '__main__':
