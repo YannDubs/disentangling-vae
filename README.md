@@ -43,8 +43,9 @@ usage: main.py [-h] [-L {critical,error,warning,info,debug}]
                [--no-progress-bar] [--no-cuda] [-s SEED]
                [--checkpoint-every CHECKPOINT_EVERY]
                [-d {mnist,celeba,chairs,dsprites,fashion}]
-               [-x {custom,debug,betaH_celeba,betaH_chairs,betaH_dsprites,betaB_celeba,betaB_chairs,betaB_dsprites,factor_celeba,factor_chairs,factor_dsprites,batchTC_celeba,batchTC
-_chairs,batchTC_dsprites}]
+               [-x {custom,debug,betaH_celeba,betaH_chairs,betaH_dsprites,betaB_celeba,
+                    betaB_chairs,betaB_dsprites,factor_celeba,factor_chairs,factor_dsprites,
+                    batchTC_celeba,batchTC_chairs,batchTC_dsprites}]
                [-e EPOCHS] [-b BATCH_SIZE] [--lr LR] [-m {Burgess}]
                [-z LATENT_DIM] [-l {VAE,betaH,betaB,factor,batchTC}]
                [--betaH-B BETAH_B] [--betaB-initC BETAB_INITC]
@@ -78,8 +79,9 @@ Training specific options:
                         (default: 10)
   -d, --dataset {mnist,celeba,chairs,dsprites,fashion}
                         Path to training data. (default: mnist)
-  -x, --experiment {custom,debug,betaH_celeba,betaH_chairs,betaH_dsprites,betaB_celeba,betaB_chairs,betaB_dsprites,factor_celeba,factor_chairs,factor_dsprites,batchTC_celeba,batchTC
-_chairs,batchTC_dsprites}
+  -x, --experiment {custom,debug,betaH_celeba,betaH_chairs,betaH_dsprites,betaB_celeba,
+  betaB_chairs,betaB_dsprites,factor_celeba,factor_chairs,factor_dsprites,batchTC_celeba,
+  batchTC_chairs,batchTC_dsprites}
                         Predefined experiments to run. If not `custom` this
                         will overwrite some other arguments. (default: custom)
   -e, --epochs EPOCHS   Maximum number of epochs to run for. (default: 100)
