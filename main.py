@@ -179,7 +179,7 @@ def parse_arguments(args_to_parse):
                             action='store_true', default=default_config['is_eval_only'],
                             help='Whether to only evaluate using precomputed model `name`.')
     evaluation.add_argument('--is-metrics', action='store_true', default=default_config['is_metrics'],
-                            help="Whether to compute the disentangled metrcics.`")
+                            help="Whether to compute the disentangled metrcics. Currently only possible with `dsprites` as it is the only dataset with known true factors of variations.")
     evaluation.add_argument('--no-test', action='store_true', default=default_config['no_test'],
                             help="Whether not to compute the test losses.`")
     evaluation.add_argument('-eb', '--eval-batchsize',

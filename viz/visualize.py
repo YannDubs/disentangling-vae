@@ -12,6 +12,9 @@ from viz.viz_helpers import (reorder_img, read_avg_kl_from_file, add_labels,
                              upsample, make_grid_img)
 
 
+TRAIN_FILE = "train_losses.log"
+
+
 class Visualizer():
     def __init__(self, model, dataset, model_dir=None, save_images=True):
         """
@@ -107,7 +110,7 @@ class Visualizer():
             sample = self.model.sample_latent(input_data)
         # means = latent_dist[1]
 
-        avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, 'losses.log'), self.model.latent_dim)
+        avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, TRAIN_FILE), self.model.latent_dim)
 
         # Perform line traversal of every latent
         latent_samples = []

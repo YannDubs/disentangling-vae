@@ -17,6 +17,9 @@ from viz.visualize import Visualizer
 from utils.helpers import mean
 
 
+TRAIN_FILE = "train_losses.log"
+
+
 class Trainer():
     def __init__(self, model, optimizer,
                  loss_type="betaB",
@@ -80,7 +83,7 @@ class Trainer():
 
         self.logger = logger
 
-        self.losses_logger = LossesLogger(os.path.join(self.save_dir, "losses.log"))
+        self.losses_logger = LossesLogger(os.path.join(self.save_dir, TRAIN_FILE))
         if self.is_viz_gif:
             self.vizualizer = Visualizer(model, dataset,
                                          model_dir=self.save_dir,

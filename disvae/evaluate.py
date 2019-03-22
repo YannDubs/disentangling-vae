@@ -64,10 +64,13 @@ class Evaluator:
         self.model.eval()
 
         metric, losses = None, None
+        # TODO: add warning if use metric if no true factors of variations
         if is_metrics:
             self.logger.info('Computing metrics...')
             metric, H_z, H_zCv = self.mutual_information_gap(data_loader)
 
+            # TODO: AAM METRIC
+            # TODO: stor in a dictionary rather than pytorch tensors
             torch.save({'metric': metric, 'marginal_entropies': H_z, 'cond_entropies': H_zCv},
                        os.path.join(self.save_dir, 'disentanglement_metric.pth'))
 
