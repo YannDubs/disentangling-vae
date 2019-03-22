@@ -5,10 +5,10 @@ Work In Progress...
 This repository contains code to investigate disentangling in VAE as well as compare 5 different losses using a single model:
 
 * **Standard VAE Loss** from [Auto-Encoding Variational Bayes](https://arxiv.org/abs/1312.6114)
-* **$\pmb{\beta}-\text{VAE}_H$** from [β-VAE: Learning Basic Visual Concepts with a Constrained Variational Framework](https://openreview.net/pdf?id=Sy2fzU9gl)
-* **$\pmb{\beta}-\text{VAE}_B$** from [Understanding disentangling in β-VAE](https://arxiv.org/abs/1804.03599)
-* **FactoVae$** from [Disentangling by Factorising](https://arxiv.org/pdf/1802.05983.pdf)
-* **$\pmb{\beta}-\text{TCVAE}$** from [Isolating Sources of Disentanglement in Variational Autoencoders](https://arxiv.org/abs/1802.04942)
+* **β-VAE<sub>H</sub>** from [β-VAE: Learning Basic Visual Concepts with a Constrained Variational Framework](https://openreview.net/pdf?id=Sy2fzU9gl)
+* **β-VAE<sub>B</sub>** from [Understanding disentangling in β-VAE](https://arxiv.org/abs/1804.03599)
+* **FactorVAE** from [Disentangling by Factorising](https://arxiv.org/pdf/1802.05983.pdf)
+* **β-TCVAE** from [Isolating Sources of Disentanglement in Variational Autoencoders](https://arxiv.org/abs/1802.04942)
 
 Notes:
 - Tested for python >= 3.6
