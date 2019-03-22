@@ -13,6 +13,7 @@ from disvae.models.losses import get_loss_f
 
 
 TRAIN_FILE = "train_losses.log"
+GIF_FILE = "training.gif"
 
 
 class Trainer():
@@ -112,7 +113,7 @@ class Trainer():
                            filename="model-{}.pt".format(epoch))
 
         if self.gif_visualizer is not None:
-            imageio.mimsave(os.path.join(self.save_dir, "training.gif"),
+            imageio.mimsave(os.path.join(self.save_dir, GIF_FILE),
                             training_progress_images,
                             fps=24)
 

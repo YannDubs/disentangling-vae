@@ -55,7 +55,7 @@ class BaseLoss(abc.ABC):
     @abc.abstractmethod
     def __call__(self, data, recon_data, latent_dist, is_train, storer):
         """
-        Calculates loss for a batch of data.
+        Calculates loss for average over a batch of data (not over pixels!).
 
         Parameters
         ----------
