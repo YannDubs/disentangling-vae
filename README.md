@@ -26,12 +26,12 @@ pip install -r requirements.txt
 Use `python main.py <saving-name> <param>` to train and/or evaluate a model. 
 
 ### Output
-This will create a directory `experiments/<saving-name>/` which will contain:
+This will create a directory `results/<saving-name>/` which will contain:
 
 * **model.pt**: The model at the end of training. 
 * **model-**`i`**.pt**: Model checkpoint after `i` iterations. By default saves every 10.
 * **specs.json**: The parameters used to run the program (default and modified with CLI).
-* **training.gif**: GIF of laten traversals of the latent dimensions Z at every epoch.
+* **training.gif**: GIF of latent traversals of the latent dimensions Z at every epoch.
 * **train_losses.log**: All (sub-)losses computed during training.
 * **test_losses.log**: ALl (sub-)losses computed at the end of training with the model in evaluate mode (no sampling). Only if not `--no-test`
 * **disentanglement_metric.pth**: dictionary of tensors (pytorch object) containing the MIG metric. Only if `--is-metric` (slow).

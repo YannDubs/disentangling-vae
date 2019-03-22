@@ -32,7 +32,7 @@ class Evaluator:
                  loss_kwargs={},
                  device=torch.device("cpu"),
                  logger=logging.getLogger(__name__),
-                 save_dir="experiments",
+                 save_dir="results",
                  is_progress_bar=True):
         self.device = device
         self.loss_type = loss_type

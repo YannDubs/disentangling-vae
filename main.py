@@ -1,6 +1,7 @@
 import argparse
 import logging
 import sys
+import os
 from configparser import ConfigParser
 
 from torch import optim
@@ -18,6 +19,7 @@ from utils.helpers import (create_safe_directory, get_device, set_seed, get_n_pa
 
 CONFIG_FILE = "hyperparam.ini"
 TEST_FILE = "test_losses.log"
+RES_DIR = "results"
 
 
 class FormatterNoDuplicate(argparse.ArgumentDefaultsHelpFormatter):
@@ -216,7 +218,7 @@ def main(args):
 
     set_seed(args.seed)
     device = get_device(is_gpu=not args.no_cuda)
-    exp_dir = "experiments/{}".format(args.name)
+    exp_dir = os.path.join(RES_DIR, args.name)
     logger.info("Root directory for saving and loading experiments: {}".format(exp_dir))
 
     if not args.is_eval_only:

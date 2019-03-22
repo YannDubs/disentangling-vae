@@ -9,6 +9,7 @@ imgs/*
 .idea/
 experiments/
 .vscode/
+*backup*/
 
 # Byte-compiled / optimized / DLL files
 *.egg-info
