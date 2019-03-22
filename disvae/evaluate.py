@@ -1,25 +1,18 @@
 import os
-import argparse
 import logging
 import math
-from timeit import default_timer
 from collections import defaultdict
 import json
+from timeit import default_timer
 
 from tqdm import trange, tqdm
 import numpy as np
 import torch
 
-from utils.modelIO import load_model, load_metadata
-from utils.datasets import get_dataloaders
 from disvae.losses import get_loss_f
-from utils.helpers import get_device, set_seed, get_model_device
 from utils.math import log_density_gaussian
 
-logger = logging.getLogger(__name__)
-
-
-TEST_LOSSES = "test_losses.log"
+TEST_LOSSES_FILE = "test_losses.log"
 
 
 class Evaluator:
@@ -38,7 +31,7 @@ class Evaluator:
                  loss_type="betaB",
                  loss_kwargs={},
                  device=torch.device("cpu"),
-                 log_level="info",
+                 logger=logging.getLogger(__name__),
                  save_dir="experiments",
                  is_progress_bar=True):
         self.device = device
@@ -50,8 +43,6 @@ class Evaluator:
         self.is_progress_bar = is_progress_bar
 
         self.logger = logger
-        if log_level is not None:
-            self.logger.setLevel(log_level.upper())
 
         self.logger.info("Testing Device: {}".format(self.device))
 
@@ -62,11 +53,17 @@ class Evaluator:
         ----------
         data_loader: torch.utils.data.DataLoader
 
+        is_metrics: bool
+            Whether to compute and store the disentangling metrics.
 
+        is_losses: bool
+            Whether to compute and store the test losses.
         """
-        is_still_training = model.training
+        start = default_timer()
+        is_still_training = self.model.training
         self.model.eval()
 
+        metric, losses = None, None
         if is_metrics:
             self.logger.info('Computing metrics...')
             metric, H_z, H_zCv = self.mutual_information_gap(data_loader)
@@ -76,20 +73,24 @@ class Evaluator:
 
             self.logger.info('MIG: {:.3f}'.format(metric))
 
-        if not is_losse:
-            logger.info('Computing losses...')
-            losses = self.compute_loss(data_loader)
+        if is_losses:
+            self.logger.info('Computing losses...')
+            losses = self.compute_losses(data_loader)
 
-            logger.info('Losses: {}'.format(losses))
+            self.logger.info('Losses: {}'.format(losses))
 
-            path_to_test = os.path.join(self.save_dir, TEST_FILE)
+            path_to_test = os.path.join(self.save_dir, TEST_LOSSES_FILE)
             with open(path_to_test, 'w') as f:
                 json.dump(losses, f, indent=4, sort_keys=True)
 
         if is_still_training:
-            model.train()
+            self.model.train()
 
-    def evaluate(self, dataloader):
+        self.logger.info('Finished evaluating after {:.1f} min.'.format((default_timer() - start) / 60))
+
+        return metric, losses
+
+    def compute_losses(self, dataloader):
         """Compute all test losses.
 
         Parameters
@@ -100,10 +101,14 @@ class Evaluator:
         for data, _ in tqdm(dataloader, leave=False, disable=not self.is_progress_bar):
             data = data.to(self.device)
             if self.loss_type == "factor":
-                losses = loss_f(data, self.model, None, storer)
+                losses = self.loss_f(data, self.model, None, storer)
             else:
-                recon_batch, latent_dist, _ = sellf.model(data)
-                losses = loss_f(data, recon_batch, latent_dist, model.training, storer)
+                recon_batch, latent_dist, latent_sample = self.model(data)
+                loss_kwargs = dict()
+                if self.loss_type == 'batchTC':
+                    loss_kwargs["latent_sample"] = latent_sample
+                losses = self.loss_f(data, recon_batch, latent_dist,
+                                     self.model.training, storer, **loss_kwargs)
         losses = {k: sum(v) / len(dataloader.dataset) for k, v in storer.items()}
         return losses
 
@@ -128,7 +133,7 @@ class Evaluator:
 
         self.logger.info("Estimating the marginal entropy.")
         # marginal entropy H(z_j)
-        H_z = estimate_entropies(samples_zCx, params_zCx, is_progress_bar=self.is_progress_bar)
+        H_z = self.estimate_latent_entropies(samples_zCx, params_zCx)
 
         samples_zCx = samples_zCx.view(*lat_sizes, latent_dim)
         params_zCx = tuple(p.view(*lat_sizes, latent_dim) for p in params_zCx)
@@ -145,7 +150,7 @@ class Evaluator:
                 params_zxCv = tuple(p[idcs].contiguous().view(len_dataset // lat_size, latent_dim)
                                     for p in params_zCx)
 
-                H_zCv[i_fac_var] += estimate_entropies(samples_zxCv, params_zxCv) / lat_size
+                H_zCv[i_fac_var] += self.estimate_latent_entropies(samples_zxCv, params_zxCv) / lat_size
 
         H_z = H_z.cpu()
         H_zCv = H_zCv.cpu()
@@ -196,6 +201,72 @@ class Evaluator:
                 q_zCx[idcs, :, 0], q_zCx[idcs, :, 1] = self.model.encoder(x.to(self.device))
 
         params_zCX = q_zCx.unbind(-1)
-        samples_zCx = model.reparameterize(*params_zCX)
+        samples_zCx = self.model.reparameterize(*params_zCX)
 
         return samples_zCx, params_zCX
+
+    def estimate_latent_entropies(self, samples_zCx, params_zCX,
+                                  n_samples=10000):
+        r"""Estimate :math:`H(z_j) = E_{q(z_j)} [-log q(z_j)] = E_{p(x)} E_{q(z_j|x)} [-log q(z_j)]`
+        using the emperical distribution of :math:`p(x)`.
+
+        Note
+        ----
+        - the expectation over the emperical distributio is: :math:`q(z) = 1/N sum_{n=1}^N q(z|x_n)`.
+        - we assume that q(z|x) is factorial i.e. :math:`q(z|x) = \prod_j q(z_j|x)`.
+        - computes numerically stable NLL: :math:`- log q(z) = log N - logsumexp_n=1^N log q(z|x_n)`.
+
+        Parameters
+        ----------
+        samples_zCx: torch.tensor
+            Tensor of shape (len_dataset, latent_dim) containing a sample of
+            q(z|x) for every x in the dataset.
+
+        params_zCX: tuple of torch.Tensor
+            Sufficient statistics q(z|x) for each training example. E.g. for
+            gaussian (mean, log_var) each of shape : (len_dataset, latent_dim).
+
+        n_samples: int
+            Number of samples to use to estimate the entropies.
+
+        Return
+        ------
+        H_z: torch.Tensor
+            Tensor of shape (latent_dim) containing the marginal entropies H(z_j)
+        """
+        len_dataset, latent_dim = samples_zCx.shape
+        device = samples_zCx.device
+        H_z = torch.zeros(latent_dim, device=device)
+
+        # sample from p(x)
+        samples_x = torch.randperm(len_dataset, device=device)[:n_samples]
+        # sample from p(z|x)
+        samples_zCx = samples_zCx.index_select(0, samples_x).view(latent_dim, n_samples)
+
+        mini_batch_size = 10
+        samples_zCx = samples_zCx.expand(len_dataset, latent_dim, n_samples)
+        mean = params_zCX[0].unsqueeze(-1).expand(len_dataset, latent_dim, n_samples)
+        log_var = params_zCX[1].unsqueeze(-1).expand(len_dataset, latent_dim, n_samples)
+        log_N = math.log(len_dataset)
+        with trange(n_samples, leave=False, disable=self.is_progress_bar) as t:
+            for k in range(0, n_samples, mini_batch_size):
+                # log q(z_j|x) for n_samples
+                idcs = slice(k, k + mini_batch_size)
+                log_q_zCx = log_density_gaussian(samples_zCx[..., idcs],
+                                                 mean[..., idcs],
+                                                 log_var[..., idcs])
+                # numerically stable log q(z_j) for n_samples:
+                # log q(z_j) = -log N + logsumexp_{n=1}^N log q(z_j|x_n)
+                # As we don't know q(z) we appoximate it with the monte carlo
+                # expectation of q(z_j|x_n) over x. => fix a single z and look at
+                # proba for every x to generate it. n_samples is not used here !
+                log_q_z = -log_N + torch.logsumexp(log_q_zCx, dim=0, keepdim=False)
+                # H(z_j) = E_{z_j}[- log q(z_j)]
+                # mean over n_samples over (i.e. dimesnion 1 because already summed over 0).
+                H_z += (-log_q_z).sum(1)
+
+                t.update(mini_batch_size)
+
+        H_z /= n_samples
+
+        return H_z

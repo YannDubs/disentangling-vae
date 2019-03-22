@@ -10,7 +10,7 @@ from disvae.decoder import get_Decoder
 from utils.datasets import get_img_size
 
 
-MODEL_FILENAME = "model"
+MODEL_FILENAME = "model.pt"
 META_FILENAME = "specs.json"  # CHANGE TO METADATA.json
 
 
@@ -61,7 +61,7 @@ def load_metadata(directory):
     return metadata
 
 
-def load_model(directory, is_gpu=True):
+def load_model(directory, is_gpu=True, filename=MODEL_FILENAME):
     """Load a trained model.
 
     Parameters
@@ -83,22 +83,32 @@ def load_model(directory, is_gpu=True):
     model_type = metadata["model_type"]
     img_size = get_img_size(dataset)
 
-    if load_snapshots:
-        model_list = []
-        for root, _, names in os.walk(directory):
-            for name in names:
-                results = re.search(r'.*?-([0-9].*?).pt', name)
-                if results is not None:
-                    epoch_idx = int(results.group(1))
+    path_to_model = os.path.join(directory, filename)
+    model = _get_model(model_type, img_size, latent_dim, device, path_to_model)
+    return model
 
-                    path_to_model = os.path.join(root, name)
-                    model = _get_model(model_type, img_size, latent_dim, device, path_to_model)
-                    model_list.append((epoch_idx, model))
-        return model_list
-    else:
-        path_to_model = os.path.join(directory, MODEL_FILENAME + '.pt')
-        model = _get_model(model_type, img_size, latent_dim, device, path_to_model)
-        return model
+
+def load_checkpoints(directory, is_gpu=True):
+    """Load all chechpointed models.
+
+    Parameters
+    ----------
+    directory : string
+        Path to folder where model is saved. For example './experiments/mnist'.
+
+    is_gpu : bool
+        Whether to load on GPU is available.
+    """
+    checkpoints = []
+    for root, _, filenames in os.walk(directory):
+        for filename in filenames:
+            results = re.search(r'.*?-([0-9].*?).pt', filename)
+            if results is not None:
+                epoch_idx = int(results.group(1))
+                model = load_model(root, is_gpu=is_gpu, filename=filename)
+                checkpoints.append((epoch_idx, model))
+
+    return checkpoints
 
 
 def _get_model(model_type, img_size, latent_dim, device, path_to_model):
