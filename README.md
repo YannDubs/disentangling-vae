@@ -12,6 +12,7 @@ This repository contains code to investigate disentangling in VAE as well as com
 
 Notes:
 - Tested for python >= 3.6
+- Tested for CPU and GPU
 
 ## Install
 
