@@ -2,12 +2,14 @@
 Module containing all vae losses.
 """
 import abc
+import math
+
 import torch
 from torch.nn import functional as F
 from torch import optim
-from disvae.discriminator import Discriminator
-from utils.math import log_density_normal, log_importance_weight_matrix
-import math
+
+from .discriminator import Discriminator
+from disvae.utils.math import log_density_normal, log_importance_weight_matrix
 
 
 # TO-DO: clean data_size and device

@@ -2,7 +2,20 @@ import torch
 from torch import nn, optim
 from torch.nn import functional as F
 
-from disvae.initialization import weights_init
+from disvae.utils.initialization import weights_init
+from .encoder import get_Encoder
+from .decoder import get_Decoder
+
+
+def init_specific_model(model_type, img_size, latent_dim):
+    """Return an instance of a VAE with encoder and decoder from `model_type`."""
+    encoder = get_Encoder(model_type)
+    decoder = get_Decoder(model_type)
+    model = VAE(img_size, encoder, decoder, latent_dim)
+    # if it was loaded to be from a specific type add the type to the class
+    # is that clean ?!?
+    model.model_type = model_type
+    return model
 
 
 class VAE(nn.Module):
@@ -17,7 +30,7 @@ class VAE(nn.Module):
         """
         super(VAE, self).__init__()
 
-        if img_size[1:] not in [(32, 32), (64, 64)]:
+        if list(img_size[1:]) not in [[32, 32], [64, 64]]:
             raise RuntimeError("{} sized images not supported. Only (None, 32, 32) and (None, 64, 64) supported. Build your own architecture or reshape images!".format(img_size))
 
         self.latent_dim = latent_dim
