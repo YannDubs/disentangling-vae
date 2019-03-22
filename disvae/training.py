@@ -203,9 +203,9 @@ class LossesLogger(object):
             os.remove(file_path_name)
 
         self.logger = logging.getLogger("losses_logger")
-        self.logger.setLevel(0)  # always store
+        self.logger.setLevel(1)  # always store
         file_handler = logging.FileHandler(file_path_name)
-        file_handler.setLevel(0)
+        file_handler.setLevel(1)
         self.logger.addHandler(file_handler)
 
         header = ",".join(["Epoch", "Loss", "Value"])
