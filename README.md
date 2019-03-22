@@ -23,10 +23,21 @@ pip install -r requirements.txt
 
 ## Run
 
-Use `python main.py <saving-name> <param>` to train and/or evaluate a model.
+Use `python main.py <saving-name> <param>` to train and/or evaluate a model. 
 
-**Help:**
+### Output
+This will create a directory `experiments/<saving-name>/` which will contain:
 
+* **model.pt**: The model at the end of training. 
+* **model-**`i`**.pt**: Model checkpoint after `i` iterations. By default saves every 10.
+* **specs.json**: The parameters used to run the program (default and modified with CLI).
+* **training.gif**: GIF of laten traversals of the latent dimensions Z at every epoch.
+* **train_losses.log**: All (sub-)losses computed during training.
+* **test_losses.log**: ALl (sub-)losses computed at the end of training with the model in evaluate mode (no sampling). Only if not `--no-test`
+* **disentanglement_metric.pth**: dictionary of tensors (pytorch object) containing the MIG metric. Only if `--is-metric` (slow).
+
+
+### Help
 ```
 usage: main.py [-h] [-L {critical,error,warning,info,debug}]
                [--no-progress-bar] [--no-cuda] [-s SEED]
@@ -120,7 +131,9 @@ batchTC specific parameters:
 Evaluation specific options:
   --is-eval-only        Whether to only evaluate using precomputed model
                         `name`. (default: False)
-  --is-metrics          Whether to compute the disentangled metrcics.`
+  --is-metrics          Whether to compute the disentangled metrcics. 
+                        Currently only possible with `dsprites` as it is the
+                        only dataset with known true factors of variations.
                         (default: False)
   --no-test             Whether not to compute the test losses.` (default:
                         False)
