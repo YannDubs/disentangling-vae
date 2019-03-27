@@ -47,7 +47,6 @@ class EncoderBetaB(nn.Module):
         # Shape required to start transpose convs
         self.reshape = (hid_channels, kernel_size, kernel_size)
         n_chan = self.img_size[0]
-        self.img_size = img_size
 
         # Convolutional layers
         cnn_kwargs = dict(stride=2, padding=1)

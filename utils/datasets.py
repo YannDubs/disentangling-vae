@@ -17,7 +17,6 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, datasets
 
 DIR = os.path.abspath(os.path.dirname(__file__))
-logger = logging.getLogger(__name__)
 COLOUR_BLACK = 0
 COLOUR_WHITE = 1
 
@@ -26,16 +25,18 @@ def get_img_size(dataset):
     """Return the correct image size."""
     return get_dataset(dataset).img_size
 
+
 def get_background(dataset):
     """Return the image background color."""
     if dataset is None:
-       # Default to a white background (the integer 0)
-       return 0
+        # Default to a white background (the integer 0)
+        return 0
     else:
         return get_dataset(dataset).background_color
 
+
 def get_dataloaders(dataset, root=None, shuffle=True, pin_memory=True,
-                    batch_size=128, **kwargs):
+                    batch_size=128, logger=logging.getLogger(__name__), **kwargs):
     """A generic data loader
 
     Parameters
@@ -52,7 +53,7 @@ def get_dataloaders(dataset, root=None, shuffle=True, pin_memory=True,
     pin_memory = pin_memory and torch.cuda.is_available  # only pin if GPU available
 
     dataset = get_dataset(dataset)
-    return DataLoader(dataset() if root is None else dataset(root),
+    return DataLoader(dataset(logger=logger) if root is None else dataset(root=root, logger=logger),
                       batch_size=batch_size,
                       shuffle=shuffle,
                       pin_memory=pin_memory,
@@ -88,15 +89,16 @@ class DisentangledDataset(Dataset, abc.ABC):
         List of `torch.vision.transforms` to apply to the data when loading it.
     """
 
-    def __init__(self, root, transforms_list=[]):
+    def __init__(self, root, transforms_list=[], logger=logging.getLogger(__name__)):
         self.root = root
         self.train_data = os.path.join(root, type(self).files["train"])
         self.transforms = transforms.Compose(transforms_list)
+        self.logger = logger
 
         if not os.path.isdir(root):
-            logger.info("Downloading {} ...".format(str(type(self))))
+            self.logger.info("Downloading {} ...".format(str(type(self))))
             self.download()
-            logger.info("Finished Downloading.")
+            self.logger.info("Finished Downloading.")
 
     def __len__(self):
         return len(self.imgs)
@@ -148,8 +150,8 @@ class DSprites(DisentangledDataset):
     """
     urls = {"train": "https://github.com/deepmind/dsprites-dataset/blob/master/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz?raw=true"}
     files = {"train": "dsprite_train.npz"}
-    lat_names = ('color', 'shape', 'scale', 'orientation', 'posX', 'posY')
-    lat_sizes = np.array([1, 3, 6, 40, 32, 32])
+    lat_names = ('shape', 'scale', 'orientation', 'posX', 'posY')
+    lat_sizes = np.array([3, 6, 40, 32, 32])
     img_size = (1, 64, 64)
     background_color = COLOUR_BLACK
     lat_values = {'posX': np.array([0., 0.03225806, 0.06451613, 0.09677419, 0.12903226,
@@ -182,8 +184,8 @@ class DSprites(DisentangledDataset):
                   'shape': np.array([1., 2., 3.]),
                   'color': np.array([1.])}
 
-    def __init__(self, root=os.path.join(DIR, '../data/dsprites/')):
-        super().__init__(root, [transforms.ToTensor()])
+    def __init__(self, root=os.path.join(DIR, '../data/dsprites/'), **kwargs):
+        super().__init__(root, [transforms.ToTensor()], **kwargs)
 
         dataset_zip = np.load(self.train_data)
         self.imgs = dataset_zip['imgs']
@@ -247,8 +249,8 @@ class CelebA(DisentangledDataset):
     img_size = (3, 64, 64)
     background_color = COLOUR_WHITE
 
-    def __init__(self, root=os.path.join(DIR, '../data/celeba')):
-        super().__init__(root, [transforms.ToTensor()])
+    def __init__(self, root=os.path.join(DIR, '../data/celeba'), **kwargs):
+        super().__init__(root, [transforms.ToTensor()], **kwargs)
 
         self.imgs = glob.glob(self.train_data + '/*')
 
@@ -264,12 +266,12 @@ class CelebA(DisentangledDataset):
             '{} file is corrupted.  Remove the file and try again.'.format(save_path)
 
         with zipfile.ZipFile(save_path) as zf:
-            logger.info("Extracting CelebA ...")
+            self.logger.info("Extracting CelebA ...")
             zf.extractall(self.root)
 
         os.remove(save_path)
 
-        logger.info("Resizing CelebA ...")
+        self.logger.info("Resizing CelebA ...")
         preprocess(self.train_data, size=type(self).img_size[1:])
 
     def __getitem__(self, idx):
@@ -320,16 +322,18 @@ class Chairs(datasets.ImageFolder):
     img_size = (1, 64, 64)
     background_color = COLOUR_WHITE
 
-    def __init__(self, root=os.path.join(DIR, '../data/chairs')):
+    def __init__(self, root=os.path.join(DIR, '../data/chairs'),
+                 logger=logging.getLogger(__name__)):
         self.root = root
         self.train_data = os.path.join(root, type(self).files["train"])
         self.transforms = transforms.Compose([transforms.Grayscale(),
                                               transforms.ToTensor()])
+        self.logger = logger
 
         if not os.path.isdir(root):
-            logger.info("Downloading {} ...".format(str(type(self))))
+            self.logger.info("Downloading {} ...".format(str(type(self))))
             self.download()
-            logger.info("Finished Downloading.")
+            self.logger.info("Finished Downloading.")
 
         super().__init__(self.train_data, transform=self.transforms)
 
@@ -340,7 +344,7 @@ class Chairs(datasets.ImageFolder):
         subprocess.check_call(["curl", type(self).urls["train"],
                                "--output", save_path])
 
-        logger.info("Extracting Chairs ...")
+        self.logger.info("Extracting Chairs ...")
         tar = tarfile.open(save_path)
         tar.extractall(self.root)
         tar.close()
@@ -348,7 +352,7 @@ class Chairs(datasets.ImageFolder):
 
         os.remove(save_path)
 
-        logger.info("Preprocessing Chairs ...")
+        self.logger.info("Preprocessing Chairs ...")
         preprocess(os.path.join(self.train_data, '*/*'),  # root/*/*/*.png structure
                    size=type(self).img_size[1:],
                    center_crop=(400, 400))
@@ -359,7 +363,7 @@ class MNIST(datasets.MNIST):
     img_size = (1, 32, 32)
     background_color = COLOUR_BLACK
 
-    def __init__(self, root=os.path.join(DIR, '../data/mnist')):
+    def __init__(self, root=os.path.join(DIR, '../data/mnist'), **kwargs):
         super().__init__(root,
                          train=True,
                          download=True,
@@ -373,7 +377,7 @@ class FashionMNIST(datasets.FashionMNIST):
     """Fashion Mnist wrapper. Docs: `datasets.FashionMNIST.`"""
     img_size = (1, 32, 32)
 
-    def __init__(self, root=os.path.join(DIR, '../data/fashionMnist')):
+    def __init__(self, root=os.path.join(DIR, '../data/fashionMnist'), **kwargs):
         super().__init__(root,
                          train=True,
                          download=True,

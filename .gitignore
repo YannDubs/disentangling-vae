@@ -9,6 +9,7 @@ imgs/*
 .idea/
 experiments/
 .vscode/
+*backup*/
 
 # Byte-compiled / optimized / DLL files
 *.egg-info
@@ -25,6 +26,7 @@ __pycache__/
 # extensions
 *.pyc
 *.log
+*.sh
 *.tar
 *.zip
 *.tar

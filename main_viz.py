@@ -1,16 +1,20 @@
 import argparse
 import json
 import torch
-import numpy as np
 
-from disvae.vae import VAE
-from utils.datasets import get_dataloaders
-from viz.visualize import Visualizer
-from utils.modelIO import load_model
-from viz.log_plotter import LogPlotter
+import numpy as np
 from torchvision.utils import save_image
-from utils.datasets import get_background
-from viz.viz_helpers import add_labels, add_labels_snapshot
+
+from utils.datasets import get_dataloaders, get_background
+from utils.helpers import FormatterNoDuplicate
+from viz.visualize import Visualizer
+from viz.viz_helpers import add_labels
+from viz.log_plotter import LogPlotter
+
+from main import RES_DIR
+from disvae import init_specific_model
+from disvae.utils.modelIO import load_model, load_checkpoints
+
 
 def read_dataset_from_specs(path_to_specs):
     """ read the spec file from the path given
@@ -20,6 +24,7 @@ def read_dataset_from_specs(path_to_specs):
         specs = json.load(specs_file)
     dataset = specs["dataset"]
     return dataset
+
 
 def read_capacity_from_file(path_to_specs):
     """ Read and return the min capacity, max capacity, interpolation, gamma as a tuple if the capacity
@@ -39,10 +44,15 @@ def read_capacity_from_file(path_to_specs):
     else:
         return capacity
 
+
 def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
     """ generate a number of samples from the dataset
     """
-    with open('experiments/{}/specs.json'.format(experiment_name)) as spec_file:
+    # TODO: use load_metadata in utils.modelIO + don't just use "specs.json"
+    # that might change, so even if load_metadat didn't exist you should import
+    # META_FILENAME. FIlenames should only be defined once in the whole codebase
+    # if not it's hard to maintain!
+    with open('{}/{}/specs.json'.format(RES_DIR, experiment_name)) as spec_file:
         spec_data = json.load(spec_file)
         dataset_name = spec_data['dataset']
 
@@ -55,17 +65,12 @@ def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
             data_list.append(new_data)
         return torch.cat(data_list, dim=0)
 
-def snapshot_reconstruction(viz_list, epoch_list, experiment_name, num_samples, dataset, shuffle=True, file_name='imgs/snapshot_recon.png', nr_latent_dimensions=10):
-    """ Reconstruct some data samples at different stages of training. 
+
+def snapshot_reconstruction(viz_list, epoch_list, experiment_name, num_samples, dataset, shuffle=True, file_name='imgs/snapshot_recon.png'):
+    """ Reconstruct some data samples at different stages of training.
     """
     tensor_image_list = []
     data_samples = samples(experiment_name=experiment_name, num_samples=num_samples, shuffle=True)
-
-    # calculate capacity
-    path_to_specs = 'experiments/{}/specs.json'.format(experiment_name)
-    (min_capacity, max_capacity, interp_capacity, gamma) = read_capacity_from_file(path_to_specs)
-    capacity_list = np.linspace(min_capacity, max_capacity, len(epoch_list)).tolist()
-    capacity_list.reverse()
 
     # Create original
     tensor_image = viz_list[0].reconstruction_comparisons(data=data_samples, exclude_recon=True)
@@ -75,24 +80,36 @@ def snapshot_reconstruction(viz_list, epoch_list, experiment_name, num_samples, 
         tensor_image = viz.reconstruction_comparisons(data=data_samples, exclude_original=True)
         tensor_image_list.append(tensor_image)
 
-    # remove rows to make figure smaller
-    remove_row_list=[2,3,5,6,8,9]
-    remove_row_list.reverse()
-    for row in remove_row_list:
-        del tensor_image_list[row]
-        del capacity_list[row-1]
-
     reconstructions = torch.stack(tensor_image_list, dim=0)
-    
-    # save figure
-    traversal_images_with_text = add_labels_snapshot('KL',reconstructions, 8, dataset, capacity_list)
-    traversal_images_with_text.save(file_name)
+
+    path_to_specs = '{}/{}/specs.json'.format(RES_DIR, experiment_name)
+    capacity = read_capacity_from_file(path_to_specs)
+
+    if isinstance(capacity, tuple):
+        capacity_list = np.linspace(capacity[0], capacity[1], capacity[2]).tolist()
+    else:
+        capacity_list = [capacity] * (viz_list + 1)
+
+    selected_capacities = []
+    for epoch_idx in epoch_list:
+        selected_capacities.append(capacity_list[epoch_idx])
+
+    # traversal_images_with_text = add_labels(
+    #     label_name='C',
+    #     tensor=reconstructions,
+    #     num_rows=1,
+    #     sorted_list=selected_capacities,
+    #     dataset=dataset)
+
+    # traversal_images_with_text.save(file_name)
+    save_image(reconstructions.data, file_name, nrow=1, pad_value=(1 - get_background(dataset)))
+
 
 def parse_arguments():
     """ Set up a command line interface for directing the experiment to be run.
     """
     parser = argparse.ArgumentParser(description="The primary script for running experiments on locally saved models.",
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+                                     formatter_class=FormatterNoDuplicate)
 
     experiment = parser.add_argument_group('Predefined experiments')
     experiment_options = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite',
@@ -102,7 +119,7 @@ def parse_arguments():
                             help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
 
     visualisation = parser.add_argument_group('Desired Visualisation')
-    visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction', 
+    visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction',
                              'heat_maps', 'display_avg_KL', 'recon_and_traverse_all', 'show_disentanglement', 'snapshot_recon']
     visualisation.add_argument('-v', '--visualisation',
                                default='random_samples', choices=visualisation_options,
@@ -122,29 +139,23 @@ def parse_arguments():
 
 def main(args):
     """ The primary entry point for carrying out experiments on pretrained models.
-    """ 
+    """
     experiment_name = args.experiment
-    dataset = read_dataset_from_specs('experiments/{}/specs.json'.format(experiment_name))
+    dataset = read_dataset_from_specs('{}/{}/specs.json'.format(RES_DIR, experiment_name))
 
     if args.visualisation == 'snapshot_recon':
         viz_list = []
         epoch_list = []
-        model_list = load_model(directory='experiments/{}'.format(experiment_name), load_snapshots=True)
+        model_list = load_model(directory='{}/{}'.format(RES_DIR, experiment_name), load_snapshots=True)
         for epoch_index, model in model_list:
             model.eval()
-            viz_list.append(Visualizer(model=model, model_dir='experiments/{}'.format(experiment_name), dataset=dataset, save_images=False))
+            viz_list.append(Visualizer(model=model, model_dir='{}/{}'.format(RES_DIR, experiment_name), dataset=dataset, save_images=False))
             epoch_list.append(epoch_index)
-        viz_list = [
-                            viz for _, viz in sorted(zip(epoch_list, viz_list), reverse=True)
-                        ]
-        epoch_list = [
-                            epoch for _, epoch in sorted(zip(epoch_list, viz_list), reverse=True)
-                        ]    
 
     elif not args.visualisation == 'display_avg_KL':
-        model = load_model('experiments/{}'.format(experiment_name))
+        model = load_model('{}/{}'.format(RES_DIR, experiment_name))
         model.eval()
-        viz = Visualizer(model=model, model_dir='experiments/{}'.format(experiment_name), dataset=dataset)
+        viz = Visualizer(model=model, model_dir='{}/{}'.format(RES_DIR, experiment_name), dataset=dataset)
 
     visualisation_options = {
         'random_samples': lambda: viz.samples(),
@@ -157,8 +168,7 @@ def main(args):
         'heat_maps': lambda: viz.generate_heat_maps(
             data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
         'show_disentanglement': lambda: viz.show_disentanglement_fig2(
-            reconstruction_data=samples(experiment_name=experiment_name, num_samples=9, shuffle=True),
-            latent_sweep_data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True), 
+            latent_sweep_data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True),
             heat_map_data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
         'display_avg_KL': lambda: LogPlotter(log_dir=args.log_dir, output_file_name=args.output_file_name),
         'snapshot_recon': lambda: snapshot_reconstruction(

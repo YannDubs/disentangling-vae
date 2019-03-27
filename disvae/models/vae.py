@@ -2,7 +2,20 @@ import torch
 from torch import nn, optim
 from torch.nn import functional as F
 
-from disvae.initialization import weights_init
+from disvae.utils.initialization import weights_init
+from .encoder import get_Encoder
+from .decoder import get_Decoder
+
+
+def init_specific_model(model_type, img_size, latent_dim):
+    """Return an instance of a VAE with encoder and decoder from `model_type`."""
+    encoder = get_Encoder(model_type)
+    decoder = get_Decoder(model_type)
+    model = VAE(img_size, encoder, decoder, latent_dim)
+    # if it was loaded to be from a specific type add the type to the class
+    # is that clean ?!?
+    model.model_type = model_type
+    return model
 
 
 class VAE(nn.Module):
@@ -17,12 +30,11 @@ class VAE(nn.Module):
         """
         super(VAE, self).__init__()
 
-        if img_size[1:] not in [(32, 32), (64, 64)]:
+        if list(img_size[1:]) not in [[32, 32], [64, 64]]:
             raise RuntimeError("{} sized images not supported. Only (None, 32, 32) and (None, 64, 64) supported. Build your own architecture or reshape images!".format(img_size))
 
         self.latent_dim = latent_dim
         self.img_size = img_size
-        self.is_color = self.img_size[0] > 1
         self.num_pixels = self.img_size[1] * self.img_size[2]
         self.encoder = encoder(img_size, self.latent_dim)
         self.decoder = decoder(img_size, self.latent_dim)
@@ -62,8 +74,6 @@ class VAE(nn.Module):
         latent_dist = self.encoder(x)
         latent_sample = self.reparameterize(*latent_dist)
         reconstruct = self.decoder(latent_sample)
-        if self.is_color:
-            reconstruct = reconstruct * 255
         return reconstruct, latent_dist, latent_sample
 
     def reset_parameters(self):
