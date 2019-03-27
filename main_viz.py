@@ -1,17 +1,19 @@
 import argparse
 import json
 import torch
-import numpy as np
 
-from disvae.vae import VAE
-from utils.datasets import get_dataloaders
-from viz.visualize import Visualizer
-from utils.modelIO import load_model
-from viz.log_plotter import LogPlotter
+import numpy as np
 from torchvision.utils import save_image
-from utils.datasets import get_background
+
+from utils.datasets import get_dataloaders, get_background
+from utils.helpers import FormatterNoDuplicate
+from viz.visualize import Visualizer
 from viz.viz_helpers import add_labels
+from viz.log_plotter import LogPlotter
+
 from main import RES_DIR
+from disvae import init_specific_model
+from disvae.utils.modelIO import load_model, load_checkpoints
 
 
 def read_dataset_from_specs(path_to_specs):
@@ -107,7 +109,7 @@ def parse_arguments():
     """ Set up a command line interface for directing the experiment to be run.
     """
     parser = argparse.ArgumentParser(description="The primary script for running experiments on locally saved models.",
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+                                     formatter_class=FormatterNoDuplicate)
 
     experiment = parser.add_argument_group('Predefined experiments')
     experiment_options = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite',
