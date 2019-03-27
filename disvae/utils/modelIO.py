@@ -4,11 +4,7 @@ import re
 
 import torch
 
-from disvae.vae import VAE
-from disvae.encoder import get_Encoder
-from disvae.decoder import get_Decoder
-from utils.datasets import get_img_size
-
+from disvae import init_specific_model
 
 MODEL_FILENAME = "model.pt"
 META_FILENAME = "specs.json"  # CHANGE TO METADATA.json
@@ -29,19 +25,23 @@ def save_model(model, directory, metadata=None, filename=MODEL_FILENAME):
     metadata : dict
         Metadata to save.
     """
+    path_to_metadata = os.path.join(directory, META_FILENAME)
+    path_to_model = os.path.join(directory, filename)
+
     device = next(model.parameters()).device
     model.cpu()
 
-    path_to_metadata = os.path.join(directory, META_FILENAME)
-    path_to_model = os.path.join(directory, filename)
+    if metadata is None:
+        # save the minimum required for loading
+        metadata = dict(img_size=model.img_size, latent_dim=model.latent_dim,
+                        model_type=model.model_type)
 
     torch.save(model.state_dict(), path_to_model)
 
     model.to(device)  # restore device
 
-    if metadata is not None:
-        with open(path_to_metadata, 'w') as f:
-            json.dump(metadata, f, indent=4, sort_keys=True)
+    with open(path_to_metadata, 'w') as f:
+        json.dump(metadata, f, indent=4, sort_keys=True)
 
 
 def load_metadata(directory):
@@ -76,12 +76,11 @@ def load_model(directory, is_gpu=True, filename=MODEL_FILENAME):
                           else "cpu")
 
     path_to_model = os.path.join(directory, MODEL_FILENAME)
-    metadata = load_metadata(directory)
 
-    dataset = metadata["dataset"]
+    metadata = load_metadata(directory)
+    img_size = metadata["img_size"]
     latent_dim = metadata["latent_dim"]
     model_type = metadata["model_type"]
-    img_size = get_img_size(dataset)
 
     path_to_model = os.path.join(directory, filename)
     model = _get_model(model_type, img_size, latent_dim, device, path_to_model)
@@ -113,9 +112,7 @@ def load_checkpoints(directory, is_gpu=True):
 
 def _get_model(model_type, img_size, latent_dim, device, path_to_model):
     """ Get model """
-    encoder = get_Encoder(model_type)
-    decoder = get_Decoder(model_type)
-    model = VAE(img_size, encoder, decoder, latent_dim).to(device)
+    model = init_specific_model(model_type, img_size, latent_dim).to(device)
     # works with state_dict to make it independent of the file structure
     model.load_state_dict(torch.load(path_to_model))
     model.eval()

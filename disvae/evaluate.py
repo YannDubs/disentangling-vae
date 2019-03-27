@@ -9,8 +9,8 @@ from tqdm import trange, tqdm
 import numpy as np
 import torch
 
-from disvae.losses import get_loss_f
-from utils.math import log_density_gaussian
+from disvae.models.losses import get_loss_f
+from disvae.utils.math import log_density_gaussian
 
 TEST_LOSSES_FILE = "test_losses.log"
 

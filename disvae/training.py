@@ -8,16 +8,12 @@ from tqdm import trange
 import torch
 from torch.nn import functional as F
 
-import sys
-sys.path.append("..")
-
-from utils.modelIO import save_model
-from disvae.losses import get_loss_f
-from viz.visualize import Visualizer
-from utils.helpers import mean
+from disvae.utils.modelIO import save_model
+from disvae.models.losses import get_loss_f
 
 
 TRAIN_FILE = "train_losses.log"
+GIF_FILE = "training.gif"
 
 
 class Trainer():
@@ -28,45 +24,44 @@ class Trainer():
                  device=torch.device("cpu"),
                  logger=logging.getLogger(__name__),
                  save_dir="results",
-                 is_viz_gif=True,
+                 gif_visualizer=None,
                  is_progress_bar=True,
-                 checkpoint_every=10,
-                 dataset="mnist"):
+                 checkpoint_every=10):
         """
         Class to handle training of model.
 
         Parameters
         ----------
-        model : disvae.vae.VAE
+        model: disvae.vae.VAE
 
-        optimizer : torch.optim.Optimizer
+        optimizer: torch.optim.Optimizer
 
-        latent_dim : int
+        loss_type: {"VAE", "betaH", "betaB", "factorising", "batchTC"}, optional
+            Type of VAE loss to use.
+
+        latent_dim: int, optional
             Dimensionality of latent output.
 
-        loss_kwargs : dict.
+        loss_kwargs: dict, optional
             Additional arguments to the loss function. FOrmat need to be the
             loss specific argparse arguments.
 
-        device : torch.device
+        device: torch.device, optional
             Device on which to run the code.
 
-        log_level : {'critical', 'error', 'warning', 'info', 'debug'}
-            Logging levels.
+        logger: logging.Logger, optional
+            Logger.
 
-        loss_type : {"VAE", "betaH", "betaB", "factorising", "batchTC"}
-            Type of VAE loss to use.
-
-        save_dir : str
+        save_dir : str, optional
             Directory for saving logs.
 
-        is_viz_gif : bool
-            Whether to store a gif of samples after every epoch.
+        gif_visualizer : viz.Visualizer, optional
+            Gif Visualizer that should return samples at every epochs.
 
-        is_progress_bar: bool
+        is_progress_bar: bool, optional
             Whether to use a progress bar for training.
 
-        checkpoint_every: int
+        checkpoint_every: int, optional
             Save a checkpoint of the trained model every n epoch.
         """
         self.device = device
@@ -77,34 +72,28 @@ class Trainer():
         loss_kwargs["device"] = device
         self.loss_f = get_loss_f(self.loss_type, kwargs_parse=loss_kwargs)
         self.save_dir = save_dir
-        self.is_viz_gif = is_viz_gif
         self.is_progress_bar = is_progress_bar
         self.checkpoint_every = checkpoint_every
-
         self.logger = logger
-
         self.losses_logger = LossesLogger(os.path.join(self.save_dir, TRAIN_FILE))
-        if self.is_viz_gif:
-            self.vizualizer = Visualizer(model, dataset,
-                                         model_dir=self.save_dir,
-                                         save_images=False)
+        self.gif_visualizer = gif_visualizer
 
         self.logger.info("Training Device: {}".format(self.device))
 
-    def __call__(self, data_loader, epochs=10, visualizer=None):
+    def __call__(self, data_loader, epochs=10):
         """
         Trains the model.
 
         Parameters
         ----------
-        data_loader : torch.utils.data.DataLoader
+        data_loader: torch.utils.data.DataLoader
 
-        epochs : int
+        epochs: int, optional
             Number of epochs to train the model for.
         """
         start = default_timer()
 
-        if self.is_viz_gif:
+        if self.gif_visualizer is not None:
             training_progress_images = []
 
         self.model.train()
@@ -115,16 +104,16 @@ class Trainer():
                                                                                mean_epoch_loss))
             self.losses_logger.log(epoch, storer)
 
-            if self.is_viz_gif:
-                img_grid = self.vizualizer.all_latent_traversals(size=10)
+            if self.gif_visualizer is not None:
+                img_grid = self.gif_visualizer.all_latent_traversals(size=10)
                 training_progress_images.append(img_grid)
 
             if epoch % self.checkpoint_every == 0:
                 save_model(self.model, self.save_dir,
                            filename="model-{}.pt".format(epoch))
 
-        if self.is_viz_gif:
-            imageio.mimsave(os.path.join(self.save_dir, "training.gif"),
+        if self.gif_visualizer is not None:
+            imageio.mimsave(os.path.join(self.save_dir, GIF_FILE),
                             training_progress_images,
                             fps=24)
 
@@ -138,9 +127,9 @@ class Trainer():
 
         Parameters
         ----------
-        data_loader : torch.utils.data.DataLoader
+        data_loader: torch.utils.data.DataLoader
 
-        storer : dict
+        storer: dict
             Dictionary in which to store important variables for vizualisation.
 
         epoch: int
@@ -166,10 +155,10 @@ class Trainer():
 
         Parameters
         ----------
-        data : torch.Tensor
+        data: torch.Tensor
             A batch of data. Shape : (batch_size, channel, height, width).
 
-        storer : dict
+        storer: dict
             Dictionary in which to store important variables for vizualisation.
         """
         batch_size, channel, height, width = data.size()
@@ -183,7 +172,8 @@ class Trainer():
             loss_kwargs = dict()
             if self.loss_type == 'batchTC':
                 loss_kwargs["latent_sample"] = latent_sample
-            loss = self.loss_f(data, recon_batch, latent_dist, self.model.training, storer, **loss_kwargs)
+            loss = self.loss_f(data, recon_batch, latent_dist, self.model.training,
+                               storer, **loss_kwargs)
 
             self.optimizer.zero_grad()
             loss.backward()
@@ -193,8 +183,8 @@ class Trainer():
 
 
 class LossesLogger(object):
-    """ Class definition for objects to write data to log files in a
-        form which is then easy to be plotted.
+    """Class definition for objects to write data to log files in a
+    form which is then easy to be plotted.
     """
 
     def __init__(self, file_path_name):
@@ -216,3 +206,9 @@ class LossesLogger(object):
         for k, v in losses_storer.items():
             log_string = ",".join(str(item) for item in [epoch, k, mean(v)])
             self.logger.debug(log_string)
+
+
+# HELPERS
+def mean(l):
+    """Compute the mean of a list"""
+    return sum(l) / len(l)

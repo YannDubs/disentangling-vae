@@ -6,54 +6,17 @@ from configparser import ConfigParser
 
 from torch import optim
 
-from disvae.vae import VAE
-from disvae.encoder import get_Encoder
-from disvae.decoder import get_Decoder
-from disvae.training import Trainer
-from disvae.evaluate import Evaluator
+from disvae import init_specific_model, Trainer, Evaluator
+from disvae.utils.modelIO import save_model, load_model, load_metadata
 from utils.datasets import get_dataloaders, get_img_size
-from utils.modelIO import save_model, load_model, load_metadata
 from utils.helpers import (create_safe_directory, get_device, set_seed, get_n_param,
-                           get_config_section, update_namespace_)
+                           get_config_section, update_namespace_, FormatterNoDuplicate)
+from viz.visualize import Visualizer
 
 
 CONFIG_FILE = "hyperparam.ini"
 TEST_FILE = "test_losses.log"
 RES_DIR = "results"
-
-
-class FormatterNoDuplicate(argparse.ArgumentDefaultsHelpFormatter):
-    """Formatter overriding `argparse.ArgumentDefaultsHelpFormatter` to show
-    `-e, --epoch EPOCH` instead of `-e EPOCH, --epoch EPOCH`
-
-    Note
-    ----
-    - code modified from cPython: https://github.com/python/cpython/blob/master/Lib/argparse.py
-    """
-
-    def _format_action_invocation(self, action):
-        # no args given
-        if not action.option_strings:
-            default = self._get_default_metavar_for_positional(action)
-            metavar, = self._metavar_formatter(action, default)(1)
-            return metavar
-        else:
-            parts = []
-            # if the Optional doesn't take a value, format is:
-            #    -s, --long
-            if action.nargs == 0:
-                parts.extend(action.option_strings)
-            # if the Optional takes a value, format is:
-            #    -s ARGS, --long ARGS
-            else:
-                default = self._get_default_metavar_for_optional(action)
-                args_string = self._format_args(action, default)
-                for option_string in action.option_strings:
-                    # don't store the DEFAULT
-                    parts.append('%s' % (option_string))
-                # store DEFAULT for the last one
-                parts[-1] += ' %s' % args_string
-            return ', '.join(parts)
 
 
 def parse_arguments(args_to_parse):
@@ -230,13 +193,11 @@ def main(args):
                                        batch_size=args.batch_size,
                                        pin_memory=not args.no_cuda,
                                        logger=logger)
-        img_size = get_img_size(args.dataset)
         logger.info("Train {} with {} samples".format(args.dataset, len(train_loader.dataset)))
 
         # PREPARES MODEL
-        encoder = get_Encoder(args.model_type)
-        decoder = get_Decoder(args.model_type)
-        model = VAE(img_size, encoder, decoder, args.latent_dim)
+        args.img_size = get_img_size(args.dataset)  # stores for metadata
+        model = init_specific_model(args.model_type, args.img_size, args.latent_dim)
         logger.info('Num parameters in model: {}'.format(get_n_param(model)))
 
         # TRAINS
@@ -244,6 +205,9 @@ def main(args):
 
         loss_kwargs = vars(args).copy()
         loss_kwargs["data_size"] = len(train_loader.dataset)
+        model = model.to(device)  # make sure trainer and viz on same device
+        gif_visualizer = Visualizer(model, args.dataset, model_dir=exp_dir,
+                                    save_images=False)
         trainer = Trainer(model, optimizer,
                           loss_type=args.loss,
                           latent_dim=args.latent_dim,
@@ -253,7 +217,7 @@ def main(args):
                           save_dir=exp_dir,
                           is_progress_bar=not args.no_progress_bar,
                           checkpoint_every=args.checkpoint_every,
-                          dataset=args.dataset)
+                          gif_visualizer=gif_visualizer)
 
         trainer(train_loader, epochs=args.epochs)
 
