@@ -5,7 +5,7 @@
 
 for dataset in celeba dsprites chairs
 do
-    for loss in betaH betaB factor batchTC
+    for loss in betaH betaB factor #batchTC
     do
         python main.py "$loss"_"$dataset" -x "$loss"_"$dataset"  --no-progress-bar &
     done
