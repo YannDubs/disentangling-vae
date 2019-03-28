@@ -26,8 +26,10 @@ def get_loss_f(name, kwargs_parse={}):
                          gamma=kwargs_parse["betaB_G"])
     elif name == "factor":
         return FactorKLoss(kwargs_parse["device"],
+                           kwargs_parse["data_size"],
                            gamma=kwargs_parse["factor_G"],
-                           is_mutual_info=not kwargs_parse["no_mutual_info"])
+                           is_mutual_info=not kwargs_parse["no_mutual_info"],
+                           is_mss=not kwargs_parse["no_mss"])
     elif name == "batchTC":
         return BatchTCLoss(kwargs_parse["data_size"],
                            alpha=kwargs_parse["batchTC_A"],
@@ -194,14 +196,15 @@ class FactorKLoss(BaseLoss):
             arXiv preprint arXiv:1802.05983 (2018).
         """
 
-    def __init__(self, device, gamma=40.,
-                 is_mutual_info=True,
+    def __init__(self, device, data_size, gamma=40., is_mutual_info=True, is_mss=False,
                  disc_kwargs=dict(neg_slope=0.2, latent_dim=10, hidden_units=1000),
                  optim_kwargs=dict(lr=5e-4, betas=(0.5, 0.9))):
         super().__init__()
         self.gamma = gamma
+        self.data_size = data_size
         self.device = device
         self.is_mutual_info = is_mutual_info
+        self.is_mss = is_mss
 
         self.discriminator = Discriminator(**disc_kwargs).to(self.device)
 
@@ -235,8 +238,24 @@ class FactorKLoss(BaseLoss):
             vae_loss = rec_loss + kl_loss + self.gamma * tc_loss
         else:
             # return vae loss without mutual information term
+            # change latent dist to torch.tensor (could probably avoid this)
+            latent_dist = torch.stack((latent_dist[0], latent_dist[1]), dim=2)
+            # calculate log p(z)
+            prior_params = torch.zeros(half_batch_size, latent_dist.size(1), 2)
+            logpz = log_density_normal(latent_sample1, prior_params, half_batch_size,
+                                       return_matrix=False).view(half_batch_size, -1).sum(1)
+
+            if not self.is_mss:
+                # minibatch weighted sampling
+                _, logqz_prodmarginals = _minibatch_weighted_sampling(latent_dist, latent_sample1,
+                                                                      half_batch_size, self.data_size)
+            else:
+                # minibatch stratified sampling
+                _, logqz_prodmarginals = _minibatch_stratified_sampling(latent_dist, latent_sample1,
+                                                                        half_batch_size, self.data_size)
+
             gamma = self.gamma + 1
-            dw_kl_loss = _dimwise_kl_loss(*latent_dist, storer)
+            dw_kl_loss = (logqz_prodmarginals - logpz).mean()
             vae_loss = rec_loss + gamma * tc_loss + dw_kl_loss
 
         # if self.is_mutual_info:
@@ -289,6 +308,9 @@ class BatchTCLoss(BaseLoss):
 
         Parameters
         ----------
+        data_size: int
+            Size of the dataset
+
         alpha : float
             Weight of the mutual information term.
 
@@ -329,26 +351,21 @@ class BatchTCLoss(BaseLoss):
         # calculate log q(z|x) and _log q(z) matrix
         logqz_condx = log_density_normal(latent_sample, latent_dist, batch_size,
                                          return_matrix=False).sum(dim=1)
-        _logqz = log_density_normal(latent_sample, latent_dist, batch_size,
-                                    return_matrix=True)
-        # calculate lop p(z)
+
+        # calculate log p(z)
         prior_params = torch.zeros(batch_size, latent_dist.size(1), 2)
         logpz = log_density_normal(latent_sample, prior_params, batch_size,
                                    return_matrix=False).view(batch_size, -1).sum(1)
 
         if not self.is_mss:
             # minibatch weighted sampling
-            logqz_prodmarginals = (torch.logsumexp(_logqz, dim=1, keepdim=False) -
-                                   math.log(batch_size * self.dataset_size)).sum(dim=1)
-            logqz = torch.logsumexp(_logqz.sum(2), dim=1, keepdim=False) \
-                - math.log(batch_size * self.dataset_size)
+            logqz, logqz_prodmarginals = _minibatch_weighted_sampling(latent_dist, latent_sample,
+                                                                      batch_size, self.dataset_size)
+
         else:
             # minibatch stratified sampling
-            logiw_matrix = log_importance_weight_matrix(batch_size, self.dataset_size
-                                                        ).to(latent_dist.device)
-            logqz = torch.logsumexp(logiw_matrix + _logqz.sum(2), dim=1, keepdim=False)
-            logqz_prodmarginals = torch.logsumexp(logiw_matrix.view(batch_size, batch_size, 1) +
-                                                  _logqz, dim=1, keepdim=False).sum(1)
+            logqz, logqz_prodmarginals = _minibatch_stratified_sampling(latent_dist, latent_sample,
+                                                                        batch_size, self.dataset_size)
 
         # rec loss, mutual information, total correlation and dim-wise kl
         rec_loss = _reconstruction_loss(data, recon_batch, storer=storer)
@@ -371,6 +388,86 @@ class BatchTCLoss(BaseLoss):
                 storer['kl_loss_' + str(i)].append(tc_loss_vec[i].item())
 
         return loss
+
+def _minibatch_weighted_sampling(latent_dist, latent_sample, batch_size, dataset_size):
+    """
+        Calculates the dimension-wise KL divergence between posterior and prior for each
+        latent dimension.
+
+        Parameters
+        ----------
+        _logqz : torch.Tensor
+            Mean of the normal distribution. Shape (batch_size, latent_dim) where
+            D is dimension of distribution.
+
+        batch_size : torch.Tensor
+            Diagonal log variance of the normal distribution. Shape (batch_size,
+            latent_dim)
+
+        dataset_size : dict
+            Dictionary in which to store important variables for vizualisation.
+        """
+    _logqz = log_density_normal(latent_sample, latent_dist,
+                                batch_size, return_matrix=True)
+    logqz_prodmarginals = (torch.logsumexp(_logqz, dim=1, keepdim=False) -
+                           math.log(batch_size * dataset_size)).sum(dim=1)
+    logqz = torch.logsumexp(_logqz.sum(2), dim=1, keepdim=False) \
+            - math.log(batch_size * dataset_size)
+
+    return logqz, logqz_prodmarginals
+
+def _minibatch_stratified_sampling(latent_dist, latent_sample, batch_size, dataset_size):
+    """
+        Calculates the dimension-wise KL divergence between posterior and prior for each
+        latent dimension.
+
+        Parameters
+        ----------
+        mean : torch.Tensor
+            Mean of the normal distribution. Shape (batch_size, latent_dim) where
+            D is dimension of distribution.
+
+        logvar : torch.Tensor
+            Diagonal log variance of the normal distribution. Shape (batch_size,
+            latent_dim)
+
+        storer : dict
+            Dictionary in which to store important variables for vizualisation.
+        """
+    _logqz = log_density_normal(latent_sample, latent_dist,
+                                batch_size, return_matrix=True)
+    logiw_matrix = log_importance_weight_matrix(batch_size, dataset_size)#.to(latent_dist.device)
+    logqz = torch.logsumexp(logiw_matrix + _logqz.sum(2), dim=1, keepdim=False)
+    logqz_prodmarginals = torch.logsumexp(logiw_matrix.view(batch_size, batch_size, 1) +
+                                          _logqz, dim=1, keepdim=False).sum(1)
+
+    return logqz, logqz_prodmarginals
+
+def _dimwise_kl_loss(mean, logvar, storer=None):
+    """
+        Calculates the dimension-wise KL divergence between posterior and prior for each
+        latent dimension.
+
+        Parameters
+        ----------
+        mean : torch.Tensor
+            Mean of the normal distribution. Shape (batch_size, latent_dim) where
+            D is dimension of distribution.
+
+        logvar : torch.Tensor
+            Diagonal log variance of the normal distribution. Shape (batch_size,
+            latent_dim)
+
+        storer : dict
+            Dictionary in which to store important variables for vizualisation.
+        """
+    dw_kl = (- 0.5 * logvar + 0.5 * (torch.exp(logvar + torch.pow(mean, 2)))
+             - 0.5).sum(dim=1).mean()
+
+    if storer is not None:
+        storer['dw_kl_loss'].append(dw_kl.item())
+
+    return dw_k
 
 def _reconstruction_loss(data, recon_data, distribution="bernoulli", storer=None):
     """
