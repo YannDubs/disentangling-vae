@@ -331,6 +331,10 @@ class BatchTCLoss(BaseLoss):
                                          return_matrix=False).sum(dim=1)
         _logqz = log_density_normal(latent_sample, latent_dist, batch_size,
                                     return_matrix=True)
+        # calculate lop p(z)
+        prior_params = torch.zeros(batch_size, latent_dist.size(1), 2)
+        logpz = log_density_normal(latent_sample, prior_params, batch_size,
+                                   return_matrix=False).view(batch_size, -1).sum(1)
 
         if not self.is_mss:
             # minibatch weighted sampling
@@ -350,7 +354,7 @@ class BatchTCLoss(BaseLoss):
         rec_loss = _reconstruction_loss(data, recon_batch, storer=storer)
         mi_loss = (logqz_condx - logqz).mean()
         tc_loss = (logqz - logqz_prodmarginals).mean()
-        dw_kl_loss = _dimwise_kl_loss(latent_dist[::, 0], latent_dist[::, 1], storer=storer)
+        dw_kl_loss = (logqz_prodmarginals - logpz).mean()
 
         # total loss
         loss = rec_loss + self.alpha * mi_loss + self.beta * tc_loss + self.gamma * dw_kl_loss
@@ -359,6 +363,7 @@ class BatchTCLoss(BaseLoss):
             storer['loss'].append(loss.item())
             storer['mi_loss'].append(mi_loss.item())
             storer['tc_loss'].append(tc_loss.item())
+            storer['dw_kl_loss'].append(dw_kl_loss.item())
 
             # TODO Remove this when visualisation fixed
             tc_loss_vec = (logqz - logqz_prodmarginals)
@@ -366,34 +371,6 @@ class BatchTCLoss(BaseLoss):
                 storer['kl_loss_' + str(i)].append(tc_loss_vec[i].item())
 
         return loss
-
-
-def _dimwise_kl_loss(mean, logvar, storer=None):
-    """
-        Calculates the dimension-wise KL divergence between posterior and prior for each
-        latent dimension.
-
-        Parameters
-        ----------
-        mean : torch.Tensor
-            Mean of the normal distribution. Shape (batch_size, latent_dim) where
-            D is dimension of distribution.
-
-        logvar : torch.Tensor
-            Diagonal log variance of the normal distribution. Shape (batch_size,
-            latent_dim)
-
-        storer : dict
-            Dictionary in which to store important variables for vizualisation.
-        """
-    dw_kl = (- 0.5 * logvar + 0.5 * (torch.exp(logvar + torch.pow(mean, 2)))
-             - 0.5).sum(dim=1).mean()
-
-    if storer is not None:
-        storer['dw_kl_loss'].append(dw_kl.item())
-
-    return dw_kl
-
 
 def _reconstruction_loss(data, recon_data, distribution="bernoulli", storer=None):
     """
