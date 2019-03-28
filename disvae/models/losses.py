@@ -2,37 +2,38 @@
 Module containing all vae losses.
 """
 import abc
+import math
+
 import torch
 from torch.nn import functional as F
 from torch import optim
-from disvae.discriminator import Discriminator
-from utils.math import log_density_normal, log_importance_weight_matrix
-import math
+
+from .discriminator import Discriminator
+from disvae.utils.math import log_density_normal, log_importance_weight_matrix
 
 
-def get_loss_f(name, capacity=None, alpha=None, beta=None, gamma=None,
-               data_size=None, is_mss=False, is_mutual_info=True, device=None):
-    """Return the correct loss function."""
+# TO-DO: clean data_size and device
+def get_loss_f(name, kwargs_parse={}):
+    """Return the correct loss function given the argparse arguments."""
     if name == "betaH":
-        return BetaHLoss(beta)
+        return BetaHLoss(beta=kwargs_parse["betaH_B"])
     elif name == "VAE":
         return BetaHLoss(beta=1)
     elif name == "betaB":
-        return BetaBLoss(C_min=capacity[0],
-                         C_max=capacity[1],
-                         C_n_interp=capacity[2],
-                         gamma=capacity[3])
+        return BetaBLoss(C_init=kwargs_parse["betaB_initC"],
+                         C_fin=kwargs_parse["betaB_finC"],
+                         C_n_interp=kwargs_parse["betaB_stepsC"],
+                         gamma=kwargs_parse["betaB_G"])
     elif name == "factor":
-        return FactorKLoss(device,
-                           beta,
-                           is_mutual_info)
+        return FactorKLoss(kwargs_parse["device"],
+                           gamma=kwargs_parse["factor_G"],
+                           is_mutual_info=not kwargs_parse["no_mutual_info"])
     elif name == "batchTC":
-        return BatchTCLoss(data_size,
-                           alpha,
-                           beta,
-                           gamma,
-                           is_mss)
-        # Paper : Isolating Sources of Disentanglement in VAEs
+        return BatchTCLoss(kwargs_parse["data_size"],
+                           alpha=kwargs_parse["batchTC_A"],
+                           beta=kwargs_parse["batchTC_B"],
+                           gamma=kwargs_parse["batchTC_G"],
+                           is_mss=not kwargs_parse["no_mss"])
     else:
         raise ValueError("Uknown loss : {}".format(name))
 
@@ -54,7 +55,7 @@ class BaseLoss(abc.ABC):
     @abc.abstractmethod
     def __call__(self, data, recon_data, latent_dist, is_train, storer):
         """
-        Calculates loss for a batch of data.
+        Calculates loss for average over a batch of data (not over pixels!).
 
         Parameters
         ----------
@@ -122,14 +123,14 @@ class BetaBLoss(BaseLoss):
 
     Parameters
     ----------
-    C_min : float, optional
-        Starting capacity C.
+    C_init : float, optional
+        Starting annealed capacity C.
 
-    C_max : float, optional
-        Final capacity C.
+    C_fin : float, optional
+        Final annealed capacity C.
 
     C_n_interp : float, optional
-        Number of interpolating steps for C.
+        Number of training iterations for interpolating C.
 
     gamma : float, optional
         Weight of the KL divergence term.
@@ -139,11 +140,11 @@ class BetaBLoss(BaseLoss):
         $\beta$-VAE." arXiv preprint arXiv:1804.03599 (2018).
     """
 
-    def __init__(self, C_min=0., C_max=5., C_n_interp=25000, gamma=30.):
+    def __init__(self, C_init=0., C_fin=5., C_n_interp=25000, gamma=30.):
         super().__init__()
         self.gamma = gamma
-        self.C_min = C_min
-        self.C_max = C_max
+        self.C_init = C_init
+        self.C_fin = C_fin
         self.C_n_interp = C_n_interp
 
     def __call__(self, data, recon_data, latent_dist, is_train, storer):
@@ -154,11 +155,11 @@ class BetaBLoss(BaseLoss):
 
         if is_train:
             # linearly increasing C
-            assert self.C_max > self.C_min
-            C_delta = (self.C_max - self.C_min)
-            C = min(self.C_min + C_delta * self.n_train_steps / self.C_n_interp, self.C_max)
+            assert self.C_fin > self.C_init
+            C_delta = (self.C_fin - self.C_init)
+            C = min(self.C_init + C_delta * self.n_train_steps / self.C_n_interp, self.C_fin)
         else:
-            C = self.C_max
+            C = self.C_fin
 
         loss = rec_loss + self.gamma * (kl_loss - C).abs()
 
@@ -193,12 +194,12 @@ class FactorKLoss(BaseLoss):
             arXiv preprint arXiv:1802.05983 (2018).
         """
 
-    def __init__(self, device, beta=40.,
+    def __init__(self, device, gamma=40.,
                  is_mutual_info=True,
                  disc_kwargs=dict(neg_slope=0.2, latent_dim=10, hidden_units=1000),
                  optim_kwargs=dict(lr=5e-4, betas=(0.5, 0.9))):
         super().__init__()
-        self.beta = beta
+        self.gamma = gamma
         self.device = device
         self.is_mutual_info = is_mutual_info
 
@@ -220,24 +221,23 @@ class FactorKLoss(BaseLoss):
         recon_batch, latent_dist, latent_sample1 = model(data1)
         rec_loss = _reconstruction_loss(data1, recon_batch, storer=storer)
         # TODO: remove this kl_loss term once viz is sorted
-        #https://github.com/YannDubs/disentangling-vae/pull/25#issuecomment-473535863
+        # https://github.com/YannDubs/disentangling-vae/pull/25#issuecomment-473535863
         kl_loss = _kl_normal_loss(*latent_dist, storer)
         d_z = self.discriminator(latent_sample1)
-        
+
         # clamping to 0 because TC cannot be negative : TEST
         tc_loss = (F.logsigmoid(d_z) - F.logsigmoid(1 - d_z)).clamp(0).mean()
-
 
         # TODO replace this code with the following commented out code after viz is fixed
         # https://github.com/YannDubs/disentangling-vae/pull/25#issuecomment-473535863
         if self.is_mutual_info:
             # return vae loss
-            vae_loss = rec_loss + kl_loss + self.beta * tc_loss
+            vae_loss = rec_loss + kl_loss + self.gamma * tc_loss
         else:
             # return vae loss without mutual information term
-            beta = self.beta + 1
+            gamma = self.gamma + 1
             dw_kl_loss = _dimwise_kl_loss(*latent_dist, storer)
-            vae_loss = rec_loss + beta * tc_loss + dw_kl_loss
+            vae_loss = rec_loss + gamma * tc_loss + dw_kl_loss
 
         # if self.is_mutual_info:
         #     beta = self.beta
@@ -281,6 +281,7 @@ class FactorKLoss(BaseLoss):
 
         return vae_loss
 
+
 class BatchTCLoss(BaseLoss):
     """
         Compute the decomposed KL loss with either minibatch weighted sampling or
@@ -311,12 +312,12 @@ class BatchTCLoss(BaseLoss):
 
     def __init__(self, data_size, alpha=1., beta=6., gamma=1., is_mss=False):
         super().__init__()
-        #beta values: dsprites: 6, celeba: 15
+        # beta values: dsprites: 6, celeba: 15
         self.dataset_size = data_size
         self.beta = beta
         self.alpha = alpha
         self.gamma = gamma
-        self.is_mss = is_mss # minibatch stratified sampling
+        self.is_mss = is_mss  # minibatch stratified sampling
 
     def __call__(self, data, recon_batch, latent_dist, is_train, storer, latent_sample=None):
         storer = self._pre_call(is_train, storer)
@@ -326,27 +327,30 @@ class BatchTCLoss(BaseLoss):
         latent_dist = torch.stack((latent_dist[0], latent_dist[1]), dim=2)
 
         # calculate log q(z|x) and _log q(z) matrix
-        logqz_condx = log_density_normal(latent_sample, latent_dist, batch_size, return_matrix=False).sum(dim=1)
-        _logqz = log_density_normal(latent_sample, latent_dist, batch_size, return_matrix=True)
+        logqz_condx = log_density_normal(latent_sample, latent_dist, batch_size,
+                                         return_matrix=False).sum(dim=1)
+        _logqz = log_density_normal(latent_sample, latent_dist, batch_size,
+                                    return_matrix=True)
 
         if not self.is_mss:
             # minibatch weighted sampling
-            logqz_prodmarginals = (torch.logsumexp(_logqz, dim=1, keepdim=False)
-                                   - math.log(batch_size * self.dataset_size)).sum(dim=1)
+            logqz_prodmarginals = (torch.logsumexp(_logqz, dim=1, keepdim=False) -
+                                   math.log(batch_size * self.dataset_size)).sum(dim=1)
             logqz = torch.logsumexp(_logqz.sum(2), dim=1, keepdim=False) \
-                    - math.log(batch_size * self.dataset_size)
+                - math.log(batch_size * self.dataset_size)
         else:
             # minibatch stratified sampling
-            logiw_matrix = log_importance_weight_matrix(batch_size, self.dataset_size)
+            logiw_matrix = log_importance_weight_matrix(batch_size, self.dataset_size
+                                                        ).to(latent_dist.device)
             logqz = torch.logsumexp(logiw_matrix + _logqz.sum(2), dim=1, keepdim=False)
-            logqz_prodmarginals = torch.logsumexp(logiw_matrix.view(batch_size, batch_size, 1)
-                                                  + _logqz, dim=1, keepdim=False).sum(1)
+            logqz_prodmarginals = torch.logsumexp(logiw_matrix.view(batch_size, batch_size, 1) +
+                                                  _logqz, dim=1, keepdim=False).sum(1)
 
         # rec loss, mutual information, total correlation and dim-wise kl
         rec_loss = _reconstruction_loss(data, recon_batch, storer=storer)
         mi_loss = (logqz_condx - logqz).mean()
         tc_loss = (logqz - logqz_prodmarginals).mean()
-        dw_kl_loss = _dimwise_kl_loss(latent_dist[::,0],latent_dist[::,1], storer=storer)
+        dw_kl_loss = _dimwise_kl_loss(latent_dist[::, 0], latent_dist[::, 1], storer=storer)
 
         # total loss
         loss = rec_loss + self.alpha * mi_loss + self.beta * tc_loss + self.gamma * dw_kl_loss
@@ -362,6 +366,7 @@ class BatchTCLoss(BaseLoss):
                 storer['kl_loss_' + str(i)].append(tc_loss_vec[i].item())
 
         return loss
+
 
 def _dimwise_kl_loss(mean, logvar, storer=None):
     """
@@ -388,6 +393,7 @@ def _dimwise_kl_loss(mean, logvar, storer=None):
         storer['dw_kl_loss'].append(dw_kl.item())
 
     return dw_kl
+
 
 def _reconstruction_loss(data, recon_data, distribution="bernoulli", storer=None):
     """

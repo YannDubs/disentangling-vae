@@ -12,6 +12,9 @@ from viz.viz_helpers import (reorder_img, read_avg_kl_from_file, add_labels,
                              upsample, make_grid_img)
 
 
+TRAIN_FILE = "train_losses.log"
+
+
 class Visualizer():
     def __init__(self, model, dataset, model_dir=None, save_images=True):
         """
@@ -107,7 +110,7 @@ class Visualizer():
             sample = self.model.sample_latent(input_data)
         # means = latent_dist[1]
 
-        avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, 'losses.log'), self.model.latent_dim)
+        avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, TRAIN_FILE), self.model.latent_dim)
 
         # Perform line traversal of every latent
         latent_samples = []
@@ -355,7 +358,8 @@ class Visualizer():
                                  nrow=size[1],
                                  pad_value=(1 - get_background(self.dataset)))
 
-    def all_latent_traversals(self, sample_latent_space=None, size=8, filename='imgs/all_traversals.png'):
+    def all_latent_traversals(self, sample_latent_space=None, size=8,
+                              filename='imgs/all_traversals.png'):
         """
         Traverses all latent dimensions one by one and plots a grid of images
         where each row corresponds to a latent traversal of one latent
@@ -370,29 +374,24 @@ class Visualizer():
         size : int
             Number of samples for each latent traversal.
         """
-        #TODO Need to sort the visualisation issue here, we no longer use KL divergence in the same way for all losses
-        # https://github.com/YannDubs/disentangling-vae/pull/25#issuecomment-473535863
-
         latent_samples = []
-
-        avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, 'losses.log'), self.model.latent_dim)
-
         # Perform line traversal of every latent
         for idx in range(self.model.latent_dim):
             latent_samples.append(self.latent_traverser.traverse_line(idx=idx,
                                                                       size=size,
                                                                       sample_latent_space=sample_latent_space))
-        latent_samples = [
-            latent_sample for _, latent_sample in sorted(zip(avg_kl_list, latent_samples), reverse=True)
-        ]
-        sorted_avg_kl_list = [
-            round(float(avg_kl_sample), 3) for avg_kl_sample, _ in sorted(zip(avg_kl_list, latent_samples), reverse=True)
-        ]
 
         # Decode samples
         generated = self._decode_latents(torch.cat(latent_samples, dim=0))
 
         if self.save_images:
+            sorted_avg_kl_list = None
+            avg_kl_list = None
+            # TODO: sorting should be done outside of function
+            # currently not working
+            # the best would be to return the image in this function (no if)
+            # sort in an other function
+            # and save after calling those functions
             traversal_images_with_text = add_labels(
                 label_name='KL',
                 tensor=generated,
