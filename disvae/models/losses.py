@@ -360,12 +360,12 @@ class BatchTCLoss(BaseLoss):
         if not self.is_mss:
             # minibatch weighted sampling
             logqz, logqz_prodmarginals = _minibatch_weighted_sampling(latent_dist, latent_sample,
-                                                                      batch_size, self.dataset_size)
+                                                                      self.dataset_size)
 
         else:
             # minibatch stratified sampling
             logqz, logqz_prodmarginals = _minibatch_stratified_sampling(latent_dist, latent_sample,
-                                                                        batch_size, self.dataset_size)
+                                                                        self.dataset_size)
 
         # rec loss, mutual information, total correlation and dim-wise kl
         rec_loss = _reconstruction_loss(data, recon_batch, storer=storer)
@@ -389,85 +389,69 @@ class BatchTCLoss(BaseLoss):
 
         return loss
 
-def _minibatch_weighted_sampling(latent_dist, latent_sample, batch_size, dataset_size):
+def _minibatch_weighted_sampling(latent_dist, latent_sample, data_size):
     """
-        Calculates the dimension-wise KL divergence between posterior and prior for each
-        latent dimension.
+        Estimates log q(z) and the log (product of marginals of q(z_j)) with minibatch
+        weighted sampling.
 
         Parameters
         ----------
-        _logqz : torch.Tensor
-            Mean of the normal distribution. Shape (batch_size, latent_dim) where
-            D is dimension of distribution.
+        latent_dist : torch.Tensor
+            Mean and logvar of the normal distribution. Shape (batch_size, latent_dim, 2)
 
-        batch_size : torch.Tensor
-            Diagonal log variance of the normal distribution. Shape (batch_size,
-            latent_dim)
+        latent_sample: torch.Tensor
+            sample from the latent dimension using the reparameterisation trick
+            shape : (batch_size, latent_dim).
 
-        dataset_size : dict
-            Dictionary in which to store important variables for vizualisation.
+        data_size : int
+            Number of data in the training set
+
+        References :
+           [1] Chen, Tian Qi, et al. "Isolating sources of disentanglement in variational
+           autoencoders." Advances in Neural Information Processing Systems. 2018.
         """
+    batch_size = latent_dist.size(0)
+
     _logqz = log_density_normal(latent_sample, latent_dist,
                                 batch_size, return_matrix=True)
     logqz_prodmarginals = (torch.logsumexp(_logqz, dim=1, keepdim=False) -
-                           math.log(batch_size * dataset_size)).sum(dim=1)
+                           math.log(batch_size * data_size)).sum(dim=1)
     logqz = torch.logsumexp(_logqz.sum(2), dim=1, keepdim=False) \
-            - math.log(batch_size * dataset_size)
+            - math.log(batch_size * data_size)
 
     return logqz, logqz_prodmarginals
 
-def _minibatch_stratified_sampling(latent_dist, latent_sample, batch_size, dataset_size):
+def _minibatch_stratified_sampling(latent_dist, latent_sample, data_size):
     """
-        Calculates the dimension-wise KL divergence between posterior and prior for each
-        latent dimension.
+        Estimates log q(z) and the log (product of marginals of q(z_j)) with minibatch
+        stratified sampling.
 
         Parameters
         ----------
-        mean : torch.Tensor
-            Mean of the normal distribution. Shape (batch_size, latent_dim) where
-            D is dimension of distribution.
+        latent_dist : torch.Tensor
+            Mean and logvar of the normal distribution. Shape (batch_size, latent_dim, 2)
 
-        logvar : torch.Tensor
-            Diagonal log variance of the normal distribution. Shape (batch_size,
-            latent_dim)
+        latent_sample: torch.Tensor
+            sample from the latent dimension using the reparameterisation trick
+            shape : (batch_size, latent_dim).
 
-        storer : dict
-            Dictionary in which to store important variables for vizualisation.
+        data_size : int
+            Number of data in the training set
+
+        References :
+           [1] Chen, Tian Qi, et al. "Isolating sources of disentanglement in variational
+           autoencoders." Advances in Neural Information Processing Systems. 2018.
         """
+    batch_size = latent_dist.size(0)
+
     _logqz = log_density_normal(latent_sample, latent_dist,
                                 batch_size, return_matrix=True)
-    logiw_matrix = log_importance_weight_matrix(batch_size, dataset_size)#.to(latent_dist.device)
+    logiw_matrix = log_importance_weight_matrix(batch_size, data_size)#.to(latent_dist.device)
     logqz = torch.logsumexp(logiw_matrix + _logqz.sum(2), dim=1, keepdim=False)
     logqz_prodmarginals = torch.logsumexp(logiw_matrix.view(batch_size, batch_size, 1) +
                                           _logqz, dim=1, keepdim=False).sum(1)
 
     return logqz, logqz_prodmarginals
-
-def _dimwise_kl_loss(mean, logvar, storer=None):
-    """
-        Calculates the dimension-wise KL divergence between posterior and prior for each
-        latent dimension.
-
-        Parameters
-        ----------
-        mean : torch.Tensor
-            Mean of the normal distribution. Shape (batch_size, latent_dim) where
-            D is dimension of distribution.
-
-        logvar : torch.Tensor
-            Diagonal log variance of the normal distribution. Shape (batch_size,
-            latent_dim)
-
-        storer : dict
-            Dictionary in which to store important variables for vizualisation.
-        """
-    dw_kl = (- 0.5 * logvar + 0.5 * (torch.exp(logvar + torch.pow(mean, 2)))
-             - 0.5).sum(dim=1).mean()
-
-    if storer is not None:
-        storer['dw_kl_loss'].append(dw_kl.item())
-
-    return dw_k
 
 def _reconstruction_loss(data, recon_data, distribution="bernoulli", storer=None):
     """
