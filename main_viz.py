@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import torch
 
 import numpy as np
@@ -13,28 +14,16 @@ from viz.log_plotter import LogPlotter
 
 from main import RES_DIR
 from disvae import init_specific_model
-from disvae.utils.modelIO import load_model, load_checkpoints
+from disvae.utils.modelIO import load_model, load_checkpoints, load_metadata
 
 
-def read_dataset_from_specs(path_to_specs):
-    """ read the spec file from the path given
-    """
-    # Open specs file
-    with open(path_to_specs) as specs_file:
-        specs = json.load(specs_file)
-    dataset = specs["dataset"]
-    return dataset
-
-
-def read_capacity_from_file(path_to_specs):
+def read_capacity_from_file(experiment_name):
     """ Read and return the min capacity, max capacity, interpolation, gamma as a tuple if the capacity
         is variable. Otherwise return the constant capacity as is.
     """
-    # Open specs file
-    with open(path_to_specs) as specs_file:
-        specs = json.load(specs_file)
+    meta_data = load_metadata(os.path.join(RES_DIR, experiment_name))
+    capacity = meta_data['capacity']
 
-    capacity = specs["capacity"]
     if isinstance(capacity, list):
         min_capacity = capacity[0]
         max_capacity = capacity[1]
@@ -45,28 +34,45 @@ def read_capacity_from_file(path_to_specs):
         return capacity
 
 
-def samples(experiment_name, num_samples=1, batch_size=1, shuffle=True):
+def samples(experiment_name, num_samples=1, shuffle=True):
     """ generate a number of samples from the dataset
     """
-    # TODO: use load_metadata in utils.modelIO + don't just use "specs.json"
-    # that might change, so even if load_metadat didn't exist you should import
-    # META_FILENAME. FIlenames should only be defined once in the whole codebase
-    # if not it's hard to maintain!
-    with open('{}/{}/specs.json'.format(RES_DIR, experiment_name)) as spec_file:
-        spec_data = json.load(spec_file)
-        dataset_name = spec_data['dataset']
+    meta_data = load_metadata(os.path.join(RES_DIR, experiment_name))
+    dataset_name = meta_data['dataset']
 
-        data_loader = get_dataloaders(batch_size=batch_size, dataset=dataset_name, shuffle=shuffle)
+    data_loader = get_dataloaders(batch_size=num_samples, dataset=dataset_name, shuffle=shuffle)
 
-        data_list = []
-        for batch_idx, (new_data, _) in enumerate(data_loader):
-            if num_samples == batch_idx:
-                break
-            data_list.append(new_data)
-        return torch.cat(data_list, dim=0)
+    data_list = []
+    for batch_idx, (new_data, _) in enumerate(data_loader):
+        if num_samples == batch_idx:
+            break
+        data_list.append(new_data)
+    return torch.cat(data_list, dim=0)
 
 
-def snapshot_reconstruction(viz_list, epoch_list, experiment_name, num_samples, dataset, shuffle=True, file_name='imgs/snapshot_recon.png'):
+def get_sample(experiment_name, samples_to_retrieve):
+    """ Retrieve a particular sample, or set of samples from the dataset.
+    """
+    dataset = load_metadata(os.path.join(RES_DIR, experiment_name))["dataset"]
+    if isinstance(samples_to_retrieve, list):
+        num_samples = len(samples_to_retrieve)
+    else:
+        num_samples = 1
+    data_loader = get_dataloaders(dataset, shuffle=False, batch_size=num_samples)
+
+    data_list = []
+    for sample_idx in range(num_samples):
+
+        if num_samples == 1:
+            return data_loader.dataset[samples_to_retrieve]
+
+        new_data = data_loader.dataset[samples_to_retrieve[sample_idx]]
+        data_list.append(new_data)
+
+    return torch.cat(data_list, dim=0)
+
+
+def snapshot_reconstruction(viz_list, epoch_list, experiment_name, num_samples, dataset, shuffle=True, file_name='snapshot_recon.png'):
     """ Reconstruct some data samples at different stages of training.
     """
     tensor_image_list = []
@@ -81,9 +87,7 @@ def snapshot_reconstruction(viz_list, epoch_list, experiment_name, num_samples, 
         tensor_image_list.append(tensor_image)
 
     reconstructions = torch.stack(tensor_image_list, dim=0)
-
-    path_to_specs = '{}/{}/specs.json'.format(RES_DIR, experiment_name)
-    capacity = read_capacity_from_file(path_to_specs)
+    capacity = read_capacity_from_file(experiment_name)
 
     if isinstance(capacity, tuple):
         capacity_list = np.linspace(capacity[0], capacity[1], capacity[2]).tolist()
@@ -112,11 +116,9 @@ def parse_arguments():
                                      formatter_class=FormatterNoDuplicate)
 
     experiment = parser.add_argument_group('Predefined experiments')
-    experiment_options = ['custom', 'vae_blob_x_y', 'beta_vae_blob_x_y', 'beta_vae_dsprite',
-                          'beta_vae_celeba', 'beta_vae_colour_dsprite', 'beta_vae_chairs']
-    experiment.add_argument('-x', '--experiment',
-                            default='custom', choices=experiment_options,
-                            help='Predefined experiments to run. If not `custom` this will set the correct other arguments.')
+    experiment.add_argument('-m', '--model_dir',
+                            default='custom', type=str,
+                            help='The name of the directory in which the model to run has been saved. This should be the name of the experiment')
 
     visualisation = parser.add_argument_group('Desired Visualisation')
     visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction',
@@ -140,22 +142,23 @@ def parse_arguments():
 def main(args):
     """ The primary entry point for carrying out experiments on pretrained models.
     """
-    experiment_name = args.experiment
-    dataset = read_dataset_from_specs('{}/{}/specs.json'.format(RES_DIR, experiment_name))
+    experiment_name = args.model_dir
+    meta_data = load_metadata(os.path.join(RES_DIR, experiment_name))
+    dataset_name = meta_data['dataset']
 
     if args.visualisation == 'snapshot_recon':
         viz_list = []
         epoch_list = []
-        model_list = load_model(directory='{}/{}'.format(RES_DIR, experiment_name), load_snapshots=True)
+        model_list = load_checkpoints(directory=os.path.join(RES_DIR, experiment_name))
         for epoch_index, model in model_list:
             model.eval()
-            viz_list.append(Visualizer(model=model, model_dir='{}/{}'.format(RES_DIR, experiment_name), dataset=dataset, save_images=False))
+            viz_list.append(Visualizer(model=model, model_dir='{}/{}'.format(RES_DIR, experiment_name), dataset=dataset_name, save_images=False))
             epoch_list.append(epoch_index)
 
     elif not args.visualisation == 'display_avg_KL':
-        model = load_model('{}/{}'.format(RES_DIR, experiment_name))
+        model = load_model(os.path.join(RES_DIR, experiment_name))
         model.eval()
-        viz = Visualizer(model=model, model_dir='{}/{}'.format(RES_DIR, experiment_name), dataset=dataset)
+        viz = Visualizer(model=model, model_dir=os.path.join(RES_DIR, experiment_name), dataset=dataset_name)
 
     visualisation_options = {
         'random_samples': lambda: viz.samples(),
@@ -173,7 +176,7 @@ def main(args):
         'display_avg_KL': lambda: LogPlotter(log_dir=args.log_dir, output_file_name=args.output_file_name),
         'snapshot_recon': lambda: snapshot_reconstruction(
             viz_list=viz_list, epoch_list=epoch_list, experiment_name=experiment_name,
-            num_samples=args.num_samples, dataset=dataset, shuffle=True)
+            num_samples=args.num_samples, dataset=dataset_name, shuffle=True)
     }
 
     return visualisation_options.get(args.visualisation, lambda: "Invalid visualisation option")()

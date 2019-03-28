@@ -70,7 +70,7 @@ class Evaluator:
             metric, H_z, H_zCv = self.mutual_information_gap(data_loader)
 
             # TODO: AAM METRIC
-            # TODO: stor in a dictionary rather than pytorch tensors
+            # TODO: store in a dictionary rather than pytorch tensors
             torch.save({'metric': metric, 'marginal_entropies': H_z, 'cond_entropies': H_zCv},
                        os.path.join(self.save_dir, 'disentanglement_metric.pth'))
 

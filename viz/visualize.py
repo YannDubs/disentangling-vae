@@ -41,7 +41,7 @@ class Visualizer():
         self.model_dir = model_dir
         self.dataset = dataset
 
-    def show_disentanglement_fig2(self, reconstruction_data, latent_sweep_data, heat_map_data, latent_order=None, heat_map_size=(32, 32), filename='imgs/show_disentanglement.png', size=8, sample_latent_space=None):
+    def show_disentanglement_fig2(self, reconstruction_data, latent_sweep_data, heat_map_data, latent_order=None, heat_map_size=(32, 32), filename='show_disentanglement.png', size=8, sample_latent_space=None):
         """ Reproduce Figure 2 from Burgess https://arxiv.org/pdf/1804.03599.pdf
             TODO: STILL TO BE IMPLEMENTED
         """
@@ -156,7 +156,7 @@ class Visualizer():
         else:
             return make_grid(combined_torch.data, nrow=size, pad_value=(1 - get_background(self.dataset)))
 
-    def generate_heat_maps(self, data, latent_order=None, heat_map_size=(32, 32), filename='imgs/heatmap.png'):
+    def generate_heat_maps(self, data, latent_order=None, heat_map_size=(32, 32), filename='heatmap.png'):
         """
         Generates heat maps of the mean of each latent dimension in the model. The spites are
         assumed to be in order, therefore no information about (x,y) positions is required.
@@ -205,7 +205,7 @@ class Visualizer():
             else:
                 return make_grid(heat_map.data, nrow=latent_dim, pad_value=(1 - get_background(self.dataset)))
 
-    def recon_and_traverse_all(self, data, filename='imgs/recon_and_traverse.png'):
+    def recon_and_traverse_all(self, data, filename='recon_and_traverse.png'):
         """
         Take 8 sample images, run them through the decoder, obtain the mean latent
         space vector. With this as the initialisation, traverse each dimension one
@@ -227,7 +227,7 @@ class Visualizer():
             sample = self.model.sample_latent(input_data)
         return self.all_latent_traversals(sample_latent_space=sample, filename=filename)
 
-    def reconstruction_comparisons(self, data, size=(8, 8), filename='imgs/recon_comp.png', exclude_original=False, exclude_recon=False):
+    def reconstruction_comparisons(self, data, size=(8, 8), filename='recon_comp.png', exclude_original=False, exclude_recon=False):
         """
         Generates reconstructions of data through the model.
 
@@ -284,7 +284,7 @@ class Visualizer():
                                  nrow=size[0],
                                  pad_value=(1 - get_background(self.dataset)))
 
-    def samples(self, size=(8, 8), filename='imgs/samples.png'):
+    def samples(self, size=(8, 8), filename='samples.png'):
         """
         Generates samples from learned distribution by sampling prior and
         decoding.
@@ -308,7 +308,7 @@ class Visualizer():
                                  pad_value=(1 - get_background(self.dataset)))
 
     def latent_traversal_line(self, idx=None, size=8,
-                              filename='imgs/traversal_line.png'):
+                              filename='traversal_line.png'):
         """
         Generates an image traversal through a latent dimension.
 
@@ -334,7 +334,7 @@ class Visualizer():
                           pad_value=(1 - get_background(self.dataset)))
 
     def latent_traversal_grid(self, idx=None, axis=None, size=(5, 5),
-                              filename='imgs/traversal_grid.png'):
+                              filename='traversal_grid.png'):
         """
         Generates a grid of image traversals through two latent dimensions.
 
@@ -359,7 +359,7 @@ class Visualizer():
                                  pad_value=(1 - get_background(self.dataset)))
 
     def all_latent_traversals(self, sample_latent_space=None, size=8,
-                              filename='imgs/all_traversals.png'):
+                              filename='all_traversals.png'):
         """
         Traverses all latent dimensions one by one and plots a grid of images
         where each row corresponds to a latent traversal of one latent

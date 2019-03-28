@@ -114,7 +114,7 @@ def _get_model(model_type, img_size, latent_dim, device, path_to_model):
     """ Get model """
     model = init_specific_model(model_type, img_size, latent_dim).to(device)
     # works with state_dict to make it independent of the file structure
-    model.load_state_dict(torch.load(path_to_model))
+    model.load_state_dict(torch.load(path_to_model), strict=False)
     model.eval()
 
     return model
