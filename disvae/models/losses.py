@@ -448,7 +448,7 @@ def _minibatch_stratified_sampling(latent_dist, latent_sample, data_size):
 
     _logqz = log_density_normal(latent_sample, latent_dist,
                                 batch_size, return_matrix=True)
-    logiw_matrix = log_importance_weight_matrix(batch_size, data_size)#.to(latent_dist.device)
+    logiw_matrix = log_importance_weight_matrix(batch_size, data_size).to(latent_dist.device)
     logqz = torch.logsumexp(logiw_matrix + _logqz.sum(2), dim=1, keepdim=False)
     logqz_prodmarginals = torch.logsumexp(logiw_matrix.view(batch_size, batch_size, 1) +
                                           _logqz, dim=1, keepdim=False).sum(1)
