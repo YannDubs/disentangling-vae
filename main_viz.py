@@ -161,7 +161,7 @@ def main(args):
         'random_samples': lambda: viz.samples(),
         'traverse_all_latent_dims': lambda: viz.all_latent_traversals(),
         'traverse_one_latent_dim': lambda: viz.latent_traversal_line(idx=args.sweep_dim),
-        'random_reconstruction': lambda: viz.reconstruction_comparisons(
+        'random_reconstruction': lambda: viz.reconstructionsruction_comparisons(
             data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True)),
         'recon_and_traverse_all': lambda: viz.recon_and_traverse_all(
             data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True)),

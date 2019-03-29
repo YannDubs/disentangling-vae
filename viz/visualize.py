@@ -45,6 +45,9 @@ class Visualizer():
         """ Reproduce Figure 2 from Burgess https://arxiv.org/pdf/1804.03599.pdf
             TODO: STILL TO BE IMPLEMENTED
         """
+
+
+
         # Plot reconstructions in test mode, i.e. without sampling from latent
         self.model.eval()
         # Pass data through VAE to obtain reconstruction
@@ -203,7 +206,7 @@ class Visualizer():
             if self.save_images:
                 save_image(heat_map.data, filename=filename, nrow=1, pad_value=(1 - get_background(self.dataset)))
             else:
-                return make_grid(heat_map.data, nrow=latent_dim, pad_value=(1 - get_background(self.dataset)))
+                return make_grid(heat_map.data, nrow=latent_dim, pad_value=(1 - get_background(self.dataset))), heat_map
 
     def recon_and_traverse_all(self, data, filename='imgs/recon_and_traverse.png'):
         """
