@@ -31,7 +31,8 @@ def get_loss_f(name, kwargs_parse={}):
                            is_mutual_info=not kwargs_parse["no_mutual_info"],
                            is_mss=not kwargs_parse["no_mss"])
     elif name == "batchTC":
-        return BatchTCLoss(kwargs_parse["data_size"],
+        return BatchTCLoss(kwargs_parse["device"],
+                           kwargs_parse["data_size"],
                            alpha=kwargs_parse["batchTC_A"],
                            beta=kwargs_parse["batchTC_B"],
                            gamma=kwargs_parse["batchTC_G"],
@@ -241,7 +242,7 @@ class FactorKLoss(BaseLoss):
             # change latent dist to torch.tensor (could probably avoid this)
             latent_dist = torch.stack((latent_dist[0], latent_dist[1]), dim=2)
             # calculate log p(z)
-            prior_params = torch.zeros(half_batch_size, latent_dist.size(1), 2)
+            prior_params = torch.zeros(half_batch_size, latent_dist.size(1), 2).to(self.device)
             logpz = log_density_normal(latent_sample1, prior_params, half_batch_size,
                                        return_matrix=False).view(half_batch_size, -1).sum(1)
 
@@ -332,9 +333,10 @@ class BatchTCLoss(BaseLoss):
            autoencoders." Advances in Neural Information Processing Systems. 2018.
     """
 
-    def __init__(self, data_size, alpha=1., beta=6., gamma=1., is_mss=False):
+    def __init__(self, device, data_size, alpha=1., beta=6., gamma=1., is_mss=False):
         super().__init__()
         # beta values: dsprites: 6, celeba: 15
+        self.device = device
         self.dataset_size = data_size
         self.beta = beta
         self.alpha = alpha
@@ -353,7 +355,7 @@ class BatchTCLoss(BaseLoss):
                                          return_matrix=False).sum(dim=1)
 
         # calculate log p(z)
-        prior_params = torch.zeros(batch_size, latent_dist.size(1), 2)
+        prior_params = torch.zeros(batch_size, latent_dist.size(1), 2).to(self.device)
         logpz = log_density_normal(latent_sample, prior_params, batch_size,
                                    return_matrix=False).view(batch_size, -1).sum(1)
 
