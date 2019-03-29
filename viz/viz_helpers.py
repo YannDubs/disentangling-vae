@@ -46,23 +46,23 @@ def reorder_img(orig_img, reorder, by_row=True, img_size=(3, 32, 32), padding=2)
     return reordered_img
 
 
-def read_avg_kl_from_file(log_file_path, loss_to_plot="kl_loss_"):
+def read_loss_from_file(log_file_path, loss_to_fetch="kl_loss_"):
     """ Read the average KL per latent dimension at the final stage of training from the log file.
         Parameters
         ----------
         log_file_path : str
             Full path and file name for the log file. For example 'experiments/custom/losses.log'.
 
-        loss_to_plot : str
-            The loss type to search for in the log file and plot. This must be in the exact form as stored.
+        loss_to_fetch : str
+            The loss type to search for in the log file and return. This must be in the exact form as stored.
     """
     EPOCH = "Epoch"
     LOSS = "Loss"
 
     logs = pd.read_csv(log_file_path)
-    df_last_epoch_loss = logs[logs.loc[:,] == logs.loc[:, EPOCH].max()]
-    df_last_epoch_loss = df_last_epoch_loss.loc[df_last_epoch_loss.loc[:, LOSS].str.startswith(loss_to_plot), :]
-    df_last_epoch_loss.loc[:, LOSS] = df_last_epoch_loss.loc[:, LOSS].str.replace(loss_to_plot,"").astype(int)
+    df_last_epoch_loss = logs[logs.loc[:, EPOCH] == logs.loc[:, EPOCH].max()]
+    df_last_epoch_loss = df_last_epoch_loss.loc[df_last_epoch_loss.loc[:, LOSS].str.startswith(loss_to_fetch), :]
+    df_last_epoch_loss.loc[:, LOSS] = df_last_epoch_loss.loc[:, LOSS].str.replace(loss_to_fetch,"").astype(int)
     df_last_epoch_loss = df_last_epoch_loss.sort_values(LOSS).loc[:, "Value"]
     return list(df_last_epoch_loss)
 

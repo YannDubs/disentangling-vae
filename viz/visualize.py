@@ -8,15 +8,17 @@ from torchvision.utils import make_grid, save_image
 
 from utils.datasets import get_background
 from viz.latent_traversals import LatentTraverser
-from viz.viz_helpers import (reorder_img, read_avg_kl_from_file, add_labels,
+from viz.viz_helpers import (reorder_img, read_loss_from_file, add_labels,
                              upsample, make_grid_img)
-
+import pdb
 
 TRAIN_FILE = "train_losses.log"
+DECIMAL_POINTS = 3
 
 
 class Visualizer():
-    def __init__(self, model, dataset, model_dir=None, save_images=True):
+    def __init__(self, model, dataset, model_dir=None, save_images=True, reorder_latent_dims=True,
+                 loss_of_interest='kl_loss_', display_loss_per_dim=False):
         """
         Visualizer is used to generate images of samples, reconstructions,
         latent traversals and so on of the trained model.
@@ -33,13 +35,25 @@ class Visualizer():
 
         dataset : str
             Name of the dataset.
+
+        reorder_latent_dims : bool
+            If the latent dimensions should be reordered or not
+
+        loss_of_interest : str
+            The loss type (as saved in the log file) to order the latent dimensions by and display (optionally)
+
+        display_loss_per_dim : bool
+            if the loss should be included as text next to the corre
         """
         self.model = model
         self.device = next(self.model.parameters()).device
         self.latent_traverser = LatentTraverser(self.model.latent_dim)
         self.save_images = save_images
+        self.reorder_latent_dims = reorder_latent_dims
         self.model_dir = model_dir
         self.dataset = dataset
+        self.loss_of_interest = loss_of_interest
+        self.display_loss_per_dim = display_loss_per_dim
 
     def show_disentanglement_fig2(self, reconstruction_data, latent_sweep_data, heat_map_data, latent_order=None, heat_map_size=(32, 32), filename='show_disentanglement.png', size=8, sample_latent_space=None):
         """ Reproduce Figure 2 from Burgess https://arxiv.org/pdf/1804.03599.pdf
@@ -205,7 +219,7 @@ class Visualizer():
             else:
                 return make_grid(heat_map.data, nrow=latent_dim, pad_value=(1 - get_background(self.dataset)))
 
-    def recon_and_traverse_all(self, data, filename='recon_and_traverse.png'):
+    def recon_and_traverse_all(self, data, num_increments=8, filename='recon_and_traverse.png'):
         """
         Take 8 sample images, run them through the decoder, obtain the mean latent
         space vector. With this as the initialisation, traverse each dimension one
@@ -218,6 +232,9 @@ class Visualizer():
 
         filename : string
             Name of file in which results are stored.
+
+        num_increments : int
+            Number of incremental steps to take in the traversal
         """
         # Plot reconstructions in test mode, i.e. without sampling from latent
         self.model.eval()
@@ -225,7 +242,63 @@ class Visualizer():
         with torch.no_grad():
             input_data = data.to(self.device)
             sample = self.model.sample_latent(input_data)
-        return self.all_latent_traversals(sample_latent_space=sample, filename=filename)
+        decoded_samples = self.all_latent_traversals(sample_latent_space=sample, size=num_increments, filename=filename)
+
+        # Reshape into the appropriate form
+        (num_images, _, image_width, image_height) = decoded_samples.size()
+        num_rows = int(num_images / num_increments)
+        decoded_samples = torch.reshape(decoded_samples, (num_rows, num_increments, image_width, image_height))
+
+        if self.reorder_latent_dims:
+            loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
+            decoded_samples = self.reorder_traversals(list_to_reorder=decoded_samples, reorder_by_list=loss_list)
+
+        if self.display_loss_per_dim:
+            sorted_loss_list = [
+                    round(float(loss_sample), DECIMAL_POINTS) for loss_sample, _ in sorted(zip(loss_list, decoded_samples), reverse=True)
+            ]
+
+            traversal_images_with_text = add_labels(
+                            label_name='KL',
+                            tensor=decoded_samples,
+                            num_rows=num_increments,
+                            sorted_list=sorted_loss_list,
+                            dataset=self.dataset
+                        )
+            traversal_images_with_text.save(filename)
+
+        if self.save_images:
+            save_image(
+                tensor=decoded_samples.data,
+                filename=filename,
+                nrow=num_increments,
+                pad_value=(1 - get_background(self.dataset))
+            )
+        else:
+            return make_grid_img(
+                tensor=decoded_samples.data,
+                filename=filename,
+                nrow=num_increments,
+                pad_value=(1 - get_background(self.dataset))
+            )
+
+    def reorder_traversals(self, list_to_reorder, reorder_by_list):
+        """ Reorder the latent dimensions which are being traversed according to the reorder_by_list parameter.
+
+        Parameters
+        ----------
+        list_to_reorder : list
+            The list to reorder
+
+        reorder_by_list : list
+            A list with which to determine the reordering of list_to_reorder
+        """
+
+        latent_samples = [
+            latent_sample for _, latent_sample in sorted(zip(reorder_by_list, list_to_reorder), reverse=True)
+        ]
+
+        return torch.cat(latent_samples, dim=0)[:, None, :, :]
 
     def reconstruction_comparisons(self, data, size=(8, 8), filename='recon_comp.png', exclude_original=False, exclude_recon=False):
         """
@@ -380,35 +453,12 @@ class Visualizer():
             latent_samples.append(self.latent_traverser.traverse_line(idx=idx,
                                                                       size=size,
                                                                       sample_latent_space=sample_latent_space))
-
         # Decode samples
-        generated = self._decode_latents(torch.cat(latent_samples, dim=0))
-
-        if self.save_images:
-            sorted_avg_kl_list = None
-            avg_kl_list = None
-            # TODO: sorting should be done outside of function
-            # currently not working
-            # the best would be to return the image in this function (no if)
-            # sort in an other function
-            # and save after calling those functions
-            traversal_images_with_text = add_labels(
-                label_name='KL',
-                tensor=generated,
-                num_rows=size,
-                sorted_list=sorted_avg_kl_list,
-                dataset=self.dataset)
-
-            traversal_images_with_text.save(filename)
-            return avg_kl_list
-        else:
-            return make_grid_img(generated.data,
-                                 nrow=size,
-                                 pad_value=(1 - get_background(self.dataset)))
+        return self._decode_latents(torch.cat(latent_samples, dim=0))
 
     def _decode_latents(self, latent_samples):
         """
-        Decodes latent samples into images.
+        Decodes latent samples ito images.
 
         Parameters
         ----------
