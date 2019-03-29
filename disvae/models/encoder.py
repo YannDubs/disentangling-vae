@@ -55,7 +55,7 @@ class EncoderBetaB(nn.Module):
         self.conv3 = nn.Conv2d(hid_channels, hid_channels, kernel_size, **cnn_kwargs)
 
         # If input image is 64x64 do fourth convolution
-        if self.img_size[1:] == (64, 64):
+        if self.img_size[1] == self.img_size[2] == 64:
             self.conv_64 = nn.Conv2d(hid_channels, hid_channels, kernel_size, **cnn_kwargs)
 
         # Fully connected layers
@@ -72,7 +72,7 @@ class EncoderBetaB(nn.Module):
         x = torch.relu(self.conv1(x))
         x = torch.relu(self.conv2(x))
         x = torch.relu(self.conv3(x))
-        if self.img_size[1:] == (64, 64):
+        if self.img_size[1] == self.img_size[2] == 64:
             x = torch.relu(self.conv_64(x))
 
         # Fully connected layers with ReLu activations

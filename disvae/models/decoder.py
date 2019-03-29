@@ -56,7 +56,7 @@ class DecoderBetaB(nn.Module):
         # Convolutional layers
         cnn_kwargs = dict(stride=2, padding=1)
         # If input image is 64x64 do fourth convolution
-        if self.img_size[1:] == (64, 64):
+        if self.img_size[1] == self.img_size[2] == 64:
             self.convT_64 = nn.ConvTranspose2d(hid_channels, hid_channels, kernel_size, **cnn_kwargs)
 
         self.convT1 = nn.ConvTranspose2d(hid_channels, hid_channels, kernel_size, **cnn_kwargs)
@@ -73,7 +73,7 @@ class DecoderBetaB(nn.Module):
         x = x.view(batch_size, *self.reshape)
 
         # Convolutional layers with ReLu activations
-        if self.img_size[1:] == (64, 64):
+        if self.img_size[1] == self.img_size[2] == 64:
             x = torch.relu(self.convT_64(x))
         x = torch.relu(self.convT1(x))
         x = torch.relu(self.convT2(x))
