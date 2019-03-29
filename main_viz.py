@@ -116,8 +116,7 @@ def parse_arguments():
                                      formatter_class=FormatterNoDuplicate)
 
     experiment = parser.add_argument_group('Predefined experiments')
-    experiment.add_argument('-m', '--model_dir',
-                            default='custom', type=str,
+    experiment.add_argument('-m', '--model_dir', required=True, type=str,
                             help='The name of the directory in which the model to run has been saved. This should be the name of the experiment')
 
     visualisation = parser.add_argument_group('Desired Visualisation')
