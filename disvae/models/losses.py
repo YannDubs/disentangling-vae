@@ -249,11 +249,11 @@ class FactorKLoss(BaseLoss):
             if not self.is_mss:
                 # minibatch weighted sampling
                 _, logqz_prodmarginals = _minibatch_weighted_sampling(latent_dist, latent_sample1,
-                                                                      half_batch_size, self.data_size)
+                                                                      self.data_size)
             else:
                 # minibatch stratified sampling
                 _, logqz_prodmarginals = _minibatch_stratified_sampling(latent_dist, latent_sample1,
-                                                                        half_batch_size, self.data_size)
+                                                                        self.data_size)
 
             gamma = self.gamma + 1
             dw_kl_loss = (logqz_prodmarginals - logpz).mean()
