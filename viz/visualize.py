@@ -8,15 +8,16 @@ from torchvision.utils import make_grid, save_image
 
 from utils.datasets import get_background
 from viz.latent_traversals import LatentTraverser
-from viz.viz_helpers import (reorder_img, read_avg_kl_from_file, add_labels,
+from viz.viz_helpers import (reorder_img, read_loss_from_file, add_labels,
                              upsample, make_grid_img)
 
-
 TRAIN_FILE = "train_losses.log"
+DECIMAL_POINTS = 3
 
 
 class Visualizer():
-    def __init__(self, model, dataset, model_dir=None, save_images=True):
+    def __init__(self, model, dataset, model_dir=None, save_images=True,
+                 loss_of_interest='kl_loss_', display_loss_per_dim=False):
         """
         Visualizer is used to generate images of samples, reconstructions,
         latent traversals and so on of the trained model.
@@ -33,6 +34,12 @@ class Visualizer():
 
         dataset : str
             Name of the dataset.
+
+        loss_of_interest : str
+            The loss type (as saved in the log file) to order the latent dimensions by and display (optionally)
+
+        display_loss_per_dim : bool
+            if the loss should be included as text next to the corresponding latent dimension images.
         """
         self.model = model
         self.device = next(self.model.parameters()).device
@@ -40,8 +47,11 @@ class Visualizer():
         self.save_images = save_images
         self.model_dir = model_dir
         self.dataset = dataset
+        self.loss_of_interest = loss_of_interest
 
-    def show_disentanglement_fig2(self, reconstruction_data, latent_sweep_data, heat_map_data, latent_order=None, heat_map_size=(32, 32), filename='imgs/show_disentanglement.png', size=8, sample_latent_space=None):
+    def show_disentanglement_fig2(self, reconstruction_data, latent_sweep_data, heat_map_data,
+                                  latent_order=None, heat_map_size=(32, 32), filename='show-disentanglement.png',
+                                  size=8, sample_latent_space=None):
         """ Reproduce Figure 2 from Burgess https://arxiv.org/pdf/1804.03599.pdf
             TODO: STILL TO BE IMPLEMENTED
         """
@@ -156,7 +166,7 @@ class Visualizer():
         else:
             return make_grid(combined_torch.data, nrow=size, pad_value=(1 - get_background(self.dataset)))
 
-    def generate_heat_maps(self, data, latent_order=None, heat_map_size=(32, 32), filename='imgs/heatmap.png'):
+    def generate_heat_maps(self, data, latent_order=None, heat_map_size=(32, 32), file_name='heatmap.png'):
         """
         Generates heat maps of the mean of each latent dimension in the model. The spites are
         assumed to be in order, therefore no information about (x,y) positions is required.
@@ -201,11 +211,12 @@ class Visualizer():
             heat_map = (heat_map - torch.min(heat_map)) / (torch.max(heat_map) - torch.min(heat_map))
 
             if self.save_images:
-                save_image(heat_map.data, filename=filename, nrow=1, pad_value=(1 - get_background(self.dataset)))
+                save_image(heat_map.data, filename=file_name, nrow=1, pad_value=(1 - get_background(self.dataset)))
             else:
                 return make_grid(heat_map.data, nrow=latent_dim, pad_value=(1 - get_background(self.dataset)))
 
-    def recon_and_traverse_all(self, data, filename='imgs/recon_and_traverse.png'):
+    def traverse_posterior(self, data, num_increments=8, reorder_latent_dims=True,
+                           display_loss_per_dim=False, file_name='posterior_traversal.png'):
         """
         Take 8 sample images, run them through the decoder, obtain the mean latent
         space vector. With this as the initialisation, traverse each dimension one
@@ -216,6 +227,15 @@ class Visualizer():
         data : torch.Tensor
             Data to be reconstructed. Shape (N, C, H, W)
 
+        num_increments : int
+            Number of incremental steps to take in the traversal
+
+        reorder_latent_dims : bool
+            If the latent dimensions should be reordered or not
+
+        display_loss_per_dim : bool
+            If the loss should be included as text next to the corresponding latent dimension images.
+
         filename : string
             Name of file in which results are stored.
         """
@@ -225,9 +245,65 @@ class Visualizer():
         with torch.no_grad():
             input_data = data.to(self.device)
             sample = self.model.sample_latent(input_data)
-        return self.all_latent_traversals(sample_latent_space=sample, filename=filename)
+        decoded_samples = self.all_latent_traversals(sample_latent_space=sample, size=num_increments)
 
-    def reconstruction_comparisons(self, data, size=(8, 8), filename='imgs/recon_comp.png', exclude_original=False, exclude_recon=False):
+        if reorder_latent_dims:
+            # Reshape into the appropriate form
+            (num_images, _, image_width, image_height) = decoded_samples.size()
+            num_rows = int(num_images / num_increments)
+            decoded_samples = torch.reshape(decoded_samples, (num_rows, num_increments, image_width, image_height))
+
+            loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
+            decoded_samples = self.reorder_traversals(list_to_reorder=decoded_samples, reorder_by_list=loss_list)
+
+        if display_loss_per_dim:
+            sorted_loss_list = [
+                    round(float(loss_sample), DECIMAL_POINTS) for loss_sample, _ in sorted(zip(loss_list, decoded_samples), reverse=True)
+            ]
+
+            traversal_images_with_text = add_labels(
+                            label_name='KL',
+                            tensor=decoded_samples,
+                            num_rows=num_increments,
+                            sorted_list=sorted_loss_list,
+                            dataset=self.dataset
+                        )
+            traversal_images_with_text.save(file_name)
+
+        if self.save_images and not display_loss_per_dim:
+            save_image(
+                tensor=decoded_samples.data,
+                filename=file_name,
+                nrow=num_increments,
+                pad_value=(1 - get_background(self.dataset))
+            )
+        else:
+            return make_grid_img(
+                tensor=decoded_samples.data,
+                nrow=num_increments,
+                pad_value=(1 - get_background(self.dataset))
+            )
+
+    def reorder_traversals(self, list_to_reorder, reorder_by_list):
+        """ Reorder the latent dimensions which are being traversed according to the reorder_by_list parameter.
+
+        Parameters
+        ----------
+        list_to_reorder : list
+            The list to reorder
+
+        reorder_by_list : list
+            A list with which to determine the reordering of list_to_reorder
+        """
+
+        latent_samples = [
+            latent_sample for _, latent_sample in sorted(zip(reorder_by_list, list_to_reorder), reverse=True)
+        ]
+
+        return torch.cat(latent_samples, dim=0)[:, None, :, :]
+
+    def reconstruction_comparisons(self, data, size=(8, 8), file_name='recon_comp.png',
+                                   exclude_original=False, exclude_recon=False):
         """
         Generates reconstructions of data through the model.
 
@@ -276,15 +352,14 @@ class Visualizer():
             comparison = torch.cat([originals, reconstructions])
 
         if self.save_images:
-            save_image(comparison.data, filename,
+            save_image(comparison.data,
+                       filename=file_name,
                        nrow=size[0],
                        pad_value=(1 - get_background(self.dataset)))
         else:
-            return make_grid_img(comparison.data,
-                                 nrow=size[0],
-                                 pad_value=(1 - get_background(self.dataset)))
+            return comparison
 
-    def samples(self, size=(8, 8), filename='imgs/samples.png'):
+    def generate_samples(self, size=(8, 8), file_name='samples.png'):
         """
         Generates samples from learned distribution by sampling prior and
         decoding.
@@ -301,14 +376,14 @@ class Visualizer():
         generated = self._decode_latents(prior_samples)
 
         if self.save_images:
-            save_image(generated.data, filename, nrow=size[1], pad_value=(1 - get_background(self.dataset)))
+            save_image(generated.data, file_name, nrow=size[1], pad_value=(1 - get_background(self.dataset)))
         else:
             return make_grid_img(generated.data,
                                  nrow=size[1],
                                  pad_value=(1 - get_background(self.dataset)))
 
     def latent_traversal_line(self, idx=None, size=8,
-                              filename='imgs/traversal_line.png'):
+                              file_name='traversal_line.png'):
         """
         Generates an image traversal through a latent dimension.
 
@@ -325,7 +400,8 @@ class Visualizer():
         generated = self._decode_latents(latent_samples)
 
         if self.save_images:
-            save_image(generated.data, filename,
+            save_image(generated.data, 
+                       filename=file_name,
                        nrow=size,
                        pad_value=(1 - get_background(self.dataset)))
         else:
@@ -334,7 +410,7 @@ class Visualizer():
                           pad_value=(1 - get_background(self.dataset)))
 
     def latent_traversal_grid(self, idx=None, axis=None, size=(5, 5),
-                              filename='imgs/traversal_grid.png'):
+                              filename='traversal_grid.png'):
         """
         Generates a grid of image traversals through two latent dimensions.
 
@@ -358,8 +434,42 @@ class Visualizer():
                                  nrow=size[1],
                                  pad_value=(1 - get_background(self.dataset)))
 
-    def all_latent_traversals(self, sample_latent_space=None, size=8,
-                              filename='imgs/all_traversals.png'):
+    def prior_traversal(self, sample_latent_space=None, num_increments=8, file_name='prior_traversal.png'):
+        """ Traverse the latent prior.
+
+            Parameters
+            ----------
+            sample_latent_space : torch.Tensor or None
+                The latent space of a sample which has been processed by the encoder.
+                The dimensions are (size, num_latent_dims)
+
+            num_increments : int
+                The number of points to include in the traversal of a latent dimension.
+
+            file_name : str
+                The name of the output file.
+        """
+        decoded_traversal = self.all_latent_traversals(
+            sample_latent_space=sample_latent_space,
+            size=num_increments
+            )
+
+        if self.save_images:
+            save_image(
+                tensor=decoded_traversal.data,
+                filename=file_name,
+                nrow=num_increments,
+                pad_value=(1 - get_background(self.dataset))
+            )
+        else:
+            return make_grid_img(
+                tensor=decoded_traversal.data,
+                filename=file_name,
+                nrow=num_increments,
+                pad_value=(1 - get_background(self.dataset))
+            )
+
+    def all_latent_traversals(self, sample_latent_space=None, size=8):
         """
         Traverses all latent dimensions one by one and plots a grid of images
         where each row corresponds to a latent traversal of one latent
@@ -380,29 +490,12 @@ class Visualizer():
             latent_samples.append(self.latent_traverser.traverse_line(idx=idx,
                                                                       size=size,
                                                                       sample_latent_space=sample_latent_space))
-
         # Decode samples
-        generated = self._decode_latents(torch.cat(latent_samples, dim=0))
-
+        decoded_samples = self._decode_latents(torch.cat(latent_samples, dim=0))
         if self.save_images:
-            sorted_avg_kl_list = None
-            avg_kl_list = None
-            # TODO: sorting should be done outside of function
-            # currently not working
-            # the best would be to return the image in this function (no if)
-            # sort in an other function
-            # and save after calling those functions
-            traversal_images_with_text = add_labels(
-                label_name='KL',
-                tensor=generated,
-                num_rows=size,
-                sorted_list=sorted_avg_kl_list,
-                dataset=self.dataset)
-
-            traversal_images_with_text.save(filename)
-            return avg_kl_list
+            return decoded_samples
         else:
-            return make_grid_img(generated.data,
+            return make_grid_img(decoded_samples.data,
                                  nrow=size,
                                  pad_value=(1 - get_background(self.dataset)))
 
