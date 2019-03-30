@@ -449,9 +449,8 @@ class Visualizer():
         """
         decoded_traversal = self.all_latent_traversals(
             sample_latent_space=sample_latent_space,
-            size=num_increments,
-            filename=filename
-        )
+            size=num_increments
+            )
 
         if self.save_images:
             save_image(
@@ -468,8 +467,7 @@ class Visualizer():
                 pad_value=(1 - get_background(self.dataset))
             )
 
-    def all_latent_traversals(self, sample_latent_space=None, size=8,
-                              filename='all_traversals.png'):
+    def all_latent_traversals(self, sample_latent_space=None, size=8):
         """
         Traverses all latent dimensions one by one and plots a grid of images
         where each row corresponds to a latent traversal of one latent
