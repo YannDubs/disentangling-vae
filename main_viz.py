@@ -203,7 +203,8 @@ def main(args):
             file_name=os.path.join(RES_DIR, experiment_name, 'samples.png')
             ),
         'traverse-prior': lambda: viz.prior_traversal(
-            file_name=os.path.join(RES_DIR, experiment_name, 'prior-traversal.png')
+            file_name=os.path.join(RES_DIR, experiment_name, 'prior-traversal.png'),
+            reorder_latent_dims=True
             ),
         'traverse-one-latent-dim': lambda: viz.latent_traversal_line(
             idx=args.sweep_dim,
