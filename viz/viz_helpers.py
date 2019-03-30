@@ -71,7 +71,8 @@ def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
     traversal_images_with_text.paste(all_traversal_im, (0, 0))
 
     # Add KL text alongside each row
-    fraction_x = 1 / mult_x + 0.050
+    # fraction_x = 1 / mult_x + 0.050
+    fraction_x = 1 / len(sorted_list) + 0.050
     text_list = ['orig', 'recon']
     draw = ImageDraw.Draw(traversal_images_with_text)
     for i in range(0, 2):
@@ -90,13 +91,19 @@ def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
     return traversal_images_with_text
 
 
-def upsample(input_data, scale_factor):
+def upsample(input_data, scale_factor, colour_flag=False):
+
     # dubplicate
     new_array = np.zeros((input_data.shape[0], input_data.shape[1], input_data.shape[2] * scale_factor, input_data.shape[3] * scale_factor))
     for latent_dim in range(0, input_data.shape[0]):
         for x in range(0, input_data.shape[2]):
             for y in range(0, input_data.shape[2]):
-                new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor - 1, y * scale_factor:y * scale_factor + scale_factor - 1] = input_data[latent_dim, 0, x, y]
+                if colour_flag == False:
+                    new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor - 1, y * scale_factor:y * scale_factor + scale_factor - 1] = input_data[latent_dim, 0, x, y]
+                else:
+                    new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor - 1, y * scale_factor:y * scale_factor + scale_factor - 1] = input_data[latent_dim, 0, x, y]
+                    new_array[latent_dim, 1, x * scale_factor:x * scale_factor + scale_factor - 1, y * scale_factor:y * scale_factor + scale_factor - 1] = input_data[latent_dim, 1, x, y]
+                    new_array[latent_dim, 2, x * scale_factor:x * scale_factor + scale_factor - 1, y * scale_factor:y * scale_factor + scale_factor - 1] = input_data[latent_dim, 2, x, y]
     return new_array
 
 

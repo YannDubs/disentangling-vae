@@ -168,6 +168,7 @@ def main(args):
         'heat_maps': lambda: viz.generate_heat_maps(
             data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
         'show_disentanglement': lambda: viz.show_disentanglement_fig2(
+            reconstruction_data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True),
             latent_sweep_data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True),
             heat_map_data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
         'display_avg_KL': lambda: LogPlotter(log_dir=args.log_dir, output_file_name=args.output_file_name),

@@ -41,12 +41,56 @@ class Visualizer():
         self.model_dir = model_dir
         self.dataset = dataset
 
+    def tensor_gray_scale_to_color(self,input_tensor):
+        # input_tensor, consists of gray_scale values and has size
+
+        size_output = list(input_tensor.size())
+        print(size_output)
+        size_output[1] = 3
+
+        black_rgb = [0,0,0]
+        white_rgb = [1,1,1]
+        min_color = black_rgb
+        max_color = white_rgb
+        output = torch.zeros(size_output)
+        for latent_dim in range(size_output[0]):
+            for y_posn in range(size_output[2]):
+                for x_posn in range(size_output[3]):
+                    scale_id = input_tensor[latent_dim, 0, x_posn, y_posn]
+                    output[latent_dim, 0, x_posn, y_posn] = min_color[0] + (max_color[0]-min_color[0])*scale_id
+                    output[latent_dim, 1, x_posn, y_posn] = min_color[1] + (max_color[1]-min_color[1])*scale_id
+                    output[latent_dim, 2, x_posn, y_posn] = min_color[2] + (max_color[2]-min_color[2])*scale_id
+        return output
+
     def show_disentanglement_fig2(self, reconstruction_data, latent_sweep_data, heat_map_data, latent_order=None, heat_map_size=(32, 32), filename='imgs/show_disentanglement.png', size=8, sample_latent_space=None):
         """ Reproduce Figure 2 from Burgess https://arxiv.org/pdf/1804.03599.pdf
             TODO: STILL TO BE IMPLEMENTED
         """
 
+        # === get reconstruction === #
+        self.save_images = False
+        orig_rec_tensor = self.reconstruction_comparisons(reconstruction_data, size=(8, 8), filename='imgs/recon_comp.png', exclude_original=False, exclude_recon=False, color_flag = True)
+        list_color_images = []
+        orig_rec_tensor_color = self.tensor_gray_scale_to_color(input_tensor=orig_rec_tensor)
 
+        self.save_images = True
+        _ = self.generate_heat_maps(heat_map_data, latent_order=None, heat_map_size=(32, 32), filename='imgs/heatmap.png')
+        self.save_images = False
+        _, heat_map = self.generate_heat_maps(heat_map_data, latent_order=None, heat_map_size=(32, 32), filename='imgs/heatmap.png')
+
+        heat_map_np = np.array(heat_map)
+        upsampled_heat_map = torch.tensor(upsample(input_data=heat_map_np, scale_factor=2,colour_flag=True))
+        combined_torch = torch.cat((orig_rec_tensor_color, upsampled_heat_map.float()))
+        print(combined_torch.size())
+        self.save_images = True
+        if self.save_images:
+            save_image(combined_torch.data, filename=filename, nrow=size, pad_value=(1 - get_background(self.dataset)))
+            return combined_torch
+        else:
+            return make_grid(combined_torch.data, nrow=size, pad_value=(1 - get_background(reconstruction_data)))
+
+        #output = self.recon_and_traverse_all(latent_sweep_data, filename='imgs/recon_and_traverse.png')
+        return output 
 
         # Plot reconstructions in test mode, i.e. without sampling from latent
         self.model.eval()
@@ -187,26 +231,46 @@ class Visualizer():
             heat_map_width = heat_map_size[1]
             num_latent_dims = sample.shape[1]
 
-            heat_map = torch.zeros([num_latent_dims, 1, heat_map_height, heat_map_width])
-
+            heat_map_gray_scale = torch.zeros([num_latent_dims, 1, heat_map_height, heat_map_width])
             for latent_dim in range(num_latent_dims):
                 for y_posn in range(heat_map_width):
                     for x_posn in range(heat_map_height):
-                        heat_map[latent_dim, 0, x_posn, y_posn] = sample[heat_map_width * y_posn + x_posn, latent_dim]
+                        heat_map_gray_scale[latent_dim, 0, x_posn, y_posn] = sample[heat_map_width * y_posn + x_posn, latent_dim]
+            
+
+            red_rgb = [1,0,0]
+            blue_rgb = [0,0,1]
+            min_gray = torch.min(heat_map_gray_scale)
+            max_gray = torch.max(heat_map_gray_scale)
+
+            heat_map_color = torch.zeros([num_latent_dims, 3, heat_map_height, heat_map_width])
+            for latent_dim in range(num_latent_dims):
+                for y_posn in range(heat_map_width):
+                    for x_posn in range(heat_map_height):
+                        scale_id = (heat_map_gray_scale[latent_dim, 0, x_posn, y_posn]-min_gray)/(max_gray-min_gray)
+                        heat_map_color[latent_dim, 0, x_posn, y_posn] = red_rgb[0] + (blue_rgb[0]-red_rgb[0])*scale_id
+                        heat_map_color[latent_dim, 1, x_posn, y_posn] = red_rgb[1] + (blue_rgb[1]-red_rgb[1])*scale_id
+                        heat_map_color[latent_dim, 2, x_posn, y_posn] = red_rgb[2] + (blue_rgb[2]-red_rgb[2])*scale_id
+
 
             if latent_order is not None:
                 # Reorder latent samples by average KL
-                heat_map = [
-                    latent_sample for _, latent_sample in sorted(zip(latent_order, heat_map), reverse=True)
+                heat_map_color = [
+                    latent_sample for _, latent_sample in sorted(zip(latent_order, heat_map_color), reverse=True)
                 ]
-                heat_map = torch.stack(heat_map)
+                heat_map_color_stacked = torch.stack(heat_map_color)
+            else:
+                heat_map_color_stacked = heat_map_color
+            # print(type(heat_map))
+            # print(len(heat_map))
+            # print(heat_map)
             # Normalise between 0 and 1
-            heat_map = (heat_map - torch.min(heat_map)) / (torch.max(heat_map) - torch.min(heat_map))
+            # heat_map = (heat_map - torch.min(heat_map)) / (torch.max(heat_map) - torch.min(heat_map))
 
             if self.save_images:
-                save_image(heat_map.data, filename=filename, nrow=1, pad_value=(1 - get_background(self.dataset)))
+                save_image(heat_map_color_stacked.data, filename=filename, nrow=1, pad_value=(1 - get_background(self.dataset)))
             else:
-                return make_grid(heat_map.data, nrow=latent_dim, pad_value=(1 - get_background(self.dataset))), heat_map
+                return make_grid(heat_map_color_stacked.data, nrow=latent_dim, pad_value=(1 - get_background(self.dataset))), heat_map_color
 
     def recon_and_traverse_all(self, data, filename='imgs/recon_and_traverse.png'):
         """
@@ -230,7 +294,7 @@ class Visualizer():
             sample = self.model.sample_latent(input_data)
         return self.all_latent_traversals(sample_latent_space=sample, filename=filename)
 
-    def reconstruction_comparisons(self, data, size=(8, 8), filename='imgs/recon_comp.png', exclude_original=False, exclude_recon=False):
+    def reconstruction_comparisons(self, data, size=(8, 8), filename='imgs/recon_comp.png', exclude_original=False, exclude_recon=False, color_flag = False):
         """
         Generates reconstructions of data through the model.
 
@@ -283,9 +347,10 @@ class Visualizer():
                        nrow=size[0],
                        pad_value=(1 - get_background(self.dataset)))
         else:
-            return make_grid_img(comparison.data,
-                                 nrow=size[0],
-                                 pad_value=(1 - get_background(self.dataset)))
+            return comparison
+            # return make_grid_img(comparison.data,
+            #                      nrow=size[0],
+            #                      pad_value=(1 - get_background(self.dataset)))
 
     def samples(self, size=(8, 8), filename='imgs/samples.png'):
         """
