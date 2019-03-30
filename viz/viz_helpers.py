@@ -122,8 +122,6 @@ def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
     return traversal_images_with_text   
 
 
-
-
 def upsample(input_data, scale_factor):
     """ TODO: Bart add Docstring - I don't really know what this is
     """
