@@ -87,6 +87,13 @@ def parse_arguments(args_to_parse):
     model.add_argument('-l', '--loss',
                        choices=losses, default=default_config['loss'],
                        help="Type of VAE loss function to use.")
+    reconstruction_dists = ["bernoulli", "laplace", "gaussian"]
+    model.add_argument('-r', '--rec-dist',
+                       choices=reconstruction_dists, default=default_config['rec_dist'],
+                       help="Form of the likelihood ot use for each pixel.")
+    model.add_argument('-a', '--reg-anneal',
+                       type=float, default=default_config['reg_anneal'],
+                       help="Number of annealing steps where gradually adding the regularisation.")
 
     # Loss Specific Options
     betaH = parser.add_argument_group('BetaH specific parameters')
@@ -218,7 +225,6 @@ def main(args):
                           is_progress_bar=not args.no_progress_bar,
                           checkpoint_every=args.checkpoint_every,
                           gif_visualizer=gif_visualizer)
-
         trainer(train_loader, epochs=args.epochs)
 
         # SAVE MODEL AND EXPERIMENT INFORMATION
