@@ -434,7 +434,7 @@ class Visualizer():
                                  nrow=size[1],
                                  pad_value=(1 - get_background(self.dataset)))
 
-    def prior_traversal(self, sample_latent_space=None, num_increments=8, file_name='prior_traversal.png'):
+    def prior_traversal(self, sample_latent_space=None, reorder_latent_dims=False, num_increments=8, file_name='prior_traversal.png'):
         """ Traverse the latent prior.
 
             Parameters
@@ -448,11 +448,23 @@ class Visualizer():
 
             file_name : str
                 The name of the output file.
+
+            reorder_latent_dims : bool
+                If the latent dimensions should be reordered or not
         """
         decoded_traversal = self.all_latent_traversals(
             sample_latent_space=sample_latent_space,
             size=num_increments
             )
+
+        if reorder_latent_dims:
+            # Reshape into the appropriate form
+            (num_images, _, image_width, image_height) = decoded_traversal.size()
+            num_rows = int(num_images / num_increments)
+            decoded_traversal = torch.reshape(decoded_traversal, (num_rows, num_increments, image_width, image_height))
+
+            loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
+            decoded_traversal = self.reorder_traversals(list_to_reorder=decoded_traversal, reorder_by_list=loss_list)
 
         if self.save_images:
             save_image(
