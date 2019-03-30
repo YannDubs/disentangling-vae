@@ -491,11 +491,17 @@ class Visualizer():
                                                                       size=size,
                                                                       sample_latent_space=sample_latent_space))
         # Decode samples
-        return self._decode_latents(torch.cat(latent_samples, dim=0))
+        decoded_samples = self._decode_latents(torch.cat(latent_samples, dim=0))
+        if self.save_images:
+            return decoded_samples
+        else:
+            return make_grid_img(decoded_samples.data,
+                                 nrow=size,
+                                 pad_value=(1 - get_background(self.dataset)))
 
     def _decode_latents(self, latent_samples):
         """
-        Decodes latent samples ito images.
+        Decodes latent samples into images.
 
         Parameters
         ----------
