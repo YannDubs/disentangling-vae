@@ -20,6 +20,11 @@ from disvae.utils.modelIO import load_model, load_checkpoints, load_metadata
 def read_capacity_from_file(experiment_name):
     """ Read and return the min capacity, max capacity, interpolation, gamma as a tuple if the capacity
         is variable. Otherwise return the constant capacity as is.
+
+        Parameters
+        ----------
+        experiment_name : str
+            The name of the experiment, which is the name of the folder that the model is expected to be in.
     """
     meta_data = load_metadata(os.path.join(RES_DIR, experiment_name))
     capacity = meta_data['capacity']
@@ -35,7 +40,18 @@ def read_capacity_from_file(experiment_name):
 
 
 def samples(experiment_name, num_samples=1, shuffle=True):
-    """ generate a number of samples from the dataset
+    """ Generate a number of samples from the dataset.
+
+        Parameters
+        ----------
+        experiment_name : str
+            The name of the experiment, which is the name of the folder that the model is expected to be in.
+
+        num_samples : int
+            The number of samples to load from the dataset
+
+        shuffle : bool
+            Whether or not to shuffle the dataset before drawing samples.
     """
     meta_data = load_metadata(os.path.join(RES_DIR, experiment_name))
     dataset_name = meta_data['dataset']
@@ -120,8 +136,8 @@ def parse_arguments():
                             help='The name of the directory in which the model to run has been saved. This should be the name of the experiment')
 
     visualisation = parser.add_argument_group('Desired Visualisation')
-    visualisation_options = ['random_samples', 'traverse_all_latent_dims', 'traverse_one_latent_dim', 'random_reconstruction',
-                             'heat_maps', 'display_avg_KL', 'recon_and_traverse_all', 'show_disentanglement', 'snapshot_recon']
+    visualisation_options = ['random_samples', 'traverse_prior', 'traverse_one_latent_dim', 'random_reconstruction',
+                             'heat_maps', 'display_avg_KL', 'traverse_posterior', 'show_disentanglement', 'snapshot_recon']
     visualisation.add_argument('-v', '--visualisation',
                                default='random_samples', choices=visualisation_options,
                                help='Predefined visualisation options which can be performed.')
@@ -129,6 +145,8 @@ def parse_arguments():
                                default=0, help='The latent dimension to sweep (if applicable)')
     visualisation.add_argument('-n', '--num_samples', type=int,
                                default=1, help='The number of samples to visualise (if applicable).')
+    visualisation.add_argument('-d', '--display_loss', type=bool, default=False,
+                               help='If the loss should be displayed next to the posterior latent traversal dimensions.')
 
     dir_opts = parser.add_argument_group('directory options')
     dir_opts.add_argument('-l', '--log_dir', help='Path to the log file containing the data to plot.')
@@ -151,7 +169,7 @@ def main(args):
         model_list = load_checkpoints(directory=os.path.join(RES_DIR, experiment_name))
         for epoch_index, model in model_list:
             model.eval()
-            viz_list.append(Visualizer(model=model, model_dir='{}/{}'.format(RES_DIR, experiment_name), dataset=dataset_name, save_images=False))
+            viz_list.append(Visualizer(model=model, model_dir=os.path.join(RES_DIR, experiment_name), dataset=dataset_name, save_images=False))
             epoch_list.append(epoch_index)
 
     elif not args.visualisation == 'display_avg_KL':
@@ -161,12 +179,12 @@ def main(args):
 
     visualisation_options = {
         'random_samples': lambda: viz.samples(),
-        'traverse_all_latent_dims': lambda: viz.all_latent_traversals(),
+        'traverse_prior': lambda: viz.prior_traversal(),
         'traverse_one_latent_dim': lambda: viz.latent_traversal_line(idx=args.sweep_dim),
         'random_reconstruction': lambda: viz.reconstruction_comparisons(
             data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True)),
-        'recon_and_traverse_all': lambda: viz.recon_and_traverse_all(
-            data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True)),
+        'traverse_posterior': lambda: viz.traverse_posterior(
+            data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True), display_loss_per_dim=args.display_loss),
         'heat_maps': lambda: viz.generate_heat_maps(
             data=samples(experiment_name=experiment_name, num_samples=32 * 32, shuffle=False)),
         'show_disentanglement': lambda: viz.show_disentanglement_fig2(
