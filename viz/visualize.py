@@ -45,7 +45,6 @@ class Visualizer():
         # input_tensor, consists of gray_scale values and has size
 
         size_output = list(input_tensor.size())
-        print(size_output)
         size_output[1] = 3
 
         black_rgb = [0,0,0]
@@ -70,21 +69,39 @@ class Visualizer():
         # === get reconstruction === #
         self.save_images = False
         orig_rec_tensor = self.reconstruction_comparisons(reconstruction_data, size=(8, 8), filename='imgs/recon_comp.png', exclude_original=False, exclude_recon=False, color_flag = True)
-        list_color_images = []
         orig_rec_tensor_color = self.tensor_gray_scale_to_color(input_tensor=orig_rec_tensor)
 
-        self.save_images = True
-        _ = self.generate_heat_maps(heat_map_data, latent_order=None, heat_map_size=(32, 32), filename='imgs/heatmap.png')
+        # === get heatmaps === #
+        # self.save_images = True
+        # _ = self.generate_heat_maps(heat_map_data, latent_order=None, heat_map_size=(32, 32), filename='imgs/heatmap.png')
         self.save_images = False
         _, heat_map = self.generate_heat_maps(heat_map_data, latent_order=None, heat_map_size=(32, 32), filename='imgs/heatmap.png')
 
         heat_map_np = np.array(heat_map)
         upsampled_heat_map = torch.tensor(upsample(input_data=heat_map_np, scale_factor=2,colour_flag=True))
-        combined_torch = torch.cat((orig_rec_tensor_color, upsampled_heat_map.float()))
+
+        # === all latent traversals === #
+        self.save_images = False
+        _, latent_traversals_map_gray_scale = self.all_latent_traversals(sample_latent_space=None, size=8,
+                              filename='imgs/all_traversals.png')
+        latent_traversals_map_colour = self.tensor_gray_scale_to_color(input_tensor=latent_traversals_map_gray_scale)
+        self.save_images = True
+
+        # === combine === #
+        combined_torch = torch.cat((orig_rec_tensor_color, upsampled_heat_map.float(), latent_traversals_map_colour))
         print(combined_torch.size())
+
+        # combine all images in the right order
+        nr_imgs_per_latent = size
+        combined_torch = orig_rec_tensor_color
+        for i in range(0, self.model.latent_dim):
+            combined_torch = torch.cat((combined_torch, latent_traversals_map_colour[nr_imgs_per_latent * i:nr_imgs_per_latent * (i + 1), :, :, :].float()))
+            combined_torch = torch.cat((combined_torch, upsampled_heat_map[i:i + 1, :, :, :].float()))
+
+        # === save === #
         self.save_images = True
         if self.save_images:
-            save_image(combined_torch.data, filename=filename, nrow=size, pad_value=(1 - get_background(self.dataset)))
+            save_image(combined_torch.data, filename=filename, nrow=size+1, pad_value=(1 - get_background(self.dataset)))
             return combined_torch
         else:
             return make_grid(combined_torch.data, nrow=size, pad_value=(1 - get_background(reconstruction_data)))
@@ -472,7 +489,7 @@ class Visualizer():
         else:
             return make_grid_img(generated.data,
                                  nrow=size,
-                                 pad_value=(1 - get_background(self.dataset)))
+                                 pad_value=(1 - get_background(self.dataset))), generated
 
     def _decode_latents(self, latent_samples):
         """
