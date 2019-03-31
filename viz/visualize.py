@@ -76,7 +76,7 @@ class Visualizer():
 
     def show_disentanglement_fig2(self, reconstruction_data, latent_sweep_data, heat_map_data,
                                   latent_order=None, heat_map_size=(32, 32), file_name='show-disentanglement.png',
-                                  size=8, sample_latent_space=None, base_directory = '',select_prior=False):
+                                  size=8, sample_latent_space=None, base_directory = '',select_prior=False,show_text=False):
         """ Reproduce Figure 2 from Burgess https://arxiv.org/pdf/1804.03599.pdf
             TODO: STILL TO BE IMPLEMENTED
         """
@@ -108,8 +108,9 @@ class Visualizer():
         new_image.paste(image_heat_maps, (image_traversal.size[0],image_random_reconstruction.size[1]))
         new_image.paste(image_traversal, (0, image_random_reconstruction.size[1]))
 
-        loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
-        new_image = add_labels('KL', new_image, 8, sorted(loss_list, reverse=True), self.dataset)
+        if show_text == True:
+            loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
+            new_image = add_labels('KL', new_image, 8, sorted(loss_list, reverse=True), self.dataset)
 
         new_image.save(file_name)
 
