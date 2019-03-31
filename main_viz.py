@@ -221,7 +221,9 @@ def main(args):
             ),
         'heat-maps': lambda: viz.generate_heat_maps(
             data=samples(experiment_name=experiment_name, num_samples=1024, shuffle=False),
-            file_name=os.path.join(RES_DIR, experiment_name, 'heat-maps.png')),
+            file_name=os.path.join(RES_DIR, experiment_name, 'heat-maps.png'),
+            reorder=True
+            ),
         'show-disentanglement': lambda: viz.show_disentanglement_fig2(
             reconstruction_data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True),
             latent_sweep_data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True),

@@ -245,7 +245,7 @@ class Visualizer():
         else:
             return make_grid(combined_torch.data, nrow=size, pad_value=(1 - get_background(self.dataset)))
 
-    def generate_heat_maps(self, data, latent_order=None, heat_map_size=(32, 32), file_name='heatmap.png'):
+    def generate_heat_maps(self, data, reorder=False, heat_map_size=(32, 32), file_name='heatmap.png'):
         """
         Generates heat maps of the mean of each latent dimension in the model. The spites are
         assumed to be in order, therefore no information about (x,y) positions is required.
@@ -254,6 +254,9 @@ class Visualizer():
         ----------
         data : torch.Tensor
             Data to be used to generate the heat maps. Shape (N, C, H, W)
+
+        reorder : bool
+            If the heat maps should be reordered by descending loss
 
         heat_map_size : tuple of ints
             Size of grid on which heat map will be plotted.
@@ -295,17 +298,14 @@ class Visualizer():
                         heat_map_color[latent_dim, 2, x_posn, y_posn] = red_rgb[2] + (blue_rgb[2]-red_rgb[2])*scale_id
 
 
-            if latent_order is not None:
-                # Reorder latent samples by average KL
-                heat_map_color = [
-                    latent_sample for _, latent_sample in sorted(zip(latent_order, heat_map_color), reverse=True)
-                ]
-                heat_map_color_stacked = torch.stack(heat_map_color)
-            else:
-                heat_map_color_stacked = heat_map_color
-            # print(type(heat_map))
-            # print(len(heat_map))
-            # print(heat_map)
+            if reorder:
+                num_latent_dims = heat_map.shape[0]
+                heat_map_list = [heat_map[i,:,:,:] for i in range(num_latent_dims)]
+
+                loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
+                heat_map = self.reorder(list_to_reorder=heat_map_list, reorder_by_list=loss_list)
+                heat_map = heat_map[:, None, :, :]
+
             # Normalise between 0 and 1
             # heat_map = (heat_map - torch.min(heat_map)) / (torch.max(heat_map) - torch.min(heat_map))
 
@@ -354,7 +354,7 @@ class Visualizer():
             decoded_samples = torch.reshape(decoded_samples, (num_rows, num_increments, image_width, image_height))
 
             loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
-            decoded_samples = self.reorder_traversals(list_to_reorder=decoded_samples, reorder_by_list=loss_list)
+            decoded_samples = self.reorder(list_to_reorder=decoded_samples, reorder_by_list=loss_list)
 
         if display_loss_per_dim:
             sorted_loss_list = [
@@ -384,7 +384,7 @@ class Visualizer():
                 pad_value=(1 - get_background(self.dataset))
             )
 
-    def reorder_traversals(self, list_to_reorder, reorder_by_list):
+    def reorder(self, list_to_reorder, reorder_by_list):
         """ Reorder the latent dimensions which are being traversed according to the reorder_by_list parameter.
 
         Parameters
@@ -565,7 +565,7 @@ class Visualizer():
             decoded_traversal = torch.reshape(decoded_traversal, (num_rows, num_increments, num_channels, image_width, image_height))
 
             loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
-            decoded_traversal = self.reorder_traversals(list_to_reorder=decoded_traversal, reorder_by_list=loss_list)
+            decoded_traversal = self.reorder(list_to_reorder=decoded_traversal, reorder_by_list=loss_list)
 
         if self.save_images:
             save_image(
