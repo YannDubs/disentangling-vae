@@ -300,7 +300,7 @@ class Visualizer():
             latent_sample for _, latent_sample in sorted(zip(reorder_by_list, list_to_reorder), reverse=True)
         ]
 
-        return torch.cat(latent_samples, dim=0)[:, None, :, :]
+        return torch.cat(latent_samples, dim=0)
 
     def reconstruction_comparisons(self, data, size=(8, 8), file_name='recon_comp.png',
                                    exclude_original=False, exclude_recon=False):
@@ -459,9 +459,9 @@ class Visualizer():
 
         if reorder_latent_dims:
             # Reshape into the appropriate form
-            (num_images, _, image_width, image_height) = decoded_traversal.size()
+            (num_images, num_channels, image_width, image_height) = decoded_traversal.size()
             num_rows = int(num_images / num_increments)
-            decoded_traversal = torch.reshape(decoded_traversal, (num_rows, num_increments, image_width, image_height))
+            decoded_traversal = torch.reshape(decoded_traversal, (num_rows, num_increments, num_channels, image_width, image_height))
 
             loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
             decoded_traversal = self.reorder_traversals(list_to_reorder=decoded_traversal, reorder_by_list=loss_list)
