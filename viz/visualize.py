@@ -49,16 +49,16 @@ class Visualizer():
         self.dataset = dataset
         self.loss_of_interest = loss_of_interest
 
-    def tensor_gray_scale_to_color(self,input_tensor):
-        # input_tensor, consists of gray_scale values and has size
+    def tensor_gray_scale_to_color(self, input_tensor):
+        # input_tensor, consists of gray_scale values and has dimension: latent dim, gray_scale value, x_position, y_position
 
         size_output = list(input_tensor.size())
         size_output[1] = 3
 
         black_rgb = [0,0,0]
         white_rgb = [1,1,1]
-        min_color = black_rgb
-        max_color = white_rgb
+        min_color = black_rgb # the color that the lowest gray scale value has 
+        max_color = white_rgb # the color that the highest gray scale color has
         output = torch.zeros(size_output)
         for latent_dim in range(size_output[0]):
             for y_posn in range(size_output[2]):
@@ -78,32 +78,47 @@ class Visualizer():
 
         # === get reconstruction === #
         self.save_images = False
-        orig_rec_tensor = self.reconstruction_comparisons(reconstruction_data, size=(8, 8), filename='imgs/recon_comp.png', exclude_original=False, exclude_recon=False, color_flag = True)
+        orig_rec_tensor = self.reconstruction_comparisons(reconstruction_data, size=(8, 8), exclude_original=False, exclude_recon=False, color_flag = True)
         orig_rec_tensor_color = self.tensor_gray_scale_to_color(input_tensor=orig_rec_tensor)
 
         # === get heatmaps === #
         # self.save_images = True
         # _ = self.generate_heat_maps(heat_map_data, latent_order=None, heat_map_size=(32, 32), filename='imgs/heatmap.png')
         self.save_images = False
-        _, heat_map = self.generate_heat_maps(heat_map_data, latent_order=None, heat_map_size=(32, 32), filename='imgs/heatmap.png')
-
+        loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
+        _, heat_map = self.generate_heat_maps(heat_map_data, latent_order=None, heat_map_size=(32, 32))
+        print(len(heat_map),type(heat_map))
+        heat_map = self.reorder_traversals(list_to_reorder=heat_map, reorder_by_list=loss_list)
+        print(len(heat_map),type(heat_map))
         heat_map_np = np.array(heat_map)
         upsampled_heat_map = torch.tensor(upsample(input_data=heat_map_np, scale_factor=2,colour_flag=True))
 
         # === all latent traversals === #
         self.save_images = False
-        _, latent_traversals_map_gray_scale = self.all_latent_traversals(sample_latent_space=None, size=8,
-                              filename='imgs/all_traversals.png')
+        # _, latent_traversals_map_gray_scale = self.all_latent_traversals(sample_latent_space=None, size=8)
+        _, latent_traversals_map_gray_scale = self.prior_traversal(reorder_latent_dims=True)
+
+
         latent_traversals_map_colour = self.tensor_gray_scale_to_color(input_tensor=latent_traversals_map_gray_scale)
         self.save_images = True
-
-        # === combine === #
-        combined_torch = torch.cat((orig_rec_tensor_color, upsampled_heat_map.float(), latent_traversals_map_colour))
-        print(combined_torch.size())
 
         # combine all images in the right order
         nr_imgs_per_latent = size
         combined_torch = orig_rec_tensor_color
+        # reorder_latent_dims=True
+        # if reorder_latent_dims:
+        #     loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
+        #     latent_traversals_map_colour = [
+        #             latent_sample for _, latent_sample in sorted(zip(loss_list, latent_traversals_map_colour), reverse=True)
+        #         ]
+        #     upsampled_heat_map = [
+        #             latent_sample for _, latent_sample in sorted(zip(loss_list, upsampled_heat_map), reverse=True)
+        #         ]
+        #     latent_traversals_map_colour = torch.stack(latent_traversals_map_colour)
+        #     upsampled_heat_map = torch.stack(upsampled_heat_map)
+            # _, latent_traversals_map_colour = sorted(zip(loss_list, latent_traversals_map_colour), reverse=True)
+            # _, upsampled_heat_map = sorted(zip(loss_list, upsampled_heat_map), reverse=True)
+
         for i in range(0, self.model.latent_dim):
             combined_torch = torch.cat((combined_torch, latent_traversals_map_colour[nr_imgs_per_latent * i:nr_imgs_per_latent * (i + 1), :, :, :].float()))
             combined_torch = torch.cat((combined_torch, upsampled_heat_map[i:i + 1, :, :, :].float()))
@@ -331,7 +346,7 @@ class Visualizer():
             input_data = data.to(self.device)
             sample = self.model.sample_latent(input_data)
         decoded_samples = self.all_latent_traversals(sample_latent_space=sample, size=num_increments)
-
+        reorder_latent_dims=True
         if reorder_latent_dims:
             # Reshape into the appropriate form
             (num_images, _, image_width, image_height) = decoded_samples.size()
@@ -565,7 +580,7 @@ class Visualizer():
                 filename=file_name,
                 nrow=num_increments,
                 pad_value=(1 - get_background(self.dataset))
-            )
+            ), decoded_traversal
 
     def all_latent_traversals(self, sample_latent_space=None, size=8):
         """
@@ -595,7 +610,7 @@ class Visualizer():
         else:
             return make_grid_img(decoded_samples.data,
                                  nrow=size,
-                                 pad_value=(1 - get_background(self.dataset))), generated
+                                 pad_value=(1 - get_background(self.dataset))), decoded_samples
 
     def _decode_latents(self, latent_samples):
         """
