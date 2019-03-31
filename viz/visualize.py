@@ -277,6 +277,42 @@ class Visualizer():
         ]
         return torch.cat(latent_samples, dim=0)
 
+    def visualise_data_set(self, data, size=(8, 8), file_name='visualise_data_set.png'):
+        """
+        Generates reconstructions of data through the model.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            Data to be reconstructed. Shape (N, C, H, W)
+
+        size : tuple of ints
+            Size of grid on which reconstructions will be plotted. The number
+            of rows should be even, so that upper half contains true data and
+            bottom half contains reconstructions
+
+        filename : string
+            Name of file in which results are stored.
+        """
+        self.model.eval()
+        # Pass data through VAE to obtain reconstruction
+        with torch.no_grad():
+            input_data = data.to(self.device)
+
+        num_images = size[0]
+        originals = input_data.cpu()
+
+        # originals = torch.cat([originals, blank_images])
+
+        if self.save_images:
+            save_image(input_data.data,
+                       filename=file_name,
+                       nrow=size[0],
+                       pad_value=(1 - get_background(self.dataset)))
+        else:
+            return comparison
+            
+
     def reconstruction_comparisons(self, data, size=(8, 8), file_name='recon_comp.png',
                                    exclude_original=False, exclude_recon=False, color_flag = False):
         """

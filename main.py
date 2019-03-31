@@ -13,6 +13,7 @@ from utils.helpers import (create_safe_directory, get_device, set_seed, get_n_pa
                            get_config_section, update_namespace_, FormatterNoDuplicate)
 from viz.visualize import Visualizer
 
+
 CONFIG_FILE = "hyperparam.ini"
 TEST_FILE = "test_losses.log"
 RES_DIR = "results"

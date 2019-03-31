@@ -5,20 +5,14 @@ from math import ceil, floor
 
 IMGS_DIR = "imgs"
 
-# def combine_images(width, height,image_list, nr_columns,):
-#     new_image = PIL.Image.new("RGB", (max(h1, h2), w1+w2))
 
 def concatenate_images(image_list, width, height, nr_columns = 1, percentage_space = 0.0):
     total_nr_images = len(image_list)  
     nr_rows = int(ceil(float(total_nr_images)/nr_columns))
-    # image_size = image_list[0].size
-    # width = image_size[0]
-    # height = image_size[1]
     space = int(round(percentage_space*max(width, height)))
     new_image = PIL.Image.new("RGB", (width*nr_columns, height*nr_rows))
-    print(width,height,nr_columns,nr_rows)
     # === create new image === # 
-    for id_image in range(0, len(image_list)):
+    for id_image in range(len(image_list)):
         image = image_list[id_image]
         id_x = id_image%nr_columns
         id_y = floor(id_image/nr_columns)
