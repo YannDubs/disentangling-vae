@@ -55,8 +55,14 @@ class Visualizer():
         self.loss_of_interest = loss_of_interest
 
     def tensor_gray_scale_to_color(self, input_tensor):
-        # input_tensor, consists of gray_scale values and has dimension: latent dim, gray_scale value, x_position, y_position
+        """
+        Takes a gray scale input tensor and converts it to a color tensor from black to white
 
+        Parameters
+        ----------
+        input_tensor : input dim of [:,1,:,:]
+
+        """
         size_output = list(input_tensor.size())
         size_output[1] = 3
 
@@ -73,6 +79,77 @@ class Visualizer():
                     output[latent_dim, 1, x_posn, y_posn] = min_color[1] + (max_color[1]-min_color[1])*scale_id
                     output[latent_dim, 2, x_posn, y_posn] = min_color[2] + (max_color[2]-min_color[2])*scale_id
         return output
+
+    def reconstruct_and_traverse(self, reconstruction_data, latent_sweep_data,
+                                  latent_order=None, file_name='show-disentanglement.png',
+                                  size=8, sample_latent_space=None, base_directory = '',select_prior=False,show_text=False, nr_rows = 10):
+        """
+        Creates a figure which consists of random original images and reconstructed images in two rows at the top
+        and underneith it the latent traversals.
+
+        Parameters
+        ----------
+        reconstruction_data : 
+            data for the reconstruction
+
+        latent_sweep_data : 
+            data for the latent traversals
+        
+        latent_order : boolean
+            if the latent dimension are ordered
+
+        file_name : str
+            file name of output image
+
+        size : int
+            number of columns
+
+        sample_latent_space : ?
+            ?
+
+        base_directory : str
+            base directory of images
+
+        select_prior : boolean
+            if select prior instead of posterior
+
+        show_text : boolean
+            if show KL next to latent traversals and 'orig' and 'recon' next to reconstructions
+            
+        nr_rows : int
+            number of latent traversal rows that are shown
+
+        """
+        image_file_name_list = [
+            os.path.join(base_directory, 'recon_comp.png')
+            ]
+
+        self.reconstruction_comparisons(reconstruction_data, size=(size, 8), exclude_original=False, exclude_recon=False, color_flag = True, file_name=os.path.join(base_directory, 'recon_comp.png'))
+
+        if select_prior == True:
+            self.prior_traversal(reorder_latent_dims=True, file_name=os.path.join(base_directory, 'prior_traversal.png',num_increments=size), nr_rows = nr_rows)
+            image_file_name_list.append(os.path.join(base_directory, 'prior_traversal.png'))
+        else:
+            self.traverse_posterior(data = latent_sweep_data, num_increments=size, reorder_latent_dims=True, file_name=os.path.join(base_directory, 'posterior_traversal.png'), nr_rows = nr_rows)
+            image_file_name_list.append(os.path.join(base_directory, 'posterior_traversal.png'))
+        
+        image_random_reconstruction = Image.open(image_file_name_list[0])
+        image_traversal = Image.open(image_file_name_list[1])
+
+        width_new_image = image_random_reconstruction.size[0]
+        height_new_image = image_random_reconstruction.size[1] + image_traversal.size[1]
+
+        new_image = Image.new("RGB", (width_new_image, height_new_image))
+        new_image.paste(image_random_reconstruction, (0,0))
+        new_image.paste(image_traversal, (0, image_random_reconstruction.size[1]))
+
+        if show_text == True:
+            loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
+            new_image = add_labels('KL', new_image, size, sorted(loss_list, reverse=True), self.dataset)
+
+        new_image.save(file_name)
+
+        return new_image
 
     def show_disentanglement_fig2(self, reconstruction_data, latent_sweep_data, heat_map_data,
                                   latent_order=None, heat_map_size=(32, 32), file_name='show-disentanglement.png',
@@ -186,7 +263,7 @@ class Visualizer():
                 return make_grid(heat_map_color.data, nrow=latent_dim, pad_value=(1 - get_background(self.dataset))), heat_map_color
 
     def traverse_posterior(self, data, num_increments=8, reorder_latent_dims=True,
-                           display_loss_per_dim=False, file_name='posterior_traversal.png'):
+                           display_loss_per_dim=False, file_name='posterior_traversal.png', nr_rows=10):
         """
         Take 8 sample images, run them through the decoder, obtain the mean latent
         space vector. With this as the initialisation, traverse each dimension one
@@ -227,6 +304,8 @@ class Visualizer():
             loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
             decoded_samples = self.reorder(list_to_reorder=decoded_list, reorder_by_list=loss_list)
             decoded_samples = torch.reshape(decoded_samples, (num_images, num_channels, image_width, image_height))
+
+        decoded_samples = decoded_samples[range(num_increments*nr_rows),:,:,:]
 
         if display_loss_per_dim:
             sorted_loss_list = [
@@ -445,7 +524,7 @@ class Visualizer():
                                  nrow=size[1],
                                  pad_value=(1 - get_background(self.dataset)))
 
-    def prior_traversal(self, sample_latent_space=None, reorder_latent_dims=False, num_increments=8, file_name='prior_traversal.png'):
+    def prior_traversal(self, sample_latent_space=None, reorder_latent_dims=False, num_increments=8, file_name='prior_traversal.png', nr_rows = 10):
         """ Traverse the latent prior.
             Parameters
             ----------
@@ -474,6 +553,8 @@ class Visualizer():
             loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
             decoded_traversal = self.reorder(list_to_reorder=decoded_list, reorder_by_list=loss_list)
             decoded_traversal = torch.reshape(decoded_traversal, (num_images, num_channels, image_width, image_height))
+
+        decoded_traversal = decoded_traversal[range(num_increments*nr_rows),:,:,:]
 
         if self.save_images:
             save_image(
@@ -504,6 +585,7 @@ class Visualizer():
         size : int
             Number of samples for each latent traversal.
         """
+
         latent_samples = []
         # Perform line traversal of every latent
         for idx in range(self.model.latent_dim):
