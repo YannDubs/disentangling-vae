@@ -1,4 +1,5 @@
 import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
@@ -30,5 +31,5 @@ class LogPlotter(object):
         headers = list(df)[1:]
         x_axis = list(df)[0]
         df.plot(x=x_axis, y=headers, grid=True, style='-')
-        
+
         return plt

@@ -157,7 +157,7 @@ def parse_arguments():
                             help='The name of the directory in which the model to run has been saved. This should be the name of the experiment')
 
     visualisation = parser.add_argument_group('Desired Visualisation')
-    visualisation_options = ['visualise-dataset', 'random-samples', 'traverse-prior', 'traverse-one-latent-dim', 'random-reconstruction',
+    visualisation_options = ['visualise-dataset', 'random-samples', 'reconstruct-and-traverse', 'traverse-prior', 'traverse-one-latent-dim', 'random-reconstruction',
                              'heat-maps', 'display-avg-KL', 'traverse-posterior', 'show-disentanglement', 'snapshot-recon']
     visualisation.add_argument('-v', '--visualisation',
                                default='random-samples', choices=visualisation_options,
@@ -166,6 +166,8 @@ def parse_arguments():
                                default=0, help='The latent dimension to sweep (if applicable)')
     visualisation.add_argument('-n', '--num-samples', type=int,
                                default=1, help='The number of samples to visualise (if applicable).')
+    visualisation.add_argument('-nr', '--num-rows', type=int,
+                               default=10, help='The number of rows to visualise (if applicable).')
     visualisation.add_argument('-d', '--display-loss', type=bool, default=False,
                                help='If the loss should be displayed next to the posterior latent traversal dimensions.')
     visualisation.add_argument('-sp', '--select-prior', type=bool, default=False,
@@ -226,6 +228,16 @@ def main(args):
             data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True),
             display_loss_per_dim=args.display_loss,
             file_name=os.path.join(RES_DIR, experiment_name, 'posterior-traversal.png')
+            ),
+        'reconstruct-and-traverse': lambda: viz.reconstruct_and_traverse(
+            reconstruction_data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True),
+            latent_sweep_data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True),
+            file_name=os.path.join(RES_DIR, experiment_name, 'reconstruct-and-traverse.png'), 
+            base_directory = os.path.join(RES_DIR, experiment_name),
+            select_prior = args.select_prior,
+            show_text = args.show_text,
+            nr_rows = args.num_rows,
+            size = args.num_samples
             ),
         'heat-maps': lambda: viz.generate_heat_maps(
             data=samples(experiment_name=experiment_name, num_samples=1024, shuffle=False),
