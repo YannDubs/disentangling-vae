@@ -1,6 +1,9 @@
 import numpy as np
+from math import ceil, floor
+
 import os
 
+from PIL import Image
 import torch
 from scipy import stats
 from torch.autograd import Variable
@@ -11,10 +14,7 @@ from viz.latent_traversals import LatentTraverser
 from viz.viz_helpers import (reorder_img, read_loss_from_file, add_labels,
                              upsample, make_grid_img)
 
-import PIL
-from PIL import Image
-import os
-from math import ceil, floor
+
 
 TRAIN_FILE = "train_losses.log"
 DECIMAL_POINTS = 3
@@ -103,7 +103,7 @@ class Visualizer():
         width_new_image = image_random_reconstruction.size[0]
         height_new_image = image_random_reconstruction.size[1] + image_traversal.size[1]
 
-        new_image = PIL.Image.new("RGB", (width_new_image, height_new_image))
+        new_image = Image.new("RGB", (width_new_image, height_new_image))
         new_image.paste(image_random_reconstruction, (0,0))
         new_image.paste(image_heat_maps, (image_traversal.size[0],image_random_reconstruction.size[1]))
         new_image.paste(image_traversal, (0, image_random_reconstruction.size[1]))
@@ -164,6 +164,7 @@ class Visualizer():
             for latent_dim in range(num_latent_dims):
                 for y_posn in range(heat_map_width):
                     for x_posn in range(heat_map_height):
+                        # scale_id is between 0 and 1
                         scale_id = (heat_map_gray_scale[latent_dim, 0, x_posn, y_posn]-min_gray)/(max_gray-min_gray)
                         heat_map_color[latent_dim, 0, x_posn, y_posn] = red_rgb[0] + (blue_rgb[0]-red_rgb[0])*scale_id
                         heat_map_color[latent_dim, 1, x_posn, y_posn] = red_rgb[1] + (blue_rgb[1]-red_rgb[1])*scale_id
@@ -177,8 +178,6 @@ class Visualizer():
 
                 loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
                 heat_map_color = self.reorder(list_to_reorder=heat_map_list, reorder_by_list=loss_list)
-            # Normalise between 0 and 1
-            # heat_map = (heat_map - torch.min(heat_map)) / (torch.max(heat_map) - torch.min(heat_map))
 
             if self.save_images:
                 save_image(heat_map_color.data, filename=file_name, nrow=1, pad_value=(1 - get_background(self.dataset)))
