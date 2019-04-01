@@ -157,7 +157,8 @@ def parse_arguments():
                             help='The name of the directory in which the model to run has been saved. This should be the name of the experiment')
 
     visualisation = parser.add_argument_group('Desired Visualisation')
-    visualisation_options = ['random-samples', 'traverse-prior', 'traverse-one-latent-dim', 'random-reconstruction',
+
+    visualisation_options = ['visualise-dataset', 'random-samples', 'reconstruct-and-traverse', 'traverse-prior', 'traverse-one-latent-dim', 'random-reconstruction',
                              'heat-maps', 'display-avg-KL', 'traverse-posterior', 'show-disentanglement', 'snapshot-recon']
     visualisation.add_argument('-v', '--visualisation',
                                default='random-samples', choices=visualisation_options,
@@ -168,8 +169,14 @@ def parse_arguments():
                                default=1, help='The number of samples to visualise (if applicable).')
     visualisation.add_argument('-u', '--upsample-factor', type=int,
                                default=1, help='The scale factor with which to upsample the image.')
+    visualisation.add_argument('-nr', '--num-rows', type=int,
+                               default=10, help='The number of rows to visualise (if applicable).')
     visualisation.add_argument('-d', '--display-loss', type=bool, default=False,
                                help='If the loss should be displayed next to the posterior latent traversal dimensions.')
+    visualisation.add_argument('-sp', '--select-prior', type=bool, default=False,
+                               help='If the prior traversals have to be used for the visualisation show-disentanglement.')
+    visualisation.add_argument('-st', '--show-text', type=bool, default=False,
+                               help='Show the KL divergence in the show-disentanglement figure.')
 
     dir_opts = parser.add_argument_group('directory options')
     dir_opts.add_argument('-l', '--log-dir', type=str, default='', help='Path to the log file containing the data to plot.')
@@ -212,6 +219,10 @@ def main(args):
             )
 
     visualisation_options = {
+        'visualise-dataset': lambda: viz.visualise_data_set(
+            data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True),
+            file_name=os.path.join(RES_DIR, experiment_name, 'visualise_data_set.png')
+            ),
         'random-samples': lambda: viz.generate_samples(
             file_name=os.path.join(RES_DIR, experiment_name, experiment_name + '-samples.png')
             ),
@@ -235,14 +246,29 @@ def main(args):
             display_loss_per_dim=args.display_loss,
             file_name=os.path.join(RES_DIR, experiment_name, experiment_name + '-posterior-traversal.png')
             ),
+        'reconstruct-and-traverse': lambda: viz.reconstruct_and_traverse(
+            reconstruction_data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True),
+            latent_sweep_data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True),
+            file_name=os.path.join(RES_DIR, experiment_name, 'reconstruct-and-traverse.png'), 
+            base_directory = os.path.join(RES_DIR, experiment_name),
+            select_prior = args.select_prior,
+            show_text = args.show_text,
+            nr_rows = args.num_rows,
+            size = args.num_samples
+            ),
         'heat-maps': lambda: viz.generate_heat_maps(
             data=samples(experiment_name=experiment_name, num_samples=1024, shuffle=False),
             file_name=os.path.join(RES_DIR, experiment_name, experiment_name + '-heat-maps.png'),
             reorder=True
             ),
         'show-disentanglement': lambda: viz.show_disentanglement_fig2(
+            reconstruction_data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True),
             latent_sweep_data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True),
-            heat_map_data=samples(experiment_name=experiment_name, num_samples=1024, shuffle=False)
+            heat_map_data=samples(experiment_name=experiment_name, num_samples=1024, shuffle=False),
+            file_name=os.path.join(RES_DIR, experiment_name, 'show-disentanglement.png'), 
+            base_directory = os.path.join(RES_DIR, experiment_name),
+            select_prior = args.select_prior,
+            show_text = args.show_text
             ),
         'display-avg-KL': lambda: LogPlotter(
             log_dir=args.log_dir,

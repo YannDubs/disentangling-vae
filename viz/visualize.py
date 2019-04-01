@@ -1,6 +1,9 @@
 import numpy as np
+from math import ceil, floor
+
 import os
 
+from PIL import Image
 import torch
 from scipy import stats
 from torch.autograd import Variable
@@ -10,6 +13,8 @@ from utils.datasets import get_background
 from viz.latent_traversals import LatentTraverser
 from viz.viz_helpers import (reorder_img, read_loss_from_file, add_labels,
                              upsample, make_grid_img)
+
+
 
 TRAIN_FILE = "train_losses.log"
 DECIMAL_POINTS = 3
@@ -54,122 +59,145 @@ class Visualizer():
         self.dataset = dataset
         self.loss_of_interest = loss_of_interest
 
+    def tensor_gray_scale_to_color(self, input_tensor):
+        """
+        Takes a gray scale input tensor and converts it to a color tensor from black to white
+
+        Parameters
+        ----------
+        input_tensor : input dim of [:,1,:,:]
+
+        """
+        size_output = list(input_tensor.size())
+        size_output[1] = 3
+
+        black_rgb = [0,0,0]
+        white_rgb = [1,1,1]
+        min_color = black_rgb # the color that the lowest gray scale value has 
+        max_color = white_rgb # the color that the highest gray scale color has
+        output = torch.zeros(size_output)
+        for latent_dim in range(size_output[0]):
+            for y_posn in range(size_output[2]):
+                for x_posn in range(size_output[3]):
+                    scale_id = input_tensor[latent_dim, 0, x_posn, y_posn]
+                    output[latent_dim, 0, x_posn, y_posn] = min_color[0] + (max_color[0]-min_color[0])*scale_id
+                    output[latent_dim, 1, x_posn, y_posn] = min_color[1] + (max_color[1]-min_color[1])*scale_id
+                    output[latent_dim, 2, x_posn, y_posn] = min_color[2] + (max_color[2]-min_color[2])*scale_id
+        return output
+
+    def reconstruct_and_traverse(self, reconstruction_data, latent_sweep_data,
+                                  latent_order=None, file_name='show-disentanglement.png',
+                                  size=8, sample_latent_space=None, base_directory = '',select_prior=False,show_text=False, nr_rows = 10):
+        """
+        Creates a figure which consists of random original images and reconstructed images in two rows at the top
+        and underneith it the latent traversals.
+
+        Parameters
+        ----------
+        reconstruction_data : 
+            data for the reconstruction
+
+        latent_sweep_data : 
+            data for the latent traversals
+        
+        latent_order : boolean
+            if the latent dimension are ordered
+
+        file_name : str
+            file name of output image
+
+        size : int
+            number of columns
+
+        sample_latent_space : ?
+            ?
+
+        base_directory : str
+            base directory of images
+
+        select_prior : boolean
+            if select prior instead of posterior
+
+        show_text : boolean
+            if show KL next to latent traversals and 'orig' and 'recon' next to reconstructions
+            
+        nr_rows : int
+            number of latent traversal rows that are shown
+
+        """
+        image_file_name_list = [
+            os.path.join(base_directory, 'recon_comp.png')
+            ]
+
+        self.reconstruction_comparisons(reconstruction_data, size=(size, 8), exclude_original=False, exclude_recon=False, color_flag = True, file_name=os.path.join(base_directory, 'recon_comp.png'))
+
+        if select_prior == True:
+            self.prior_traversal(reorder_latent_dims=True, file_name=os.path.join(base_directory, 'prior_traversal.png',num_increments=size), nr_rows = nr_rows)
+            image_file_name_list.append(os.path.join(base_directory, 'prior_traversal.png'))
+        else:
+            self.traverse_posterior(data = latent_sweep_data, num_increments=size, reorder_latent_dims=True, file_name=os.path.join(base_directory, 'posterior_traversal.png'), nr_rows = nr_rows)
+            image_file_name_list.append(os.path.join(base_directory, 'posterior_traversal.png'))
+        
+        image_random_reconstruction = Image.open(image_file_name_list[0])
+        image_traversal = Image.open(image_file_name_list[1])
+
+        width_new_image = image_random_reconstruction.size[0]
+        height_new_image = image_random_reconstruction.size[1] + image_traversal.size[1]
+
+        new_image = Image.new("RGB", (width_new_image, height_new_image))
+        new_image.paste(image_random_reconstruction, (0,0))
+        new_image.paste(image_traversal, (0, image_random_reconstruction.size[1]))
+
+        if show_text == True:
+            loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
+            new_image = add_labels('KL', new_image, size, sorted(loss_list, reverse=True), self.dataset)
+
+        new_image.save(file_name)
+
+        return new_image
+
     def show_disentanglement_fig2(self, reconstruction_data, latent_sweep_data, heat_map_data,
-                                  latent_order=None, heat_map_size=(32, 32), filename='show-disentanglement.png',
-                                  size=8, sample_latent_space=None):
+                                  latent_order=None, heat_map_size=(32, 32), file_name='show-disentanglement.png',
+                                  size=8, sample_latent_space=None, base_directory = '',select_prior=False,show_text=False):
         """ Reproduce Figure 2 from Burgess https://arxiv.org/pdf/1804.03599.pdf
             TODO: STILL TO BE IMPLEMENTED
         """
-        # Plot reconstructions in test mode, i.e. without sampling from latent
-        self.model.eval()
-        # Pass data through VAE to obtain reconstruction
-        with torch.no_grad():
-            input_data = reconstruction_data.to(self.device)
-            sample_recon, _, _ = self.model(input_data)
-        self.model.train()
+        image_file_name_list = [
+            os.path.join(base_directory, 'recon_comp.png'),
+            os.path.join(base_directory, 'heatmap.png'),
+            ''
+            ]
+        # === get reconstruction === #
+        self.reconstruction_comparisons(reconstruction_data, size=(9, 8), exclude_original=False, exclude_recon=False, color_flag = True, file_name=os.path.join(base_directory, 'recon_comp.png'))
+        self.generate_heat_maps(heat_map_data, reorder=True, heat_map_size=(32, 32),file_name=os.path.join(base_directory, 'heatmap.png'))
 
-        # Upper half of plot will contain data, bottom half will contain
-        # reconstructions of the original image
-        num_images = 9
-        originals = input_data.cpu()
-        reconstructions = sample_recon.view(-1, *self.model.img_size).cpu()
-        # Upper half of plot will contain data, bottom half will contain
-        # reconstructions of the original image
-        num_images = 9
-        originals = input_data.cpu()
-        reconstructions = sample_recon.view(-1, *self.model.img_size).cpu()
-        # If there are fewer num_exampleses given than spaces available in grid,
-        # augment with blank images
-        num_examples = originals.size()[0]
-        if num_images > num_examples:
-            blank_images = torch.zeros((num_images - num_examples,) + originals.size()[1:])
-            originals = torch.cat([originals, blank_images])
-            reconstructions = torch.cat([reconstructions, blank_images])
-        comparison = torch.cat([originals, reconstructions])
-
-        # Function: generateheatmap
-
-        # Plot reconstructions in test mode, i.e. without sampling from latent
-        self.model.eval()
-        # Pass data through VAE to obtain reconstruction
-        with torch.no_grad():
-            input_data = heat_map_data.to(self.device)
-            sample_heat_map = self.model.sample_latent(input_data)
-            # means = latent_dist[1]
-
-            heat_map_height = heat_map_size[0]
-            heat_map_width = heat_map_size[1]
-            num_latent_dims = sample_heat_map.shape[1]
-
-            heat_map = torch.zeros([num_latent_dims, 1, heat_map_height, heat_map_width])
-
-            for latent_dim in range(num_latent_dims):
-                for y_posn in range(heat_map_width):
-                    for x_posn in range(heat_map_height):
-                        heat_map[latent_dim, 0, x_posn, y_posn] = sample_heat_map[heat_map_width * y_posn + x_posn, latent_dim]
-
-            if latent_order is not None:
-                # Reorder latent samples by average KL
-                heat_map = [
-                    latent_sample for _, latent_sample in sorted(zip(latent_order, heat_map), reverse=True)
-                ]
-            heat_map_np = np.array(heat_map)
-            upsampled_heat_map = torch.tensor(upsample(input_data=heat_map_np, scale_factor=2))
-
-        # Function: all_latent_traversals
-        # Plot reconstructions in test mode, i.e. without sampling from latent
-        self.model.eval()
-        # Pass data through VAE to obtain reconstruction
-        with torch.no_grad():
-            input_data = latent_sweep_data.to(self.device)
-            sample = self.model.sample_latent(input_data)
-        # means = latent_dist[1]
-
-        avg_kl_list = read_avg_kl_from_file(os.path.join(self.model_dir, TRAIN_FILE), self.model.latent_dim)
-
-        # Perform line traversal of every latent
-        latent_samples = []
-        for idx in range(self.model.latent_dim):
-            latent_samples.append(self.latent_traverser.traverse_line(idx=idx,
-                                                                      size=size,
-                                                                      sample_latent_space=None))
-        latent_samples = [
-            latent_sample for _, latent_sample in sorted(zip(avg_kl_list, latent_samples), reverse=True)
-        ]
-
-        sorted_avg_kl_list = [
-            round(float(avg_kl_sample), 3) for avg_kl_sample, _ in sorted(zip(avg_kl_list, latent_samples), reverse=True)
-        ]
-
-        # Decode samples
-        generated = self._decode_latents(torch.cat(latent_samples, dim=0))
-
-        list_heat_map = []
-        for i in range(0, self.model.latent_dim):
-            list_heat_map.append(upsampled_heat_map[i, 0, :, :])
-
-        heat_map_sorted = [
-            list_heat_map for _, list_heat_map in sorted(zip(avg_kl_list, list_heat_map), reverse=True)
-        ]
-
-        new_torch = torch.tensor(np.zeros((self.model.latent_dim, 1, 64, 64)))
-        for i in range(0, self.model.latent_dim):
-            new_torch[i, 0, :, :] = heat_map_sorted[i]
-        nr_imgs_per_latent = size
-
-        # combine all images in the right order
-        combined_torch = comparison
-        for i in range(0, self.model.latent_dim):
-            combined_torch = torch.cat((combined_torch, generated[nr_imgs_per_latent * i:nr_imgs_per_latent * (i + 1), :, :, :].float()))
-            combined_torch = torch.cat((combined_torch, new_torch[i:i + 1, :, :, :].float()))
-
-        traversal_images_with_text = add_labels('KL', combined_torch, size + 1, sorted_avg_kl_list, self.dataset)
-
-        if self.save_images:
-            traversal_images_with_text.save(filename)
-            return avg_kl_list
+        if select_prior == True:
+            self.prior_traversal(reorder_latent_dims=True, file_name=os.path.join(base_directory, 'prior_traversal.png'))
+            image_file_name_list[2] = os.path.join(base_directory, 'prior_traversal.png')
         else:
-            return make_grid(combined_torch.data, nrow=size, pad_value=(1 - get_background(self.dataset)))
+            self.traverse_posterior(data = latent_sweep_data, reorder_latent_dims=True, file_name=os.path.join(base_directory, 'posterior_traversal.png'))
+            image_file_name_list[2] = os.path.join(base_directory, 'posterior_traversal.png')
+        
+        image_random_reconstruction = Image.open(image_file_name_list[0])
+        image_heat_maps = Image.open(image_file_name_list[1])
+        image_traversal = Image.open(image_file_name_list[2])
+
+        width_new_image = image_random_reconstruction.size[0]
+        height_new_image = image_random_reconstruction.size[1] + image_traversal.size[1]
+
+        new_image = Image.new("RGB", (width_new_image, height_new_image))
+        new_image.paste(image_random_reconstruction, (0,0))
+        new_image.paste(image_heat_maps, (image_traversal.size[0],image_random_reconstruction.size[1]))
+        new_image.paste(image_traversal, (0, image_random_reconstruction.size[1]))
+
+        if show_text == True:
+            loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
+            new_image = add_labels('KL', new_image, 8, sorted(loss_list, reverse=True), self.dataset)
+
+        new_image.save(file_name)
+
+        return new_image
+        
 
     def generate_heat_maps(self, data, reorder=False, heat_map_size=(32, 32), file_name='heatmap.png'):
         """
@@ -202,31 +230,45 @@ class Visualizer():
             heat_map_width = heat_map_size[1]
             num_latent_dims = sample.shape[1]
 
-            heat_map = torch.zeros([num_latent_dims, 1, heat_map_height, heat_map_width])
-
+            heat_map_gray_scale = torch.zeros([num_latent_dims, 1, heat_map_height, heat_map_width])
             for latent_dim in range(num_latent_dims):
                 for y_posn in range(heat_map_width):
                     for x_posn in range(heat_map_height):
-                        heat_map[latent_dim, 0, x_posn, y_posn] = sample[heat_map_width * y_posn + x_posn, latent_dim]
+                        heat_map_gray_scale[latent_dim, 0, x_posn, y_posn] = sample[heat_map_width * y_posn + x_posn, latent_dim]
+            
+
+            red_rgb = [1,0,0]
+            blue_rgb = [0,0,1]
+            min_gray = torch.min(heat_map_gray_scale)
+            max_gray = torch.max(heat_map_gray_scale)
+
+            heat_map_color = torch.zeros([num_latent_dims, 3, heat_map_height, heat_map_width])
+            for latent_dim in range(num_latent_dims):
+                for y_posn in range(heat_map_width):
+                    for x_posn in range(heat_map_height):
+                        # scale_id is between 0 and 1
+                        scale_id = (heat_map_gray_scale[latent_dim, 0, x_posn, y_posn]-min_gray)/(max_gray-min_gray)
+                        heat_map_color[latent_dim, 0, x_posn, y_posn] = red_rgb[0] + (blue_rgb[0]-red_rgb[0])*scale_id
+                        heat_map_color[latent_dim, 1, x_posn, y_posn] = red_rgb[1] + (blue_rgb[1]-red_rgb[1])*scale_id
+                        heat_map_color[latent_dim, 2, x_posn, y_posn] = red_rgb[2] + (blue_rgb[2]-red_rgb[2])*scale_id
+            heat_map_np = np.array(heat_map_color)
+            heat_map_color = torch.tensor(upsample(input_data=heat_map_np, scale_factor=2,colour_flag=True))
 
             if reorder:
-                num_latent_dims = heat_map.shape[0]
-                heat_map_list = [heat_map[i,:,:,:] for i in range(num_latent_dims)]
+                num_latent_dims = heat_map_color.shape[0]
+                heat_map_list = [heat_map_color[i,:,:,:] for i in range(num_latent_dims)]
 
                 loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
-                heat_map = self.reorder(list_to_reorder=heat_map_list, reorder_by_list=loss_list)
-                heat_map = heat_map[:, None, :, :]
-
-            # Normalise between 0 and 1
-            heat_map = (heat_map - torch.min(heat_map)) / (torch.max(heat_map) - torch.min(heat_map))
+                heat_map_color = self.reorder(list_to_reorder=heat_map_list, reorder_by_list=loss_list)
 
             if self.save_images:
-                save_image(heat_map.data, filename=file_name, nrow=1, pad_value=(1 - get_background(self.dataset)))
+                save_image(heat_map_color.data, filename=file_name, nrow=1, pad_value=(1 - get_background(self.dataset)))
+
             else:
-                return make_grid(heat_map.data, nrow=latent_dim, pad_value=(1 - get_background(self.dataset)))
+                return make_grid(heat_map_color.data, nrow=latent_dim, pad_value=(1 - get_background(self.dataset))), heat_map_color
 
     def traverse_posterior(self, data, num_increments=8, reorder_latent_dims=True,
-                           display_loss_per_dim=False, file_name='posterior_traversal.png'):
+                           display_loss_per_dim=False, file_name='posterior_traversal.png', nr_rows=10):
         """
         Take 8 sample images, run them through the decoder, obtain the mean latent
         space vector. With this as the initialisation, traverse each dimension one
@@ -256,15 +298,19 @@ class Visualizer():
             input_data = data.to(self.device)
             sample = self.model.sample_latent(input_data)
         decoded_samples = self.all_latent_traversals(sample_latent_space=sample, size=num_increments)
-
+        reorder_latent_dims=True
         if reorder_latent_dims:
             # Reshape into the appropriate form
             (num_images, num_channels, image_width, image_height) = decoded_samples.size()
             num_rows = int(num_images / num_increments)
             decoded_samples = torch.reshape(decoded_samples, (num_rows, num_increments, num_channels, image_width, image_height))
+            #decoded_list = [decoded_samples[i,:,:,:] for i in range(0,list(decoded_samples.size())[0])]
 
             loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
-            decoded_samples = self.reorder(list_to_reorder=decoded_samples, reorder_by_list=loss_list)
+            decoded_samples = self.reorder(list_to_reorder=decoded_list, reorder_by_list=loss_list)
+            decoded_samples = torch.reshape(decoded_samples, (num_images, num_channels, image_width, image_height))
+
+        decoded_samples = decoded_samples[range(num_increments*nr_rows),:,:,:]
 
         if display_loss_per_dim:
             sorted_loss_list = [
@@ -279,6 +325,9 @@ class Visualizer():
                             dataset=self.dataset
                         )
             traversal_images_with_text.save(file_name)
+
+
+
 
         if self.save_images and not display_loss_per_dim:
             save_image(
@@ -307,13 +356,49 @@ class Visualizer():
         """
 
         latent_samples = [
-            latent_sample for _, latent_sample in sorted(zip(reorder_by_list, list_to_reorder), reverse=True)
+            latent_sample[None,:,:,:] for _, latent_sample in sorted(zip(reorder_by_list, list_to_reorder), reverse=True)
         ]
 
         return torch.cat(latent_samples[:num_items_to_return], dim=0)
 
+    def visualise_data_set(self, data, size=(8, 8), file_name='visualise_data_set.png'):
+        """
+        Generates reconstructions of data through the model.
+
+        Parameters
+        ----------
+        data : torch.Tensor
+            Data to be reconstructed. Shape (N, C, H, W)
+
+        size : tuple of ints
+            Size of grid on which reconstructions will be plotted. The number
+            of rows should be even, so that upper half contains true data and
+            bottom half contains reconstructions
+
+        filename : string
+            Name of file in which results are stored.
+        """
+        self.model.eval()
+        # Pass data through VAE to obtain reconstruction
+        with torch.no_grad():
+            input_data = data.to(self.device)
+
+        num_images = size[0]
+        originals = input_data.cpu()
+
+        # originals = torch.cat([originals, blank_images])
+
+        if self.save_images:
+            save_image(input_data.data,
+                       filename=file_name,
+                       nrow=size[0],
+                       pad_value=(1 - get_background(self.dataset)))
+        else:
+            return comparison
+            
+
     def reconstruction_comparisons(self, data, size=(8, 8), file_name='recon_comp.png',
-                                   exclude_original=False, exclude_recon=False):
+                                   exclude_original=False, exclude_recon=False, color_flag = False):
         """
         Generates reconstructions of data through the model.
 
@@ -369,6 +454,7 @@ class Visualizer():
         else:
             return comparison
 
+
     def generate_samples(self, size=(8, 8), file_name='samples.png'):
         """
         Generates samples from learned distribution by sampling prior and
@@ -420,7 +506,7 @@ class Visualizer():
                           pad_value=(1 - get_background(self.dataset)))
 
     def latent_traversal_grid(self, idx=None, axis=None, size=(5, 5),
-                              filename='traversal_grid.png'):
+                              file_name='traversal_grid.png'):
         """
         Generates a grid of image traversals through two latent dimensions.
 
@@ -438,7 +524,7 @@ class Visualizer():
         generated = self._decode_latents(latent_samples)
 
         if self.save_images:
-            save_image(generated.data, filename, nrow=size[1], pad_value=(1 - get_background(self.dataset)))
+            save_image(generated.data, file_name, nrow=size[1], pad_value=(1 - get_background(self.dataset)))
         else:
             return make_grid_img(generated.data,
                                  nrow=size[1],
@@ -447,7 +533,6 @@ class Visualizer():
     def prior_traversal(self, sample_latent_space=None, reorder_latent_dims=False, num_traversal_increments=8,
                         num_dims_to_display=10, upsample_factor=1, file_name='prior_traversal.png'):
         """ Traverse the latent prior.
-
             Parameters
             ----------
             sample_latent_space : torch.Tensor or None
@@ -456,7 +541,6 @@ class Visualizer():
 
             num_traversal_increments : int
                 The number of points to include in the traversal of a latent dimension.
-
             file_name : str
                 The name of the output file.
 
@@ -499,23 +583,23 @@ class Visualizer():
                 filename=file_name,
                 nrow=num_traversal_increments,
                 pad_value=(1 - get_background(self.dataset))
-            )
+                )       
+
 
     def all_latent_traversals(self, sample_latent_space=None, size=8):
         """
         Traverses all latent dimensions one by one and plots a grid of images
         where each row corresponds to a latent traversal of one latent
         dimension.
-
         Parameters
         ----------
         sample_latent_space : torch.Tensor or None
             The latent space of a sample which has been processed by the encoder.
             The dimensions are (size, num_latent_dims)
-
         size : int
             Number of samples for each latent traversal.
         """
+
         latent_samples = []
         # Perform line traversal of every latent
         for idx in range(self.model.latent_dim):
@@ -528,8 +612,7 @@ class Visualizer():
             return decoded_samples
         else:
             return make_grid_img(decoded_samples.data,
-                                 nrow=size,
-                                 pad_value=(1 - get_background(self.dataset)))
+                                 nrow=size, pad_value=(1 - get_background(self.dataset)))
 
     def _decode_latents(self, latent_samples):
         """
