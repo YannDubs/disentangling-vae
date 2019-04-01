@@ -31,5 +31,4 @@ class LogPlotter(object):
         headers = list(df)[1:]
         x_axis = list(df)[0]
         df.plot(x=x_axis, y=headers, grid=True, style='-')
-
         return plt
