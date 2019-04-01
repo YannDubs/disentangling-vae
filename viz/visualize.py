@@ -17,7 +17,8 @@ DECIMAL_POINTS = 3
 
 class Visualizer():
     def __init__(self, model, dataset, model_dir=None, save_images=True,
-                 loss_of_interest='kl_loss_', display_loss_per_dim=False):
+                 loss_of_interest='kl_loss_', display_loss_per_dim=False,
+                 traversal_type='Absolute', traversal_range=(-2, 2)):
         """
         Visualizer is used to generate images of samples, reconstructions,
         latent traversals and so on of the trained model.
@@ -43,7 +44,11 @@ class Visualizer():
         """
         self.model = model
         self.device = next(self.model.parameters()).device
-        self.latent_traverser = LatentTraverser(self.model.latent_dim)
+        self.latent_traverser = LatentTraverser(
+            latent_dim=self.model.latent_dim,
+            traversal_type=traversal_type,
+            traversal_range=traversal_range
+            )
         self.save_images = save_images
         self.model_dir = model_dir
         self.dataset = dataset
@@ -254,9 +259,9 @@ class Visualizer():
 
         if reorder_latent_dims:
             # Reshape into the appropriate form
-            (num_images, _, image_width, image_height) = decoded_samples.size()
+            (num_images, num_channels, image_width, image_height) = decoded_samples.size()
             num_rows = int(num_images / num_increments)
-            decoded_samples = torch.reshape(decoded_samples, (num_rows, num_increments, image_width, image_height))
+            decoded_samples = torch.reshape(decoded_samples, (num_rows, num_increments, num_channels, image_width, image_height))
 
             loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
             decoded_samples = self.reorder(list_to_reorder=decoded_samples, reorder_by_list=loss_list)
@@ -289,7 +294,7 @@ class Visualizer():
                 pad_value=(1 - get_background(self.dataset))
             )
 
-    def reorder(self, list_to_reorder, reorder_by_list):
+    def reorder(self, list_to_reorder, reorder_by_list, num_items_to_return=10):
         """ Reorder the latent dimensions which are being traversed according to the reorder_by_list parameter.
 
         Parameters
@@ -305,7 +310,7 @@ class Visualizer():
             latent_sample for _, latent_sample in sorted(zip(reorder_by_list, list_to_reorder), reverse=True)
         ]
 
-        return torch.cat(latent_samples, dim=0)
+        return torch.cat(latent_samples[:num_items_to_return], dim=0)
 
     def reconstruction_comparisons(self, data, size=(8, 8), file_name='recon_comp.png',
                                    exclude_original=False, exclude_recon=False):
@@ -439,7 +444,8 @@ class Visualizer():
                                  nrow=size[1],
                                  pad_value=(1 - get_background(self.dataset)))
 
-    def prior_traversal(self, sample_latent_space=None, reorder_latent_dims=False, num_increments=8, file_name='prior_traversal.png'):
+    def prior_traversal(self, sample_latent_space=None, reorder_latent_dims=False, num_traversal_increments=8,
+                        num_dims_to_display=10, upsample_factor=1, file_name='prior_traversal.png'):
         """ Traverse the latent prior.
 
             Parameters
@@ -448,41 +454,50 @@ class Visualizer():
                 The latent space of a sample which has been processed by the encoder.
                 The dimensions are (size, num_latent_dims)
 
-            num_increments : int
+            num_traversal_increments : int
                 The number of points to include in the traversal of a latent dimension.
 
             file_name : str
                 The name of the output file.
 
+            num_dims_to_display : int
+                The number of latent dimensions to display
+
             reorder_latent_dims : bool
                 If the latent dimensions should be reordered or not
+
+            upsample_factor : int
+                Scale factor to upsample the size of the tensor
         """
         decoded_traversal = self.all_latent_traversals(
             sample_latent_space=sample_latent_space,
-            size=num_increments
+            size=num_traversal_increments
             )
 
         if reorder_latent_dims:
             # Reshape into the appropriate form
             (num_images, num_channels, image_width, image_height) = decoded_traversal.size()
-            num_rows = int(num_images / num_increments)
-            decoded_traversal = torch.reshape(decoded_traversal, (num_rows, num_increments, num_channels, image_width, image_height))
+            num_rows = int(num_images / num_traversal_increments)
+            decoded_traversal = torch.reshape(decoded_traversal, (num_rows, num_traversal_increments, num_channels, image_width, image_height))
 
             loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
-            decoded_traversal = self.reorder(list_to_reorder=decoded_traversal, reorder_by_list=loss_list)
+            decoded_traversal = self.reorder(list_to_reorder=decoded_traversal, reorder_by_list=loss_list, num_items_to_return=num_dims_to_display)
+
+        if upsample_factor > 1:
+            decoded_traversal = upsample(input_data=decoded_traversal, scale_factor=upsample_factor)
 
         if self.save_images:
             save_image(
                 tensor=decoded_traversal.data,
                 filename=file_name,
-                nrow=num_increments,
+                nrow=num_traversal_increments,
                 pad_value=(1 - get_background(self.dataset))
             )
         else:
             return make_grid_img(
                 tensor=decoded_traversal.data,
                 filename=file_name,
-                nrow=num_increments,
+                nrow=num_traversal_increments,
                 pad_value=(1 - get_background(self.dataset))
             )
 
