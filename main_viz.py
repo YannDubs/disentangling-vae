@@ -169,8 +169,10 @@ def parse_arguments():
                                default=1, help='The number of samples to visualise (if applicable).')
     visualisation.add_argument('-u', '--upsample-factor', type=int,
                                default=1, help='The scale factor with which to upsample the image.')
-    visualisation.add_argument('-nr', '--num-rows', type=int,
+    visualisation.add_argument('-nd', '--num-dims-to-display', type=int,
                                default=10, help='The number of rows to visualise (if applicable).')
+    visualisation.add_argument('-nt', '--num-traversal-increments', type=int,
+                               default=10, help='The number of columns to visualise (if applicable).')
     visualisation.add_argument('-d', '--display-loss', type=bool, default=False,
                                help='If the loss should be displayed next to the posterior latent traversal dimensions.')
     visualisation.add_argument('-sp', '--select-prior', type=bool, default=False,
@@ -228,8 +230,8 @@ def main(args):
             ),
         'traverse-prior': lambda: viz.prior_traversal(
             file_name=os.path.join(RES_DIR, experiment_name, experiment_name + '-prior-traversal.png'),
-            num_traversal_increments=5,
-            num_dims_to_display=5,
+            num_traversal_increments=args.num_traversal_increments,
+            num_dims_to_display=args.num_dims_to_display,
             reorder_latent_dims=True,
             upsample_factor=args.upsample_factor
             ),
@@ -244,7 +246,10 @@ def main(args):
         'traverse-posterior': lambda: viz.traverse_posterior(
             data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True),
             display_loss_per_dim=args.display_loss,
-            file_name=os.path.join(RES_DIR, experiment_name, experiment_name + '-posterior-traversal.png')
+            file_name=os.path.join(RES_DIR, experiment_name, experiment_name + '-posterior-traversal.png'),
+            num_dims_to_display=args.num_dims_to_display,
+            num_traversal_increments=args.num_traversal_increments,
+            upsample_factor=args.upsample_factor
             ),
         'reconstruct-and-traverse': lambda: viz.reconstruct_and_traverse(
             reconstruction_data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True),
