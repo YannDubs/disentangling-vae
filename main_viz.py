@@ -258,7 +258,7 @@ def main(args):
             base_directory = os.path.join(RES_DIR, experiment_name),
             select_prior = args.select_prior,
             show_text = args.show_text,
-            nr_rows = args.num_rows,
+            nr_rows = args.num_dims_to_display,
             size = args.num_samples
             ),
         'heat-maps': lambda: viz.generate_heat_maps(
