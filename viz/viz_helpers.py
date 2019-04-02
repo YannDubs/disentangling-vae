@@ -93,6 +93,11 @@ def add_labels(label_name, input_image, num_rows, sorted_list, dataset):
         mult_x = 1.3
     elif num_rows == 9:
         mult_x = 1.2
+    elif num_rows == 10:
+        mult_x = 1.25
+    else:
+        raise Exception('Cannot display text with {} latent dimensions'.format(num_rows))
+
     new_width = int(mult_x * all_traversal_im.width)
     new_size = (new_width, all_traversal_im.height)
     traversal_images_with_text = Image.new("RGB", new_size, color='white')
@@ -134,7 +139,7 @@ def upsample(input_data, scale_factor, is_torch_input=False, colour_flag=False):
         for x in range(input_data.shape[2]):
             for y in range(input_data.shape[3]):
                 if colour_flag == False:
-                    new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor - 1, y * scale_factor:y * scale_factor + scale_factor - 1] = input_data[latent_dim, 0, x, y]
+                    new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor, y * scale_factor:y * scale_factor + scale_factor] = input_data[latent_dim, 0, x, y]
                 else:
                     new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor, y * scale_factor:y * scale_factor + scale_factor] = input_data[latent_dim, 0, x, y]
                     new_array[latent_dim, 1, x * scale_factor:x * scale_factor + scale_factor, y * scale_factor:y * scale_factor + scale_factor] = input_data[latent_dim, 1, x, y]
