@@ -149,7 +149,7 @@ def parse_arguments(args_to_parse):
                             help="Whether to compute the disentangled metrcics. Currently only possible with `dsprites` as it is the only dataset with known true factors of variations.")
     evaluation.add_argument('--no-test', action='store_true', default=default_config['no_test'],
                             help="Whether not to compute the test losses.`")
-    evaluation.add_argument('-eb', '--eval-batchsize',
+    evaluation.add_argument('--eval-batchsize',
                             type=int, default=default_config['eval_batchsize'],
                             help='Batch size for evaluation.')
 
