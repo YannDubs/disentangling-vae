@@ -134,7 +134,7 @@ def upsample(input_data, scale_factor, is_torch_input=False, colour_flag=False):
         for x in range(input_data.shape[2]):
             for y in range(input_data.shape[3]):
                 if colour_flag == False:
-                    new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor - 1, y * scale_factor:y * scale_factor + scale_factor - 1] = input_data[latent_dim, 0, x, y]
+                    new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor , y * scale_factor:y * scale_factor + scale_factor] = input_data[latent_dim, 0, x, y]
                 else:
                     new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor, y * scale_factor:y * scale_factor + scale_factor] = input_data[latent_dim, 0, x, y]
                     new_array[latent_dim, 1, x * scale_factor:x * scale_factor + scale_factor, y * scale_factor:y * scale_factor + scale_factor] = input_data[latent_dim, 1, x, y]
