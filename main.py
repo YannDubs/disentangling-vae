@@ -60,7 +60,7 @@ def parse_arguments(args_to_parse):
                           default=default_config['dataset'], choices=datasets)
     experiments = ['custom', "debug"] + ["{}_{}".format(loss, data)
                                          for loss in ["betaH", "betaB", "factor", "batchTC"]
-                                         for data in ["celeba", "chairs", "dsprites"]]
+                                         for data in ["celeba", "chairs", "dsprites", "mnist"]]
     training.add_argument('-x', '--experiment',
                           default=default_config['experiment'], choices=experiments,
                           help='Predefined experiments to run. If not `custom` this will overwrite some other arguments.')

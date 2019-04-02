@@ -32,7 +32,6 @@ def get_loss_f(name, kwargs_parse={}):
                            kwargs_parse["data_size"],
                            gamma=kwargs_parse["factor_G"],
                            is_mutual_info=not kwargs_parse["no_mutual_info"],
-                           is_mss=not kwargs_parse["no_mss"],
                            **kwargs_all)
     elif name == "batchTC":
         return BatchTCLoss(kwargs_parse["device"],
@@ -207,8 +206,7 @@ class FactorKLoss(BaseLoss):
         Weight of the TC loss term. `gamma` in the paper.
 
     is_mutual_info : bool
-        True : includes the mutual information term in the loss
-        False : removes mutual information
+        whether to include the mutual information term in the loss.
 
     discriminator : disvae.discriminator.Discriminator
 
@@ -223,7 +221,7 @@ class FactorKLoss(BaseLoss):
         arXiv preprint arXiv:1802.05983 (2018).
     """
 
-    def __init__(self, device, data_size, gamma=40., is_mutual_info=True, is_mss=False,
+    def __init__(self, device, data_size, gamma=10., is_mutual_info=True,
                  disc_kwargs=dict(neg_slope=0.2, latent_dim=10, hidden_units=1000),
                  optim_kwargs=dict(lr=5e-4, betas=(0.5, 0.9)),
                  **kwargs):
@@ -232,7 +230,6 @@ class FactorKLoss(BaseLoss):
         self.data_size = data_size
         self.device = device
         self.is_mutual_info = is_mutual_info
-        self.is_mss = is_mss
 
         self.discriminator = Discriminator(**disc_kwargs).to(self.device)
 
@@ -263,8 +260,7 @@ class FactorKLoss(BaseLoss):
             # testing to remove I[z;x] which corresponds to wassertien AE
             _, log_qz, log_prod_qzi, _ = _get_log_pz_qz_prodzi_qzCx(latent_sample1,
                                                                     latent_dist,
-                                                                    half_batch_size,
-                                                                    is_mss=self.is_mss)
+                                                                    half_batch_size)
             dw_kl_loss = (log_prod_qzi - log_qz).mean(dim=0).sum(dim=1)
             # uses only dw_kl and adds one more TC term => same as using KL
             # but removing the information
@@ -345,7 +341,7 @@ class BatchTCLoss(BaseLoss):
        autoencoders." Advances in Neural Information Processing Systems. 2018.
     """
 
-    def __init__(self, device, data_size, alpha=1., beta=6., gamma=1., is_mss=False, **kwargs):
+    def __init__(self, device, data_size, alpha=1., beta=6., gamma=1., is_mss=True, **kwargs):
         super().__init__(**kwargs)
         # beta values: dsprites: 6, celeba: 15
         self.device = device
@@ -516,8 +512,8 @@ def linear_annealing(init, fin, step, annealing_steps):
 
 
 # Batch TC specific
-
-def _get_log_pz_qz_prodzi_qzCx(latent_sample, latent_dist, is_mss=False):
+# test if mss is better!
+def _get_log_pz_qz_prodzi_qzCx(latent_sample, latent_dist, is_mss=True):
     batch_size, hidden_dim = latent_sample.shape
 
     # calculate log q(z|x)
