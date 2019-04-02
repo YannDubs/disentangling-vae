@@ -167,8 +167,12 @@ def parse_arguments():
                                default=0, help='The latent dimension to sweep (if applicable)')
     visualisation.add_argument('-n', '--num-samples', type=int,
                                default=1, help='The number of samples to visualise (if applicable).')
-    visualisation.add_argument('-nr', '--num-rows', type=int,
+    visualisation.add_argument('-u', '--upsample-factor', type=int,
+                               default=1, help='The scale factor with which to upsample the image.')
+    visualisation.add_argument('-nd', '--num-dims-to-display', type=int,
                                default=10, help='The number of rows to visualise (if applicable).')
+    visualisation.add_argument('-nt', '--num-traversal-increments', type=int,
+                               default=10, help='The number of columns to visualise (if applicable).')
     visualisation.add_argument('-d', '--display-loss', type=bool, default=False,
                                help='If the loss should be displayed next to the posterior latent traversal dimensions.')
     visualisation.add_argument('-sp', '--select-prior', type=bool, default=False,
@@ -181,6 +185,11 @@ def parse_arguments():
     dir_opts.add_argument('-o', '--output-file-name', help='The full path name to use when saving the plot.')
 
     args = parser.parse_args()
+
+    if args.upsample_factor < 1:
+        # TODO: Handle this more elegantly
+        raise Exception('The upsample factor must be greater than or equal to 1')
+
     return args
 
 
@@ -203,7 +212,13 @@ def main(args):
     elif not args.visualisation == 'display-avg-KL':
         model = load_model(os.path.join(RES_DIR, experiment_name))
         model.eval()
-        viz = Visualizer(model=model, model_dir=os.path.join(RES_DIR, experiment_name), dataset=dataset_name)
+        viz = Visualizer(
+            model=model,
+            model_dir=os.path.join(RES_DIR, experiment_name),
+            dataset=dataset_name,
+            traversal_type='Absolute',
+            traversal_range=(-3, 3)
+            )
 
     visualisation_options = {
         'visualise-dataset': lambda: viz.visualise_data_set(
@@ -211,24 +226,30 @@ def main(args):
             file_name=os.path.join(RES_DIR, experiment_name, 'visualise_data_set.png')
             ),
         'random-samples': lambda: viz.generate_samples(
-            file_name=os.path.join(RES_DIR, experiment_name, 'samples.png')
+            file_name=os.path.join(RES_DIR, experiment_name, experiment_name + '-samples.png')
             ),
         'traverse-prior': lambda: viz.prior_traversal(
-            file_name=os.path.join(RES_DIR, experiment_name, 'prior-traversal.png'),
-            reorder_latent_dims=True
+            file_name=os.path.join(RES_DIR, experiment_name, experiment_name + '-prior-traversal.png'),
+            num_traversal_increments=args.num_traversal_increments,
+            num_dims_to_display=args.num_dims_to_display,
+            reorder_latent_dims=True,
+            upsample_factor=args.upsample_factor
             ),
         'traverse-one-latent-dim': lambda: viz.latent_traversal_line(
             idx=args.sweep_dim,
-            file_name=os.path.join(RES_DIR, experiment_name, 'line-traversal.png')
+            file_name=os.path.join(RES_DIR, experiment_name, experiment_name + '-line-traversal.png')
             ),
         'random-reconstruction': lambda: viz.reconstruction_comparisons(
             data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True),
-            file_name=os.path.join(RES_DIR, experiment_name, 'random-reconstruction.png')
+            file_name=os.path.join(RES_DIR, experiment_name, experiment_name + '-random-reconstruction.png')
             ),
         'traverse-posterior': lambda: viz.traverse_posterior(
             data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True),
             display_loss_per_dim=args.display_loss,
-            file_name=os.path.join(RES_DIR, experiment_name, 'posterior-traversal.png')
+            file_name=os.path.join(RES_DIR, experiment_name, experiment_name + '-posterior-traversal.png'),
+            num_dims_to_display=args.num_dims_to_display,
+            num_traversal_increments=args.num_traversal_increments,
+            upsample_factor=args.upsample_factor
             ),
         'reconstruct-and-traverse': lambda: viz.reconstruct_and_traverse(
             reconstruction_data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True),
@@ -237,12 +258,12 @@ def main(args):
             base_directory = os.path.join(RES_DIR, experiment_name),
             select_prior = args.select_prior,
             show_text = args.show_text,
-            nr_rows = args.num_rows,
+            nr_rows = args.num_dims_to_display,
             size = args.num_samples
             ),
         'heat-maps': lambda: viz.generate_heat_maps(
             data=samples(experiment_name=experiment_name, num_samples=1024, shuffle=False),
-            file_name=os.path.join(RES_DIR, experiment_name, 'heat-maps.png'),
+            file_name=os.path.join(RES_DIR, experiment_name, experiment_name + '-heat-maps.png'),
             reorder=True
             ),
         'show-disentanglement': lambda: viz.show_disentanglement_fig2(
@@ -265,7 +286,7 @@ def main(args):
             num_samples=args.num_samples,
             dataset=dataset_name,
             shuffle=True,
-            file_name=os.path.join(RES_DIR, experiment_name, 'snapshot-recon.png')
+            file_name=os.path.join(RES_DIR, experiment_name, experiment_name + '-snapshot-recon.png')
             )
     }
 

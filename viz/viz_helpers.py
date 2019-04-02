@@ -121,24 +121,29 @@ def add_labels(label_name, input_image, num_rows, sorted_list, dataset):
     return traversal_images_with_text   
 
 
-def upsample(input_data, scale_factor, colour_flag=False):
-
-    """ TODO: Bart add Docstring - I don't really know what this is
+def upsample(input_data, scale_factor, is_torch_input=False, colour_flag=False):
+    """ TODO: add Docstring
     """
-    # duplicate
+    is_torch_input = False
+    if isinstance(input_data, torch.Tensor):
+        input_data = input_data.detach().numpy()
+        is_torch_input = True
 
     new_array = np.zeros((input_data.shape[0], input_data.shape[1], input_data.shape[2] * scale_factor, input_data.shape[3] * scale_factor))
-    for latent_dim in range(0, input_data.shape[0]):
-        for x in range(0, input_data.shape[2]):
-            for y in range(0, input_data.shape[3]):
+    for latent_dim in range(input_data.shape[0]):
+        for x in range(input_data.shape[2]):
+            for y in range(input_data.shape[3]):
                 if colour_flag == False:
-                    new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor, y * scale_factor:y * scale_factor + scale_factor] = input_data[latent_dim, 0, x, y]
+                    new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor - 1, y * scale_factor:y * scale_factor + scale_factor - 1] = input_data[latent_dim, 0, x, y]
                 else:
                     new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor, y * scale_factor:y * scale_factor + scale_factor] = input_data[latent_dim, 0, x, y]
                     new_array[latent_dim, 1, x * scale_factor:x * scale_factor + scale_factor, y * scale_factor:y * scale_factor + scale_factor] = input_data[latent_dim, 1, x, y]
                     new_array[latent_dim, 2, x * scale_factor:x * scale_factor + scale_factor, y * scale_factor:y * scale_factor + scale_factor] = input_data[latent_dim, 2, x, y]
-    return new_array
 
+    if is_torch_input:
+        return torch.from_numpy(new_array)
+    else:
+        return new_array
 
 def make_grid_img(tensor, **kwargs):
     """Converts a tensor to a grid of images that can be read by imageio.
