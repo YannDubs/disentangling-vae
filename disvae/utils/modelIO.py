@@ -111,10 +111,26 @@ def load_checkpoints(directory, is_gpu=True):
 
 
 def _get_model(model_type, img_size, latent_dim, device, path_to_model):
-    """ Get model """
+    """ Load a single model.
+
+    Parameters
+    ----------
+    model_type : str
+        The name of the model to load. For example Burgess.
+    img_size : tuple
+        Tuple of the number of pixels in the image width and height. 
+        For example (32, 32) or (64, 64).
+    latent_dim : int
+        The number of latent dimensions in the bottleneck.
+    
+    device : str
+        Either 'cuda' or 'cpu'
+    path_to_device : str
+        Full path to the saved model on the device.
+    """
     model = init_specific_model(model_type, img_size, latent_dim).to(device)
     # works with state_dict to make it independent of the file structure
-    model.load_state_dict(torch.load(path_to_model))
+    model.load_state_dict(torch.load(path_to_model), strict=False)
     model.eval()
 
     return model

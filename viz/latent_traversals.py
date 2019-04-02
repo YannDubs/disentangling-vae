@@ -4,7 +4,7 @@ from scipy import stats
 
 
 class LatentTraverser():
-    def __init__(self, latent_dim, sample_prior=False):
+    def __init__(self, latent_dim, sample_prior=False, traversal_type='Absolute', traversal_range=(-3, 3)):
         """
         LatentTraverser is used to generate traversals of the latent space.
 
@@ -19,6 +19,28 @@ class LatentTraverser():
         """
         self.latent_dim = latent_dim
         self.sample_prior = sample_prior
+        self.traversal_type = traversal_type
+        self.traversal_range = traversal_range
+
+    def traversal_elements(self, latent_dim_size):
+        """ 
+        Create a numpy array with the elements which to use for the latent dimension traversal.
+        The latent traversal should be of size latent_dim_size
+
+        Parameters
+        ----------
+        latent_dim_size : int
+            The number of elements to use in the latent space traversal.
+        """
+        if self.traversal_type == 'Gaussian':
+            cdf_traversal = np.linspace(self.traversal_range[0], self.traversal_range[1], latent_dim_size)
+            return stats.norm.ppf(cdf_traversal)
+        elif self.traversal_type == 'Absolute':
+            return np.linspace(self.traversal_range[0], self.traversal_range[1], latent_dim_size)
+        else:
+            # Default to Gaussian
+            # TODO: Treating this separately for now with the idea that an exception will be raised later
+            return np.linspace(self.traversal_range[0], self.traversal_range[1], latent_dim_size)
 
     def traverse_line(self, sample_latent_space=None, idx=None, size=5):
         """
@@ -55,8 +77,7 @@ class LatentTraverser():
             # Sweep over linearly spaced coordinates transformed through the
             # inverse CDF (ppf) of a gaussian since the prior of the latent
             # space is gaussian
-            cdf_traversal = np.linspace(0.1, 0.9, size)
-            traversal = stats.norm.ppf(cdf_traversal)
+            traversal = self.traversal_elements(size)
             for i in range(size):
                 samples[i, idx] = traversal[i]
 
