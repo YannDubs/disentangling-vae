@@ -85,9 +85,8 @@ class Visualizer():
                     output[latent_dim, 2, x_posn, y_posn] = min_color[2] + (max_color[2]-min_color[2])*scale_id
         return output
 
-    def reconstruct_and_traverse(self, reconstruction_data, latent_sweep_data,
-                                  latent_order=None, file_name='show-disentanglement.png',
-                                  size=8, sample_latent_space=None, base_directory = '',select_prior=False,show_text=False, nr_rows = 10):
+    def reconstruct_and_traverse(self, reconstruction_data, latent_sweep_data, latent_order=None, file_name='show-disentanglement.png',
+                                  size=8, sample_latent_space=None, base_directory = '', select_prior=True, show_text=False, nr_rows=10):
         """
         Creates a figure which consists of random original images and reconstructed images in two rows at the top
         and underneith it the latent traversals.

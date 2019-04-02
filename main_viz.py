@@ -179,6 +179,12 @@ def parse_arguments():
                                help='If the prior traversals have to be used for the visualisation show-disentanglement.')
     visualisation.add_argument('-st', '--show-text', type=bool, default=False,
                                help='Show the KL divergence in the show-disentanglement figure.')
+    traversal_type_opts = ['Absolute', 'Gaussian']
+    visualisation.add_argument('-tt', '--traversal-type',
+                               default='Absolute', choices=traversal_type_opts,
+                               help='Predefined options for generating latent dimension traversals.')
+    visualisation.add_argument('-mt', '--max-traversal', type=float, default=2,
+                               help='The maximum displacement induced by a latent traversal. Symmetrical traversals are assumed.')
 
     dir_opts = parser.add_argument_group('directory options')
     dir_opts.add_argument('-l', '--log-dir', type=str, default='', help='Path to the log file containing the data to plot.')
@@ -189,6 +195,9 @@ def parse_arguments():
     if args.upsample_factor < 1:
         # TODO: Handle this more elegantly
         raise Exception('The upsample factor must be greater than or equal to 1')
+    if args.max_traversal <= 0:
+        # TODO: Handle this more elegantly
+        raise Exception('The maximum traversal displacement must be greater than zero')
 
     return args
 
@@ -199,6 +208,13 @@ def main(args):
     experiment_name = args.model_dir
     meta_data = load_metadata(os.path.join(RES_DIR, experiment_name))
     dataset_name = meta_data['dataset']
+
+    # Assume symmetrical traversals
+    traversal_type = args.traversal_type
+    if traversal_type == 'Gaussian':
+        traversal_range = (0.05, 0.95)
+    else:
+        traversal_range = (-1 * args.traversal_type, args.traversal_type)
 
     if args.visualisation == 'snapshot-recon':
         viz_list = []
@@ -216,8 +232,8 @@ def main(args):
             model=model,
             model_dir=os.path.join(RES_DIR, experiment_name),
             dataset=dataset_name,
-            traversal_type='Absolute',
-            traversal_range=(-3, 3)
+            traversal_type=traversal_type,
+            traversal_range=traversal_range
             )
 
     visualisation_options = {
