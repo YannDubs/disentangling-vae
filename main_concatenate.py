@@ -31,7 +31,7 @@ def concatenate_images(image_list, width, height, nr_columns = 1, percentage_spa
     nr_rows = int(ceil(float(total_nr_images)/nr_columns))
     space = int(round(percentage_space*max(width, height)))
     new_image = PIL.Image.new("RGB", (width*nr_columns, height*nr_rows))
-    # === create new image === # 
+
     for id_image in range(len(image_list)):
         image = image_list[id_image]
         id_x = id_image%nr_columns
