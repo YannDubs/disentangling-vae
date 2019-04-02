@@ -425,7 +425,7 @@ class BatchTCLoss(BaseLoss):
 
             dw_kl_loss_vec = (logqz_prodmarginals - logpz)
             for i in range(latent_dist.size(1)):
-                storer['dw_kl_loss_' + str(i)].append(dw_kl_loss_vec[i].item())
+                storer['kl_loss_i' + str(i)].append(dw_kl_loss_vec[i].item())
 
         return loss
 
