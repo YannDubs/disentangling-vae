@@ -86,7 +86,8 @@ class Visualizer():
         return output
 
     def reconstruct_and_traverse(self, reconstruction_data, latent_sweep_data, latent_order=None, file_name='show-disentanglement.png',
-                                  size=8, sample_latent_space=None, base_directory = '', select_prior=True, show_text=False, nr_rows=10):
+                                 num_traversal_increments=8, sample_latent_space=None, base_directory = '',
+                                 select_prior=True, show_text=False, nr_rows=10):
         """
         Creates a figure which consists of random original images and reconstructed images in two rows at the top
         and underneith it the latent traversals.
@@ -128,7 +129,7 @@ class Visualizer():
 
         self.reconstruction_comparisons(
             data=reconstruction_data,
-            size=(size, 8),
+            size=(num_traversal_increments, num_traversal_increments),
             exclude_original=False,
             exclude_recon=False,
             color_flag=True,
@@ -138,14 +139,15 @@ class Visualizer():
         if select_prior == True:
             self.prior_traversal(
                 reorder_latent_dims=True,
-                file_name=os.path.join(base_directory, 'prior_traversal.png', num_increments=size),
+                file_name=os.path.join(base_directory, 'prior_traversal.png'),
+                num_traversal_increments=num_traversal_increments,
                 num_dims_to_display=nr_rows
             )
             image_file_name_list.append(os.path.join(base_directory, 'prior_traversal.png'))
         else:
             self.traverse_posterior(
                 data=latent_sweep_data,
-                num_traversal_increments=size,
+                num_traversal_increments=num_traversal_increments,
                 reorder_latent_dims=True,
                 file_name=os.path.join(base_directory, 'posterior_traversal.png'),
                 num_dims_to_display=nr_rows
@@ -164,7 +166,7 @@ class Visualizer():
 
         if show_text == True:
             loss_list = read_loss_from_file(os.path.join(self.model_dir, TRAIN_FILE), loss_to_fetch=self.loss_of_interest)
-            new_image = add_labels('KL', new_image, size, sorted(loss_list, reverse=True), self.dataset)
+            new_image = add_labels('KL', new_image, num_traversal_increments, sorted(loss_list, reverse=True), self.dataset)
 
         new_image.save(file_name)
 
@@ -174,6 +176,7 @@ class Visualizer():
                                   latent_order=None, heat_map_size=(32, 32), file_name='show-disentanglement.png',
                                   size=8, sample_latent_space=None, base_directory = '', select_prior=False, show_text=False):
         """ Reproduce Figure 2 from Burgess https://arxiv.org/pdf/1804.03599.pdf
+            TODO: Add Docstrings
         """
         image_file_name_list = [
             os.path.join(base_directory, 'recon_comp.png'),
@@ -189,9 +192,9 @@ class Visualizer():
             color_flag=True,
             file_name=os.path.join(base_directory, 'recon_comp.png')
         )
-        self.generate_heat_maps(heat_map_data, reorder=True, heat_map_size=(32, 32),file_name=os.path.join(base_directory, 'heatmap.png'))
+        self.generate_heat_maps(heat_map_data, reorder=True, heat_map_size=(32, 32), file_name=os.path.join(base_directory, 'heatmap.png'))
 
-        if select_prior == True:
+        if select_prior:
             self.prior_traversal(reorder_latent_dims=True, file_name=os.path.join(base_directory, 'prior_traversal.png'))
             image_file_name_list[2] = os.path.join(base_directory, 'prior_traversal.png')
         else:

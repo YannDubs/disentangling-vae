@@ -152,6 +152,9 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="The primary script for running experiments on locally saved models.",
                                      formatter_class=FormatterNoDuplicate)
 
+    # TODO: Do this properly as in main.py
+    true_false = ['True', 'False']
+
     experiment = parser.add_argument_group('Predefined experiments')
     experiment.add_argument('-m', '--model-dir', required=True, type=str,
                             help='The name of the directory in which the model to run has been saved. This should be the name of the experiment')
@@ -173,11 +176,11 @@ def parse_arguments():
                                default=10, help='The number of rows to visualise (if applicable).')
     visualisation.add_argument('-nt', '--num-traversal-increments', type=int,
                                default=10, help='The number of columns to visualise (if applicable).')
-    visualisation.add_argument('-d', '--display-loss', type=bool, default=False,
+    visualisation.add_argument('-d', '--display-loss', type=str, default='False', choices=true_false,
                                help='If the loss should be displayed next to the posterior latent traversal dimensions.')
-    visualisation.add_argument('-sp', '--select-prior', type=bool, default=False,
-                               help='If the prior traversals have to be used for the visualisation show-disentanglement.')
-    visualisation.add_argument('-st', '--show-text', type=bool, default=False,
+    visualisation.add_argument('-sp', '--select-prior', type=str, default='True', choices=true_false,
+                               help='Option for selecting between prior and posterior traversals. If select-prior is False, we use posteriors.')
+    visualisation.add_argument('-st', '--show-text', type=str, default='False', choices=true_false,
                                help='Show the KL divergence in the show-disentanglement figure.')
     traversal_type_opts = ['Absolute', 'Gaussian']
     visualisation.add_argument('-tt', '--traversal-type',
@@ -192,12 +195,26 @@ def parse_arguments():
 
     args = parser.parse_args()
 
+    # TODO: Handle all this more elegantly
     if args.upsample_factor < 1:
-        # TODO: Handle this more elegantly
         raise Exception('The upsample factor must be greater than or equal to 1')
     if args.max_traversal <= 0:
-        # TODO: Handle this more elegantly
         raise Exception('The maximum traversal displacement must be greater than zero')
+
+    if args.select_prior == 'True':
+        args.select_prior = True
+    else:
+        args.select_prior = False
+
+    if args.show_text == 'True':
+        args.show_text = True
+    else:
+        args.show_text = False
+
+    if args.display_loss == 'True':
+        args.display_loss = True
+    else:
+        args.display_loss = False
 
     return args
 
@@ -214,7 +231,7 @@ def main(args):
     if traversal_type == 'Gaussian':
         traversal_range = (0.05, 0.95)
     else:
-        traversal_range = (-1 * args.traversal_type, args.traversal_type)
+        traversal_range = (-1 * args.max_traversal, args.max_traversal)
 
     if args.visualisation == 'snapshot-recon':
         viz_list = []
@@ -271,11 +288,11 @@ def main(args):
             reconstruction_data=samples(experiment_name=experiment_name, num_samples=args.num_samples, shuffle=True),
             latent_sweep_data=samples(experiment_name=experiment_name, num_samples=1, shuffle=True),
             file_name=os.path.join(RES_DIR, experiment_name, 'reconstruct-and-traverse.png'), 
-            base_directory = os.path.join(RES_DIR, experiment_name),
-            select_prior = args.select_prior,
-            show_text = args.show_text,
-            nr_rows = args.num_dims_to_display,
-            size = args.num_samples
+            base_directory=os.path.join(RES_DIR, experiment_name),
+            select_prior=args.select_prior,
+            show_text=args.show_text,
+            nr_rows=args.num_dims_to_display,
+            num_traversal_increments=args.num_samples
             ),
         'heat-maps': lambda: viz.generate_heat_maps(
             data=samples(experiment_name=experiment_name, num_samples=1024, shuffle=False),
