@@ -3,7 +3,7 @@ from PIL import Image
 import os
 from math import ceil, floor
 
-IMGS_DIR = "imgs"
+IMGS_DIR = os.path.join('results', 'imgs_prior','Big_prior_traversals')
 
 
 def concatenate_images(image_list, width, height, nr_columns = 1, percentage_space = 0.0):
@@ -30,7 +30,7 @@ def concatenate_images(image_list, width, height, nr_columns = 1, percentage_spa
     total_nr_images = len(image_list)  
     nr_rows = int(ceil(float(total_nr_images)/nr_columns))
     space = int(round(percentage_space*max(width, height)))
-    new_image = PIL.Image.new("RGB", (width*nr_columns, height*nr_rows))
+    new_image = PIL.Image.new("RGB", (round(width*nr_columns*(1+percentage_space)), round(height*nr_rows*(1+percentage_space))))
 
     for id_image in range(len(image_list)):
         image = image_list[id_image]
@@ -72,14 +72,17 @@ def main():
 
     Parameters
     """
-    image_file_name_list = [
-    'show_disentanglement.png',
-    'show_disentanglement.png',
-    'show_disentanglement.png'
-    ]
+    data_list = ['dsprites','chairs','celeba','mnist']
+    model_list = ['VAE','betaH','betaB','factor','batchTC']
+
+    image_file_name_list=[]
+    for model_name in model_list:
+        for data_name in data_list:
+            image_file_name_list.append(model_name + '_' + data_name + '-prior-traversal.png')
+
     output_file_name = 'combined_image'
     
-    nr_columns = 2
+    nr_columns = len(data_list)
 
     image_list = get_image_list(image_file_name_list)
     width_max, height_max = get_max_size(image_list)
