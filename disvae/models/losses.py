@@ -384,10 +384,9 @@ class BatchTCLoss(BaseLoss):
             storer['tc_loss'].append(tc_loss.item())
             storer['dw_kl_loss'].append(dw_kl_loss.item())
 
-            # TODO Remove this when visualisation fixed
-            tc_loss_vec = (logqz - logqz_prodmarginals)
+            dw_kl_loss_vec = (logqz_prodmarginals - logpz)
             for i in range(latent_dist.size(1)):
-                storer['kl_loss_' + str(i)].append(tc_loss_vec[i].item())
+                storer['dw_kl_loss_' + str(i)].append(dw_kl_loss_vec[i].item())
 
         return loss
 
