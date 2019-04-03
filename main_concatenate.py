@@ -59,8 +59,8 @@ def get_max_size(image_list):
         image_list : list
             List of images
     """
-    width_max = 0;
-    height_max = 0;
+    width_max = 0
+    height_max = 0
     for image in image_list:
         image_size = image.size
         width_max = max(image_size[0],width_max)
