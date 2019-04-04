@@ -257,7 +257,9 @@ class FactorKLoss(BaseLoss):
         d_z = self.discriminator(latent_sample1)
 
         # clamping to 0 because TC cannot be negative : TEST
-        tc_loss = (F.logsigmoid(d_z) - F.logsigmoid(1 - d_z)).clamp(0).mean()
+        # change sign because sigmoid(-x) = 1 - sigmoid(x)
+        #tc_loss = (F.logsigmoid(d_z) - F.logsigmoid(- d_z)).clamp(0).mean()
+        tc_loss = (d_z[:, 0:1] - d_z[:, 1:2]).mean()
 
         anneal_rec = (linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
                       if model.training else 1)
@@ -320,7 +322,11 @@ class FactorKLoss(BaseLoss):
         z_perm = _permute_dims(latent_sample2).detach()
         d_z_perm = self.discriminator(z_perm)
         # Calculate total correlation loss
-        d_tc_loss = - (0.5 * (F.logsigmoid(d_z) + F.logsigmoid(1 - d_z_perm))).mean()
+        ones = torch.ones(half_batch_size, dtype=torch.long, device=self.device)
+        zeros = torch.zeros(half_batch_size, dtype=torch.long, device=self.device)
+        d_tc_loss = 0.5 * (F.cross_entropy(d_z, zeros) + F.cross_entropy(d_z_perm, ones))
+        # change sign because sigmoid(-x) = 1 - sigmoid(x)
+        #d_tc_loss = - (0.5 * (F.logsigmoid(d_z) + F.logsigmoid(- d_z_perm))).clamp(0).mean()
 
         # Run discriminator optimizer
         self.optimizer_d.zero_grad()
