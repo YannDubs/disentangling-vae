@@ -40,7 +40,7 @@ class Discriminator(nn.Module):
         # Layer parameters
         self.z_dim = latent_dim
         self.hidden_units = hidden_units
-        out_units = 2
+        out_units = 2  # theoretically 1 but gives bad results
 
         # Fully connected layers
         self.lin1 = nn.Linear(self.z_dim, hidden_units)

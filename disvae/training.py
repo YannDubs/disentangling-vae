@@ -136,7 +136,7 @@ class Trainer():
             Epoch number
         """
         epoch_loss = 0.
-        kwargs = dict(desc="Epoch {}".format(epoch), leave=False,
+        kwargs = dict(desc="Epoch {}".format(epoch + 1), leave=False,
                       disable=not self.is_progress_bar)
         with trange(len(data_loader), **kwargs) as t:
             for batch_idx, (data, label) in enumerate(data_loader):
@@ -169,11 +169,11 @@ class Trainer():
             loss = self.loss_f(data, self.model, self.optimizer, storer)
         else:
             recon_batch, latent_dist, latent_sample = self.model(data)
-            loss_kwargs = dict()
+            loss_args = []
             if self.loss_type == 'batchTC':
-                loss_kwargs["latent_sample"] = latent_sample
+                loss_args.append(latent_sample)
             loss = self.loss_f(data, recon_batch, latent_dist, self.model.training,
-                               storer, **loss_kwargs)
+                               storer, *loss_args)
 
             self.optimizer.zero_grad()
             loss.backward()

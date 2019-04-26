@@ -15,7 +15,6 @@ from viz.visualize import Visualizer
 
 
 CONFIG_FILE = "hyperparam.ini"
-TEST_FILE = "test_losses.log"
 RES_DIR = "results"
 
 
@@ -58,9 +57,9 @@ def parse_arguments(args_to_parse):
     datasets = ['mnist', "celeba", "chairs", "dsprites", "fashion"]
     training.add_argument('-d', '--dataset', help="Path to training data.",
                           default=default_config['dataset'], choices=datasets)
-    experiments = ['custom', "debug"] + ["{}_{}".format(loss, data)
-                                         for loss in ["betaH", "betaB", "factor", "batchTC"]
-                                         for data in ["celeba", "chairs", "dsprites", "mnist"]]
+    experiments = ['custom', "debug", "best_celeba"] + ["{}_{}".format(loss, data)
+                                                        for loss in ["VAE","betaH", "betaB", "factor", "batchTC"]
+                                                        for data in ["celeba", "chairs", "dsprites", "mnist"]]
     training.add_argument('-x', '--experiment',
                           default=default_config['experiment'], choices=experiments,
                           help='Predefined experiments to run. If not `custom` this will overwrite some other arguments.')
@@ -93,7 +92,7 @@ def parse_arguments(args_to_parse):
                        help="Form of the likelihood ot use for each pixel.")
     model.add_argument('-a', '--reg-anneal',
                        type=float, default=default_config['reg_anneal'],
-                       help="Number of annealing steps where gradually adding the regularisation.")
+                       help="Number of annealing steps where gradually adding the regularisation. What is annealed is specific to each loss.")
 
     # Loss Specific Options
     betaH = parser.add_argument_group('BetaH specific parameters')
@@ -108,9 +107,6 @@ def parse_arguments(args_to_parse):
     betaB.add_argument('--betaB-finC',
                        type=float, default=default_config['betaB_finC'],
                        help="Final annealed capacity.")
-    betaB.add_argument('--betaB-stepsC',
-                       type=float, default=default_config['betaB_stepsC'],
-                       help="Number of training iterations for interpolating C.")
     betaB.add_argument('--betaB-G',
                        type=float, default=default_config['betaB_G'],
                        help="Weight of the KL divergence term (gamma in the paper).")
@@ -211,7 +207,7 @@ def main(args):
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
         loss_kwargs = vars(args).copy()
-        loss_kwargs["data_size"] = len(train_loader.dataset)
+        loss_kwargs["n_data"] = len(train_loader.dataset)
         model = model.to(device)  # make sure trainer and viz on same device
         gif_visualizer = Visualizer(model, args.dataset, model_dir=exp_dir,
                                     save_images=False)
@@ -240,7 +236,7 @@ def main(args):
                                       logger=logger)
 
         loss_kwargs = vars(args).copy()
-        loss_kwargs["data_size"] = len(test_loader.dataset)
+        loss_kwargs["n_data"] = len(test_loader.dataset)
         evaluator = Evaluator(model,
                               loss_type=args.loss,
                               loss_kwargs=loss_kwargs,
