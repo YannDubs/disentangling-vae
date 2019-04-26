@@ -1,5 +1,4 @@
 # directories
-log*
 venv*/
 data/
 results/*
@@ -12,6 +11,7 @@ experiments/
 .vscode/
 *backup*/
 archive*
+log*
 
 # Byte-compiled / optimized / DLL files
 *.egg-info

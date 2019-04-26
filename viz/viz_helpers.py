@@ -67,7 +67,8 @@ def read_loss_from_file(log_file_path, loss_to_fetch="kl_loss_"):
     return list(df_last_epoch_loss)
 
 
-def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
+# def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
+def add_labels(label_name, input_image, num_rows, sorted_list, dataset):
     """ Adds the label next to the relevant row as in an image. This is used to reproduce
         figure 2 of Burgress et al.
 
@@ -75,8 +76,8 @@ def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
         ----------
         label_name : str
             The name of the labels to add, for sample 'KL' or 'C'.
-        tensor : torch.Tensor
-            The image to plot in tensor form.
+        input_image : image
+            The image to which to add the labels
         num_rows : int
             The number of rows of images to display
         sorted_list : list
@@ -84,9 +85,7 @@ def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
         dataset : str
             The dataset name.
     """
-    # Convert tensor to PIL Image
-    tensor = make_grid(tensor.data, nrow=num_rows, pad_value=(1 - get_background(dataset)))
-    all_traversal_im = transforms.ToPILImage()(tensor)
+    all_traversal_im = input_image
     # Resize image
     if num_rows == 7:
         mult_x = 1.5
@@ -94,6 +93,11 @@ def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
         mult_x = 1.3
     elif num_rows == 9:
         mult_x = 1.2
+    elif num_rows == 10:
+        mult_x = 1.25
+    else:
+        raise Exception('Cannot display text with {} latent dimensions'.format(num_rows))
+
     new_width = int(mult_x * all_traversal_im.width)
     new_size = (new_width, all_traversal_im.height)
     traversal_images_with_text = Image.new("RGB", new_size, color='white')
@@ -116,23 +120,35 @@ def add_labels(label_name, tensor, num_rows, sorted_list, dataset):
         draw.text(xy=(int(fraction_x * traversal_images_with_text.width),
                       int(((latent_idx+2) / (len(sorted_list)+2) + \
                             1 / (2 * (len(sorted_list)+2))) * all_traversal_im.height)),
-                    text="{}={}".format(label_name, latent_dim),
+                    text=label_name + " = %7.4f"%(latent_dim),
                     fill=(0,0,0),
                     font=fnt)
     return traversal_images_with_text   
 
 
-def upsample(input_data, scale_factor):
-    """ TODO: Bart add Docstring - I don't really know what this is
+def upsample(input_data, scale_factor, is_torch_input=False, colour_flag=False):
+    """ TODO: add Docstring
     """
-    # duplicate
-    new_array = np.zeros((input_data.shape[0], input_data.shape[1], input_data.shape[2] * scale_factor, input_data.shape[3] * scale_factor))
-    for latent_dim in range(0, input_data.shape[0]):
-        for x in range(0, input_data.shape[2]):
-            for y in range(0, input_data.shape[2]):
-                new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor - 1, y * scale_factor:y * scale_factor + scale_factor - 1] = input_data[latent_dim, 0, x, y]
-    return new_array
+    is_torch_input = False
+    if isinstance(input_data, torch.Tensor):
+        input_data = input_data.detach().numpy()
+        is_torch_input = True
 
+    new_array = np.zeros((input_data.shape[0], input_data.shape[1], input_data.shape[2] * scale_factor, input_data.shape[3] * scale_factor))
+    for latent_dim in range(input_data.shape[0]):
+        for x in range(input_data.shape[2]):
+            for y in range(input_data.shape[3]):
+                if colour_flag == False:
+                    new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor, y * scale_factor:y * scale_factor + scale_factor] = input_data[latent_dim, 0, x, y]
+                else:
+                    new_array[latent_dim, 0, x * scale_factor:x * scale_factor + scale_factor, y * scale_factor:y * scale_factor + scale_factor] = input_data[latent_dim, 0, x, y]
+                    new_array[latent_dim, 1, x * scale_factor:x * scale_factor + scale_factor, y * scale_factor:y * scale_factor + scale_factor] = input_data[latent_dim, 1, x, y]
+                    new_array[latent_dim, 2, x * scale_factor:x * scale_factor + scale_factor, y * scale_factor:y * scale_factor + scale_factor] = input_data[latent_dim, 2, x, y]
+
+    if is_torch_input:
+        return torch.from_numpy(new_array)
+    else:
+        return new_array
 
 def make_grid_img(tensor, **kwargs):
     """Converts a tensor to a grid of images that can be read by imageio.
@@ -153,3 +169,9 @@ def make_grid_img(tensor, **kwargs):
     img_grid = grid.mul_(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0)
     img_grid = img_grid.to('cpu', torch.uint8).numpy()
     return img_grid
+
+def get_image_list(image_file_name_list):
+    image_list = []
+    for file_name in image_file_name_list:
+        image_list.append(Image.open(file_name))
+    return image_list
