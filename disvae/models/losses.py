@@ -13,35 +13,40 @@ from disvae.utils.math import (log_density_gaussian, log_importance_weight_matri
                                matrix_log_density_gaussian)
 
 
+LOSSES = ["VAE", "betaH", "betaB", "factor", "batchTC"]
+RECON_DIST = ["bernoulli", "laplace", "gaussian"]
+
+
 # TO-DO: clean n_data and device
-def get_loss_f(name, kwargs_parse={}):
+def get_loss_f(loss_name, **kwargs_parse):
     """Return the correct loss function given the argparse arguments."""
-    kwargs_all = dict(rec_dist=kwargs_parse["rec_dist"], steps_anneal=kwargs_parse["reg_anneal"])
-    if name == "betaH":
+    kwargs_all = dict(rec_dist=kwargs_parse["rec_dist"],
+                      steps_anneal=kwargs_parse["reg_anneal"])
+    if loss_name == "betaH":
         return BetaHLoss(beta=kwargs_parse["betaH_B"], **kwargs_all)
-    elif name == "VAE":
+    elif loss_name == "VAE":
         return BetaHLoss(beta=1, **kwargs_all)
-    elif name == "betaB":
+    elif loss_name == "betaB":
         return BetaBLoss(C_init=kwargs_parse["betaB_initC"],
                          C_fin=kwargs_parse["betaB_finC"],
                          gamma=kwargs_parse["betaB_G"],
                          **kwargs_all)
-    elif name == "factor":
+    elif loss_name == "factor":
         return FactorKLoss(kwargs_parse["device"],
                            kwargs_parse["n_data"],
                            gamma=kwargs_parse["factor_G"],
                            is_mutual_info=not kwargs_parse["no_mutual_info"],
                            disc_kwargs=dict(latent_dim=kwargs_parse["latent_dim"]),
                            **kwargs_all)
-    elif name == "batchTC":
+    elif loss_name == "batchTC":
         return BatchTCLoss(kwargs_parse["n_data"],
                            alpha=kwargs_parse["batchTC_A"],
                            beta=kwargs_parse["batchTC_B"],
                            gamma=kwargs_parse["batchTC_G"],
-                           is_mss=not kwargs_parse["no_mss"],
                            **kwargs_all)
     else:
-        raise ValueError("Uknown loss : {}".format(name))
+        assert loss_name not in LOSSES
+        raise ValueError("Uknown loss : {}".format(loss_name))
 
 
 class BaseLoss(abc.ABC):
@@ -70,7 +75,7 @@ class BaseLoss(abc.ABC):
         self.steps_anneal = steps_anneal
 
     @abc.abstractmethod
-    def __call__(self, data, recon_data, latent_dist, is_train, storer):
+    def __call__(self, data, recon_data, latent_dist, is_train, storer, **kwargs):
         """
         Calculates loss for a batch of data.
 
@@ -87,8 +92,14 @@ class BaseLoss(abc.ABC):
             sufficient statistics of the latent dimension. E.g. for gaussian
             (mean, log_var) each of shape : (batch_size, latent_dim).
 
+        is_train : bool
+            Whether currently in train mode.
+
         storer : dict
             Dictionary in which to store important variables for vizualisation.
+
+        kwargs:
+            Loss specific arguments
         """
 
     def _pre_call(self, is_train, storer):
@@ -112,23 +123,25 @@ class BetaHLoss(BaseLoss):
     beta : float, optional
         Weight of the kl divergence.
 
-    References:
-        [1] Higgins, Irina, et al. "beta-vae: Learning basic visual concepts with
-        a constrained variational framework." (2016).
-
     kwargs:
         Additional arguments for `BaseLoss`, e.g. rec_dist`.
+
+    References
+    ----------
+        [1] Higgins, Irina, et al. "beta-vae: Learning basic visual concepts with
+        a constrained variational framework." (2016).
     """
 
     def __init__(self, beta=4, **kwargs):
         super().__init__(**kwargs)
         self.beta = beta
 
-    def __call__(self, data, recon_data, latent_dist, is_train, storer):
+    def __call__(self, data, recon_data, latent_dist, is_train, storer, **kwargs):
         storer = self._pre_call(is_train, storer)
 
         rec_loss = _reconstruction_loss(data, recon_data,
-                                        storer=storer, distribution=self.rec_dist)
+                                        storer=storer,
+                                        distribution=self.rec_dist)
         kl_loss = _kl_normal_loss(*latent_dist, storer)
         anneal_reg = (linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
                       if is_train else 1)
@@ -170,11 +183,12 @@ class BetaBLoss(BaseLoss):
         self.C_init = C_init
         self.C_fin = C_fin
 
-    def __call__(self, data, recon_data, latent_dist, is_train, storer):
+    def __call__(self, data, recon_data, latent_dist, is_train, storer, **kwargs):
         storer = self._pre_call(is_train, storer)
 
         rec_loss = _reconstruction_loss(data, recon_data,
-                                        storer=storer, distribution=self.rec_dist)
+                                        storer=storer,
+                                        distribution=self.rec_dist)
         kl_loss = _kl_normal_loss(*latent_dist, storer)
 
         C = (linear_annealing(self.C_init, self.C_fin, self.n_train_steps, self.steps_anneal)
@@ -182,7 +196,6 @@ class BetaBLoss(BaseLoss):
 
         loss = rec_loss + self.gamma * (kl_loss - C).abs()
 
-        batch_size = data.size(0)
         if storer is not None:
             storer['loss'].append(loss.item())
 
@@ -197,10 +210,10 @@ class FactorKLoss(BaseLoss):
     ----------
     device : torch.device
 
-    n_data: int
+    n_data: int, optional
         Number of data in the training set. Required if `is_mutual_info=False`
 
-    beta : float, optional
+    gamma : float, optional
         Weight of the TC loss term. `gamma` in the paper.
 
     is_mutual_info : bool
@@ -219,7 +232,10 @@ class FactorKLoss(BaseLoss):
         arXiv preprint arXiv:1802.05983 (2018).
     """
 
-    def __init__(self, device, n_data=None, gamma=10., is_mutual_info=True,
+    def __init__(self, device,
+                 n_data=None,
+                 gamma=10.,
+                 is_mutual_info=True,
                  disc_kwargs={},
                  optim_kwargs=dict(lr=5e-4, betas=(0.5, 0.9)),
                  **kwargs):
@@ -230,13 +246,12 @@ class FactorKLoss(BaseLoss):
         self.is_mutual_info = is_mutual_info
 
         self.discriminator = Discriminator(**disc_kwargs).to(self.device)
-
         self.optimizer_d = optim.Adam(self.discriminator.parameters(), **optim_kwargs)
 
-        if self.n_data is None and not self.is_mutual_info:
-            raise ValueError("If not using mutual information, has to give a daatsetsize")
+    def __call__(self, *args, **kwargs):
+        raise ValueError("Use `call_optimize` to also train the discriminator")
 
-    def __call__(self, data, model, optimizer, storer):
+    def call_optimize(self, data, model, optimizer, storer):
         storer = self._pre_call(model.training, storer)
 
         # factor-vae split data into two batches. In the paper they sample 2 batches
@@ -249,7 +264,8 @@ class FactorKLoss(BaseLoss):
         # Factor VAE Loss
         recon_batch, latent_dist, latent_sample1 = model(data1)
         rec_loss = _reconstruction_loss(data1, recon_batch,
-                                        storer=storer, distribution=self.rec_dist)
+                                        storer=storer,
+                                        distribution=self.rec_dist)
         d_z = self.discriminator(latent_sample1)
         # here it would make more sense to use (but doesn't give good results)
         # change sign because sigmoid(-x) = 1 - sigmoid(x)
@@ -360,7 +376,8 @@ class BatchTCLoss(BaseLoss):
         self.gamma = gamma
         self.is_mss = is_mss  # minibatch stratified sampling
 
-    def __call__(self, data, recon_batch, latent_dist, is_train, storer, latent_sample):
+    def __call__(self, data, recon_batch, latent_dist, is_train, storer,
+                 latent_sample=None):
         storer = self._pre_call(is_train, storer)
         batch_size, latent_dim = latent_sample.shape
 
@@ -441,9 +458,10 @@ def _reconstruction_loss(data, recon_data, distribution="bernoulli", storer=None
         # loss in [0,255] space but normalized by 255 to not be too big but
         # multiply by 255 and divide 255, is the same as not doing anything for L1
         loss = F.l1_loss(recon_data, data, reduction="sum")
-        loss = loss * 3  # to give similar values than bernoulli => use same hyperparam
+        loss = loss * 3  # emperical value to give similar values than bernoulli => use same hyperparam
         loss = loss * (loss != 0)  # masking to avoid nan
     else:
+        assert distribution not in RECON_DIST
         raise ValueError("Unkown distribution: {}".format(distribution))
 
     loss = loss / batch_size
@@ -524,7 +542,7 @@ def linear_annealing(init, fin, step, annealing_steps):
 
 
 # Batch TC specific
-# test if mss is better!
+# TO-DO: test if mss is better!
 def _get_log_pz_qz_prodzi_qzCx(latent_sample, latent_dist, n_data, is_mss=True):
     batch_size, hidden_dim = latent_sample.shape
 

@@ -1,20 +1,28 @@
+"""
+Module containing the main VAE class.
+"""
 import torch
 from torch import nn, optim
 from torch.nn import functional as F
 
 from disvae.utils.initialization import weights_init
-from .encoder import get_Encoder
-from .decoder import get_Decoder
+from .encoders import get_encoder
+from .decoders import get_decoder
+
+MODELS = ["Burgess"]
 
 
 def init_specific_model(model_type, img_size, latent_dim):
     """Return an instance of a VAE with encoder and decoder from `model_type`."""
-    encoder = get_Encoder(model_type)
-    decoder = get_Decoder(model_type)
+    model_type = model_type.lower().capitalize()
+    if model_type not in MODELS:
+        err = "Unkown model_type={}. Possible values: {}"
+        raise ValueError(err.format(model_type, MODELS))
+
+    encoder = get_encoder(model_type)
+    decoder = get_decoder(model_type)
     model = VAE(img_size, encoder, decoder, latent_dim)
-    # if it was loaded to be from a specific type add the type to the class
-    # is that clean ?!?
-    model.model_type = model_type
+    model.model_type = model_type  # store to help reloading
     return model
 
 

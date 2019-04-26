@@ -1,5 +1,9 @@
-import torch
+"""
+Module containing discriminator for FactorVAE.
+"""
 from torch import nn
+
+from disvae.utils.initialization import weights_init
 
 
 class Discriminator(nn.Module):
@@ -50,6 +54,8 @@ class Discriminator(nn.Module):
         self.lin5 = nn.Linear(hidden_units, hidden_units)
         self.lin6 = nn.Linear(hidden_units, out_units)
 
+        self.reset_parameters()
+
     def forward(self, z):
 
         # Fully connected layers with leaky ReLu activations
@@ -61,3 +67,6 @@ class Discriminator(nn.Module):
         z = self.lin6(z)
 
         return z
+
+    def reset_parameters(self):
+        self.apply(weights_init)

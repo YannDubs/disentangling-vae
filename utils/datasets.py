@@ -6,7 +6,6 @@ import zipfile
 import glob
 import logging
 import tarfile
-
 from skimage.io import imread
 from PIL import Image
 from tqdm import tqdm
@@ -19,6 +18,22 @@ from torchvision import transforms, datasets
 DIR = os.path.abspath(os.path.dirname(__file__))
 COLOUR_BLACK = 0
 COLOUR_WHITE = 1
+DATASETS_DICT = {"mnist": "MNIST",
+                 "fashion": "FashionMNIST",
+                 "dsprites": "DSprites",
+                 "celeba": "CelebA",
+                 "chairs": "Chairs"}
+DATASETS = list(DATASETS_DICT.keys())
+
+
+def get_dataset(dataset):
+    """Return the correct dataset."""
+    dataset = dataset.lower()
+    try:
+        # eval because stores name as string in order to put it at top of file
+        return eval(DATASETS_DICT[dataset])
+    except KeyError:
+        raise ValueError("Unkown dataset: {}".format(dataset))
 
 
 def get_img_size(dataset):
@@ -28,11 +43,7 @@ def get_img_size(dataset):
 
 def get_background(dataset):
     """Return the image background color."""
-    if dataset is None:
-        # Default to a white background (the integer 0)
-        return 0
-    else:
-        return get_dataset(dataset).background_color
+    return get_dataset(dataset).background_color
 
 
 def get_dataloaders(dataset, root=None, shuffle=True, pin_memory=True,
@@ -51,30 +62,13 @@ def get_dataloaders(dataset, root=None, shuffle=True, pin_memory=True,
         Additional arguments to `DataLoader`. Default values are modified.
     """
     pin_memory = pin_memory and torch.cuda.is_available  # only pin if GPU available
-
-    dataset = get_dataset(dataset)
-    return DataLoader(dataset(logger=logger) if root is None else dataset(root=root, logger=logger),
+    Dataset = get_dataset(dataset)
+    dataset = Dataset(logger=logger) if root is None else Dataset(root=root, logger=logger)
+    return DataLoader(dataset,
                       batch_size=batch_size,
                       shuffle=shuffle,
                       pin_memory=pin_memory,
                       **kwargs)
-
-
-def get_dataset(dataset):
-    """Return the correct dataset."""
-    dataset = dataset.lower()
-    if dataset == "mnist":
-        return MNIST
-    elif dataset == "fashion":
-        return FashionMNIST
-    elif dataset == "dsprites":
-        return DSprites
-    elif dataset == "celeba":
-        return CelebA
-    elif dataset == "chairs":
-        return Chairs
-    else:
-        raise ValueError("Unkown datset: {}".format(dataset))
 
 
 class DisentangledDataset(Dataset, abc.ABC):

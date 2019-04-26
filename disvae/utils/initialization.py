@@ -7,7 +7,8 @@ def get_activation_name(activation):
     if isinstance(activation, str):
         return activation
 
-    mapper = {nn.LeakyReLU: "leaky_relu", nn.ReLU: "relu", nn.Tanh: "tanh", nn.Sigmoid: "sigmoid", nn.Softmax: "sigmoid"}
+    mapper = {nn.LeakyReLU: "leaky_relu", nn.ReLU: "relu", nn.Tanh: "tanh",
+              nn.Sigmoid: "sigmoid", nn.Softmax: "sigmoid"}
     for k, v in mapper.items():
         if isinstance(activation, k):
             return k
@@ -54,7 +55,7 @@ def linear_init(layer, activation="relu"):
 
 def weights_init(module):
     if isinstance(module, torch.nn.modules.conv._ConvNd):
-        # TO CHECK LTIIERATURE # DEV MODE
+        # TO-DO: check litterature
         linear_init(module)
     elif isinstance(module, nn.Linear):
         linear_init(module)

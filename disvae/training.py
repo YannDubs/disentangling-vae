@@ -12,21 +12,17 @@ from disvae.utils.modelIO import save_model
 from disvae.models.losses import get_loss_f
 
 
-TRAIN_FILE = "train_losses.log"
+TRAIN_LOSSES_LOGFILE = "train_losses.log"
 GIF_FILE = "training.gif"
 
 
 class Trainer():
-    def __init__(self, model, optimizer,
-                 loss_type="betaB",
-                 latent_dim=10,
-                 loss_kwargs={},
+    def __init__(self, model, optimizer, loss_f,
                  device=torch.device("cpu"),
                  logger=logging.getLogger(__name__),
                  save_dir="results",
                  gif_visualizer=None,
-                 is_progress_bar=True,
-                 checkpoint_every=10):
+                 is_progress_bar=True):
         """
         Class to handle training of model.
 
@@ -36,15 +32,8 @@ class Trainer():
 
         optimizer: torch.optim.Optimizer
 
-        loss_type: {"VAE", "betaH", "betaB", "factorising", "batchTC"}, optional
-            Type of VAE loss to use.
-
-        latent_dim: int, optional
-            Dimensionality of latent output.
-
-        loss_kwargs: dict, optional
-            Additional arguments to the loss function. FOrmat need to be the
-            loss specific argparse arguments.
+        loss_f: disvae.models.BaseLoss
+            Loss function.
 
         device: torch.device, optional
             Device on which to run the code.
@@ -60,27 +49,21 @@ class Trainer():
 
         is_progress_bar: bool, optional
             Whether to use a progress bar for training.
-
-        checkpoint_every: int, optional
-            Save a checkpoint of the trained model every n epoch.
         """
         self.device = device
-        self.loss_type = loss_type
         self.model = model.to(self.device)
+        self.loss_f = loss_f
         self.optimizer = optimizer
-        self.num_latent_dim = latent_dim
-        loss_kwargs["device"] = device
-        self.loss_f = get_loss_f(self.loss_type, kwargs_parse=loss_kwargs)
         self.save_dir = save_dir
         self.is_progress_bar = is_progress_bar
-        self.checkpoint_every = checkpoint_every
         self.logger = logger
-        self.losses_logger = LossesLogger(os.path.join(self.save_dir, TRAIN_FILE))
+        self.losses_logger = LossesLogger(os.path.join(self.save_dir, TRAIN_LOSSES_LOGFILE))
         self.gif_visualizer = gif_visualizer
-
         self.logger.info("Training Device: {}".format(self.device))
 
-    def __call__(self, data_loader, epochs=10):
+    def __call__(self, data_loader,
+                 epochs=10,
+                 checkpoint_every=10):
         """
         Trains the model.
 
@@ -90,6 +73,9 @@ class Trainer():
 
         epochs: int, optional
             Number of epochs to train the model for.
+
+        checkpoint_every: int, optional
+            Save a checkpoint of the trained model every n epoch.
         """
         start = default_timer()
 
@@ -108,7 +94,7 @@ class Trainer():
                 img_grid = self.gif_visualizer.all_latent_traversals(size=10)
                 training_progress_images.append(img_grid)
 
-            if epoch % self.checkpoint_every == 0:
+            if epoch % checkpoint_every == 0:
                 save_model(self.model, self.save_dir,
                            filename="model-{}.pt".format(epoch))
 
@@ -119,7 +105,8 @@ class Trainer():
 
         self.model.eval()
 
-        self.logger.info('Finished training after {:.1f} min.'.format((default_timer() - start) / 60))
+        delta_time = (default_timer() - start) / 60
+        self.logger.info('Finished training after {:.1f} min.'.format(delta_time))
 
     def _train_epoch(self, data_loader, storer, epoch):
         """
@@ -134,12 +121,17 @@ class Trainer():
 
         epoch: int
             Epoch number
+
+        Return
+        ------
+        mean_epoch_loss: float
+            Mean loss per image
         """
         epoch_loss = 0.
         kwargs = dict(desc="Epoch {}".format(epoch + 1), leave=False,
                       disable=not self.is_progress_bar)
         with trange(len(data_loader), **kwargs) as t:
-            for batch_idx, (data, label) in enumerate(data_loader):
+            for _, (data, _) in enumerate(data_loader):
                 iter_loss = self._train_iteration(data, storer)
                 epoch_loss += iter_loss
 
@@ -164,20 +156,17 @@ class Trainer():
         batch_size, channel, height, width = data.size()
         data = data.to(self.device)
 
-        # TO-DO: clean all these if statements
-        if self.loss_type == 'factor':
-            loss = self.loss_f(data, self.model, self.optimizer, storer)
-        else:
+        try:
             recon_batch, latent_dist, latent_sample = self.model(data)
-            loss_args = []
-            if self.loss_type == 'batchTC':
-                loss_args.append(latent_sample)
             loss = self.loss_f(data, recon_batch, latent_dist, self.model.training,
-                               storer, *loss_args)
-
+                               storer, latent_sample=latent_sample)
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
+
+        except ValueError:
+            # for losses that use multiple optimizers (e.g. Factor)
+            loss = self.loss_f.call_optimize(data, self.model, self.optimizer, storer)
 
         return loss.item()
 

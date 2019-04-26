@@ -8,7 +8,7 @@ import torch
 from disvae import init_specific_model
 
 MODEL_FILENAME = "model.pt"
-META_FILENAME = "specs.json"  # CHANGE TO METADATA.json
+META_FILENAME = "specs.json"
 
 
 def save_model(model, directory, metadata=None, filename=MODEL_FILENAME):
@@ -113,7 +113,7 @@ def load_checkpoints(directory, is_gpu=True):
         Path to folder where model is saved. For example './experiments/mnist'.
 
     is_gpu : bool
-        Whether to load on GPU is available.
+        Whether to load on GPU .
     """
     checkpoints = []
     for root, _, filenames in os.walk(directory):
