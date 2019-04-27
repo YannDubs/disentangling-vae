@@ -14,7 +14,7 @@ from disvae.utils.math import (log_density_gaussian, log_importance_weight_matri
                                matrix_log_density_gaussian)
 
 
-LOSSES = ["VAE", "betaH", "betaB", "factor", "batchTC"]
+LOSSES = ["VAE", "betaH", "betaB", "factor", "btcvae"]
 RECON_DIST = ["bernoulli", "laplace", "gaussian"]
 
 
@@ -40,12 +40,12 @@ def get_loss_f(loss_name, **kwargs_parse):
                            disc_kwargs=dict(latent_dim=kwargs_parse["latent_dim"]),
                            optim_kwargs=dict(lr=kwargs_parse["lr_disc"], betas=(0.5, 0.9)),
                            **kwargs_all)
-    elif loss_name == "batchTC":
-        return BatchTCLoss(kwargs_parse["n_data"],
-                           alpha=kwargs_parse["batchTC_A"],
-                           beta=kwargs_parse["batchTC_B"],
-                           gamma=kwargs_parse["batchTC_G"],
-                           **kwargs_all)
+    elif loss_name == "btcvae":
+        return BtcvaeLoss(kwargs_parse["n_data"],
+                          alpha=kwargs_parse["btcvae_A"],
+                          beta=kwargs_parse["btcvae_B"],
+                          gamma=kwargs_parse["btcvae_G"],
+                          **kwargs_all)
     else:
         assert loss_name not in LOSSES
         raise ValueError("Uknown loss : {}".format(loss_name))
@@ -246,7 +246,6 @@ class FactorKLoss(BaseLoss):
         self.n_data = n_data
         self.device = device
         self.is_mutual_info = is_mutual_info
-        self.bce = nn.BCEWithLogitsLoss()
 
         self.discriminator = Discriminator(**disc_kwargs).to(self.device)
         self.optimizer_d = optim.Adam(self.discriminator.parameters(), **optim_kwargs)
@@ -270,30 +269,24 @@ class FactorKLoss(BaseLoss):
                                         storer=storer,
                                         distribution=self.rec_dist)
         d_z = self.discriminator(latent_sample1)
-        # here it would make more sense to use (but doesn't give good results)
-        # want it to not be able to distinguishable
-        # use relu because if proba output is smaller than 0.5 (i.e d_z < 0)
-        # then don't want to penalize to be "too good"
-        #ones = torch.ones(half_batch_size, device=self.device)
-        #tc_loss = self.bce(d_z.flatten().relu(), ones - 0.5)
-        #tc_loss = (2 * d_z.flatten()).mean()
         # We want log(p_true/p_false). If not using logisitc regression but softmax
         # then p_true = exp(logit_true) / Z; p_false = exp(logit_false) / Z
-        # so  log(p_true/p_false) = logit_true - logit_false
+        # so log(p_true/p_false) = logit_true - logit_false
         tc_loss = (d_z[:, 0] - d_z[:, 1]).mean()
+        # with sigmoid (not good results) should be `tc_loss = (2 * d_z.flatten()).mean()`
 
         if self.is_mutual_info:
             # usual factor: as in paper
             gamma = self.gamma
             kl_loss = _kl_normal_loss(*latent_dist, storer)
         else:
-            # TODO: test if batchTC a lot worst, if not remove `is_mutual_info` in factorKL
+            # TODO: test if btcvae a lot worst, if not remove `is_mutual_info` in factorKL
             # testing to remove I[z;x] which corresponds to wassertien AE
-            _, log_qz, log_prod_qzi, _ = _get_log_pz_qz_prodzi_qzCx(latent_sample1,
+            log_pz, _, log_prod_qzi, _ = _get_log_pz_qz_prodzi_qzCx(latent_sample1,
                                                                     latent_dist,
                                                                     half_batch_size,
                                                                     self.n_data)
-            dw_kl_loss = (log_prod_qzi - log_qz).mean(dim=0)
+            dw_kl_loss = (log_prod_qzi - log_pz).mean(dim=0)
             # uses only dw_kl and adds one more TC term => same as using KL
             # but removing the information
             kl_loss = dw_kl_loss
@@ -328,12 +321,12 @@ class FactorKLoss(BaseLoss):
         # for cross entropy the target is the index => need to be long and says
         # that it's first output for d_z and second for perm
         ones = torch.ones(half_batch_size, dtype=torch.long, device=self.device)
-        d_tc_loss = 0.5 * (F.cross_entropy(d_z, 1 - ones) + F.cross_entropy(d_z_perm, ones))
-        # would make more sense to use
-        # here teaches him the real results => 0 for permuted and 1 for non permuted
-        #d_tc_loss = 0.5 * (self.bce(d_z.flatten(), ones) + self.bce(d_z_perm.flatten(), 1 - ones))
+        zeros = torch.zeros_like(ones)
+        d_tc_loss = 0.5 * (F.cross_entropy(d_z, zeros) + F.cross_entropy(d_z_perm, ones))
+        # with sigmoid would be :
+        # d_tc_loss = 0.5 * (self.bce(d_z.flatten(), ones) + self.bce(d_z_perm.flatten(), 1 - ones))
 
-        # should also anneals discriminator if not becomes too good ???
+        # TO-DO: check ifshould also anneals discriminator if not becomes too good ???
         #d_tc_loss = anneal_reg * d_tc_loss
 
         # Run discriminator optimizer
@@ -347,7 +340,7 @@ class FactorKLoss(BaseLoss):
         return vae_loss
 
 
-class BatchTCLoss(BaseLoss):
+class BtcvaeLoss(BaseLoss):
     """
     Compute the decomposed KL loss with either minibatch weighted sampling or
     minibatch stratified sampling according to [1]

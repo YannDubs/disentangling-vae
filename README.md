@@ -34,7 +34,7 @@ This will create a directory `results/<saving-name>/` which will contain:
 * **training.gif**: GIF of latent traversals of the latent dimensions Z at every epoch of training.
 * **train_losses.log**: All (sub-)losses computed during training.
 * **test_losses.log**: All (sub-)losses computed at the end of training with the model in evaluate mode (no sampling). 
-* **metrics.log**: [Mutual Information Gap](https://arxiv.org/abs/1802.04942) metric and [Axis Alignment Metric](#axis-alignement-metric). Only if `--is-metric` (slow).
+* **metrics.log**: [Mutual Information Gap](https://arxiv.org/abs/1802.04942) metric and [Axis Alignment Metric](#axis-alignment-metric). Only if `--is-metric` (slow).
 
 
 ### Help
@@ -43,15 +43,15 @@ usage: main.py [-h] [-L {CRITICAL,ERROR,WARNING,INFO,DEBUG,NOTSET}]
                [--no-progress-bar] [--no-cuda] [-s SEED]
                [--checkpoint-every CHECKPOINT_EVERY]
                [-d {mnist,fashion,dsprites,celeba,chairs}]
-               [-x {custom,debug,best_celeba,VAE_mnist,VAE_fashion,VAE_dsprites,VAE_celeba,VAE_chairs,betaH_mnist,betaH_fashion,betaH_dsprites,betaH_celeba,betaH_chairs,betaB_mnist,betaB_fashion,betaB_dsprites,betaB_celeba,betaB_chairs,factor_mnist,factor_fashion,factor_dsprites,factor_celeba,factor_chairs,batchTC_mnist,batchTC_fashion,batchTC_dsprites,batchTC_celeba,batchTC_chairs}]
+               [-x {custom,debug,best_celeba,VAE_mnist,VAE_fashion,VAE_dsprites,VAE_celeba,VAE_chairs,betaH_mnist,betaH_fashion,betaH_dsprites,betaH_celeba,betaH_chairs,betaB_mnist,betaB_fashion,betaB_dsprites,betaB_celeba,betaB_chairs,factor_mnist,factor_fashion,factor_dsprites,factor_celeba,factor_chairs,btcvae_mnist,btcvae_fashion,btcvae_dsprites,btcvae_celeba,btcvae_chairs}]
                [-e EPOCHS] [-b BATCH_SIZE] [--lr LR] [-m {Burgess}]
-               [-z LATENT_DIM] [-l {VAE,betaH,betaB,factor,batchTC}]
+               [-z LATENT_DIM] [-l {VAE,betaH,betaB,factor,btcvae}]
                [-r {bernoulli,laplace,gaussian}] [-a REG_ANNEAL]
                [--betaH-B BETAH_B] [--betaB-initC BETAB_INITC]
                [--betaB-finC BETAB_FINC] [--betaB-G BETAB_G]
                [--factor-G FACTOR_G] [--no-mutual-info] [--lr-disc LR_DISC]
-               [--batchTC-A BATCHTC_A] [--batchTC-G BATCHTC_G]
-               [--batchTC-B BATCHTC_B] [--is-eval-only] [--is-metrics]
+               [--btcvae-A BTCVAE_A] [--btcvae-G BTCVAE_G]
+               [--btcvae-B BTCVAE_B] [--is-eval-only] [--is-metrics]
                [--no-test] [--eval-batchsize EVAL_BATCHSIZE]
                name
 
@@ -77,7 +77,7 @@ Training specific options:
                         (default: 30)
   -d, --dataset {mnist,fashion,dsprites,celeba,chairs}
                         Path to training data. (default: mnist)
-  -x, --experiment {custom,debug,best_celeba,VAE_mnist,VAE_fashion,VAE_dsprites,VAE_celeba,VAE_chairs,betaH_mnist,betaH_fashion,betaH_dsprites,betaH_celeba,betaH_chairs,betaB_mnist,betaB_fashion,betaB_dsprites,betaB_celeba,betaB_chairs,factor_mnist,factor_fashion,factor_dsprites,factor_celeba,factor_chairs,batchTC_mnist,batchTC_fashion,batchTC_dsprites,batchTC_celeba,batchTC_chairs}
+  -x, --experiment {custom,debug,best_celeba,VAE_mnist,VAE_fashion,VAE_dsprites,VAE_celeba,VAE_chairs,betaH_mnist,betaH_fashion,betaH_dsprites,betaH_celeba,betaH_chairs,betaB_mnist,betaB_fashion,betaB_dsprites,betaB_celeba,betaB_chairs,factor_mnist,factor_fashion,factor_dsprites,factor_celeba,factor_chairs,btcvae_mnist,btcvae_fashion,btcvae_dsprites,btcvae_celeba,btcvae_chairs}
                         Predefined experiments to run. If not `custom` this
                         will overwrite some other arguments. (default: custom)
   -e, --epochs EPOCHS   Maximum number of epochs to run for. (default: 100)
@@ -90,7 +90,7 @@ Model specfic options:
                         Type of encoder and decoder to use. (default: Burgess)
   -z, --latent-dim LATENT_DIM
                         Dimension of the latent variable. (default: 10)
-  -l, --loss {VAE,betaH,betaB,factor,batchTC}
+  -l, --loss {VAE,betaH,betaB,factor,btcvae}
                         Type of VAE loss function to use. (default: betaB)
   -r, --rec-dist {bernoulli,laplace,gaussian}
                         Form of the likelihood ot use for each pixel.
@@ -117,15 +117,12 @@ factor VAE specific parameters:
   --no-mutual-info      Remove mutual information. (default: False)
   --lr-disc LR_DISC     Learning rate of the discriminator. (default: 5e-05)
 
-batchTC specific parameters:
-  --batchTC-A BATCHTC_A
-                        Weight of the MI term (alpha in the paper). (default:
+beta-tcvae specific parameters:
+  --btcvae-A BTCVAE_A   Weight of the MI term (alpha in the paper). (default:
                         1)
-  --batchTC-G BATCHTC_G
-                        Weight of the dim-wise KL term (gamma in the paper).
+  --btcvae-G BTCVAE_G   Weight of the dim-wise KL term (gamma in the paper).
                         (default: 1)
-  --batchTC-B BATCHTC_B
-                        Weight of the TC term (beta in the paper). (default:
+  --btcvae-B BTCVAE_B   Weight of the TC term (beta in the paper). (default:
                         6)
 
 Evaluation specific options:
@@ -198,7 +195,7 @@ The losses differ in their estimates of each of these terms and the hyperparamet
 * [**β-VAE<sub>H</sub>**](https://openreview.net/pdf?id=Sy2fzU9gl): α=β=ɣ>1. Each term is computed exactly by a closed form solution. Simply adds a hyper-parameter (β in the paper) before the KL.
 * [**β-VAE<sub>B</sub>**](https://arxiv.org/abs/1804.03599): α=β=ɣ>1. Same as **β-VAE<sub>H</sub>** but only penalizes the 3 terms once they deviate from a capacity C which increases during training.
 * [**FactorVAE**](https://arxiv.org/pdf/1802.05983.pdf): α=ɣ=1, β>1. Each term is computed exactly by a closed form solution. Simply adds a hyper-parameter (β in the paper) before the KL. Adds a weighted Total Correlation term to the standard VAE loss. The total correlation is estimated using a classifier and the density-ratio trick. Note that ɣ in their paper corresponds to β+1 in our framework.
-* [**FactorVAE**](https://arxiv.org/pdf/1802.05983.pdf): α=ɣ=1 (although can be modified), β>1. COnceptually equivalent to FactorVAE, but each term is estimated separately using minibatch stratified sampling.
+* [**β-TCVAE**](https://arxiv.org/pdf/1802.05983.pdf): α=ɣ=1 (although can be modified), β>1. Conceptually equivalent to FactorVAE, but each term is estimated separately using minibatch stratified sampling.
 
 
 

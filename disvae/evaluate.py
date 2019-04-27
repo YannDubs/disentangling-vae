@@ -50,7 +50,7 @@ class Evaluator:
                  is_progress_bar=True):
 
         self.device = device
-        self.loss_type = loss_type
+        self.loss_f = loss_f
         self.model = model.to(self.device)
         self.logger = logger
         self.save_dir = save_dir
@@ -104,17 +104,17 @@ class Evaluator:
         storer = defaultdict(list)
         for data, _ in tqdm(dataloader, leave=False, disable=not self.is_progress_bar):
             data = data.to(self.device)
-            if self.loss_type == "factor":
-                losses = self.loss_f(data, self.model, None, storer)
-            else:
+
+            try:
                 recon_batch, latent_dist, latent_sample = self.model(data)
-                loss_kwargs = dict()
-                if self.loss_type == 'batchTC':
-                    loss_kwargs["latent_sample"] = latent_sample
-                losses = self.loss_f(data, recon_batch, latent_dist,
-                                     self.model.training, storer, **loss_kwargs)
-        losses = {k: sum(v) / len(dataloader) for k, v in storer.items()}
-        return losses
+                _ = self.loss_f(data, recon_batch, latent_dist, self.model.training,
+                                storer, latent_sample=latent_sample)
+            except ValueError:
+                # for losses that use multiple optimizers (e.g. Factor)
+                _ = self.loss_f.call_optimize(data, self.model, None, storer)
+
+            losses = {k: sum(v) / len(dataloader) for k, v in storer.items()}
+            return losses
 
     def compute_metrics(self, dataloader):
         """Compute all the metrics.

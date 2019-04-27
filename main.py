@@ -119,16 +119,16 @@ def parse_arguments(args_to_parse):
                         default=default_config['lr_disc'],
                         help='Learning rate of the discriminator.')
 
-    batchTC = parser.add_argument_group('batchTC specific parameters')
-    batchTC.add_argument('--batchTC-A', type=float,
-                         default=default_config['batchTC_A'],
-                         help="Weight of the MI term (alpha in the paper).")
-    batchTC.add_argument('--batchTC-G', type=float,
-                         default=default_config['batchTC_G'],
-                         help="Weight of the dim-wise KL term (gamma in the paper).")
-    batchTC.add_argument('--batchTC-B', type=float,
-                         default=default_config['batchTC_B'],
-                         help="Weight of the TC term (beta in the paper).")
+    btcvae = parser.add_argument_group('beta-tcvae specific parameters')
+    btcvae.add_argument('--btcvae-A', type=float,
+                        default=default_config['btcvae_A'],
+                        help="Weight of the MI term (alpha in the paper).")
+    btcvae.add_argument('--btcvae-G', type=float,
+                        default=default_config['btcvae_G'],
+                        help="Weight of the dim-wise KL term (gamma in the paper).")
+    btcvae.add_argument('--btcvae-B', type=float,
+                        default=default_config['btcvae_B'],
+                        help="Weight of the TC term (beta in the paper).")
 
     # Learning options
     evaluation = parser.add_argument_group('Evaluation specific options')

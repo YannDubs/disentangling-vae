@@ -44,7 +44,8 @@ class Discriminator(nn.Module):
         # Layer parameters
         self.z_dim = latent_dim
         self.hidden_units = hidden_units
-        out_units = 2  # theoretically 1 but gives bad results
+        # theoretically 1 with sigmoid but gives bad results => use 2 and softmax
+        out_units = 2
 
         # Fully connected layers
         self.lin1 = nn.Linear(self.z_dim, hidden_units)
