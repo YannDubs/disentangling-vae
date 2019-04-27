@@ -239,12 +239,11 @@ def main(args):
                                       batch_size=args.eval_batchsize,
                                       shuffle=False,
                                       logger=logger)
-
-        loss_kwargs = vars(args).copy()
-        loss_kwargs["n_data"] = len(test_loader.dataset)
-        evaluator = Evaluator(model,
-                              loss_type=args.loss,
-                              loss_kwargs=loss_kwargs,
+        loss_f = get_loss_f(args.loss,
+                            n_data=len(test_loader.dataset),
+                            device=device,
+                            **vars(args))
+        evaluator = Evaluator(model, loss_f,
                               device=device,
                               logger=logger,
                               save_dir=exp_dir,

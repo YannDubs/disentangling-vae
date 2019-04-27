@@ -27,27 +27,34 @@ class Evaluator:
     ----------
     model: disvae.vae.VAE
 
-    is_progress_bar: bool
+    loss_f: disvae.models.BaseLoss
+        Loss function.
+
+    device: torch.device, optional
+        Device on which to run the code.
+
+    logger: logging.Logger, optional
+        Logger.
+
+    save_dir : str, optional
+        Directory for saving logs.
+
+    is_progress_bar: bool, optional
         Whether to use a progress bar for training.
     """
 
-    def __init__(self, model,
-                 loss_type="betaB",
-                 loss_kwargs={},
+    def __init__(self, model, loss_f,
                  device=torch.device("cpu"),
                  logger=logging.getLogger(__name__),
                  save_dir="results",
                  is_progress_bar=True):
+
         self.device = device
         self.loss_type = loss_type
         self.model = model.to(self.device)
-        loss_kwargs["device"] = device
-        self.loss_f = get_loss_f(self.loss_type, kwargs_parse=loss_kwargs)
+        self.logger = logger
         self.save_dir = save_dir
         self.is_progress_bar = is_progress_bar
-
-        self.logger = logger
-
         self.logger.info("Testing Device: {}".format(self.device))
 
     def __call__(self, data_loader, is_metrics=False, is_losses=True):
@@ -57,10 +64,10 @@ class Evaluator:
         ----------
         data_loader: torch.utils.data.DataLoader
 
-        is_metrics: bool
+        is_metrics: bool, optional
             Whether to compute and store the disentangling metrics.
 
-        is_losses: bool
+        is_losses: bool, optional
             Whether to compute and store the test losses.
         """
         start = default_timer()
@@ -68,7 +75,6 @@ class Evaluator:
         self.model.eval()
 
         metric, losses = None, None
-        # TODO: add warning if use metric if no true factors of variations
         if is_metrics:
             self.logger.info('Computing metrics...')
             metrics = self.compute_metrics(data_loader)
@@ -117,8 +123,11 @@ class Evaluator:
         ----------
         data_loader: torch.utils.data.DataLoader
         """
-        lat_sizes = dataloader.dataset.lat_sizes
-        lat_names = dataloader.dataset.lat_names
+        try:
+            lat_sizes = dataloader.dataset.lat_sizes
+            lat_names = dataloader.dataset.lat_names
+        except AttributeError:
+            raise ValueError("Dataset needs to have known true factors of variations to compute the metric. This does not seem to be the case for {}".format(type(dataloader.__dict__["dataset"]).__name__))
 
         self.logger.info("Computing the empirical distribution q(z|x).")
         samples_zCx, params_zCx = self._compute_q_zCx(dataloader)
@@ -242,7 +251,7 @@ class Evaluator:
             Sufficient statistics q(z|x) for each training example. E.g. for
             gaussian (mean, log_var) each of shape : (len_dataset, latent_dim).
 
-        n_samples: int
+        n_samples: int, optional
             Number of samples to use to estimate the entropies.
 
         Return

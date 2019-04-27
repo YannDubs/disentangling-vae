@@ -9,7 +9,6 @@ import torch
 from torch.nn import functional as F
 
 from disvae.utils.modelIO import save_model
-from disvae.models.losses import get_loss_f
 
 
 TRAIN_LOSSES_LOGFILE = "train_losses.log"
@@ -17,39 +16,41 @@ GIF_FILE = "training.gif"
 
 
 class Trainer():
+    """
+    Class to handle training of model.
+
+    Parameters
+    ----------
+    model: disvae.vae.VAE
+
+    optimizer: torch.optim.Optimizer
+
+    loss_f: disvae.models.BaseLoss
+        Loss function.
+
+    device: torch.device, optional
+        Device on which to run the code.
+
+    logger: logging.Logger, optional
+        Logger.
+
+    save_dir : str, optional
+        Directory for saving logs.
+
+    gif_visualizer : viz.Visualizer, optional
+        Gif Visualizer that should return samples at every epochs.
+
+    is_progress_bar: bool, optional
+        Whether to use a progress bar for training.
+    """
+
     def __init__(self, model, optimizer, loss_f,
                  device=torch.device("cpu"),
                  logger=logging.getLogger(__name__),
                  save_dir="results",
                  gif_visualizer=None,
                  is_progress_bar=True):
-        """
-        Class to handle training of model.
 
-        Parameters
-        ----------
-        model: disvae.vae.VAE
-
-        optimizer: torch.optim.Optimizer
-
-        loss_f: disvae.models.BaseLoss
-            Loss function.
-
-        device: torch.device, optional
-            Device on which to run the code.
-
-        logger: logging.Logger, optional
-            Logger.
-
-        save_dir : str, optional
-            Directory for saving logs.
-
-        gif_visualizer : viz.Visualizer, optional
-            Gif Visualizer that should return samples at every epochs.
-
-        is_progress_bar: bool, optional
-            Whether to use a progress bar for training.
-        """
         self.device = device
         self.model = model.to(self.device)
         self.loss_f = loss_f

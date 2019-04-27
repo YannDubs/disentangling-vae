@@ -5,6 +5,7 @@ import abc
 import math
 
 import torch
+import torch.nn as nn
 from torch.nn import functional as F
 from torch import optim
 
@@ -37,6 +38,7 @@ def get_loss_f(loss_name, **kwargs_parse):
                            gamma=kwargs_parse["factor_G"],
                            is_mutual_info=not kwargs_parse["no_mutual_info"],
                            disc_kwargs=dict(latent_dim=kwargs_parse["latent_dim"]),
+                           optim_kwargs=dict(lr=kwargs_parse["lr_disc"], betas=(0.5, 0.9)),
                            **kwargs_all)
     elif loss_name == "batchTC":
         return BatchTCLoss(kwargs_parse["n_data"],
@@ -237,13 +239,14 @@ class FactorKLoss(BaseLoss):
                  gamma=10.,
                  is_mutual_info=True,
                  disc_kwargs={},
-                 optim_kwargs=dict(lr=5e-4, betas=(0.5, 0.9)),
+                 optim_kwargs=dict(lr=5e-5, betas=(0.5, 0.9)),
                  **kwargs):
         super().__init__(**kwargs)
         self.gamma = gamma
         self.n_data = n_data
         self.device = device
         self.is_mutual_info = is_mutual_info
+        self.bce = nn.BCEWithLogitsLoss()
 
         self.discriminator = Discriminator(**disc_kwargs).to(self.device)
         self.optimizer_d = optim.Adam(self.discriminator.parameters(), **optim_kwargs)
@@ -268,86 +271,80 @@ class FactorKLoss(BaseLoss):
                                         distribution=self.rec_dist)
         d_z = self.discriminator(latent_sample1)
         # here it would make more sense to use (but doesn't give good results)
-        # change sign because sigmoid(-x) = 1 - sigmoid(x)
-        #tc_loss = (F.logsigmoid(d_z) - F.logsigmoid(- d_z)).clamp(0).mean()
-        tc_loss = (d_z[:, 0:1] - d_z[:, 1:2]).mean()
+        # want it to not be able to distinguishable
+        # use relu because if proba output is smaller than 0.5 (i.e d_z < 0)
+        # then don't want to penalize to be "too good"
+        #ones = torch.ones(half_batch_size, device=self.device)
+        #tc_loss = self.bce(d_z.flatten().relu(), ones - 0.5)
+        #tc_loss = (2 * d_z.flatten()).mean()
+        # We want log(p_true/p_false). If not using logisitc regression but softmax
+        # then p_true = exp(logit_true) / Z; p_false = exp(logit_false) / Z
+        # so  log(p_true/p_false) = logit_true - logit_false
+        tc_loss = (d_z[:, 0] - d_z[:, 1]).mean()
 
-
-<< << << < HEAD
-== == == =
-# clamping to 0 because TC cannot be negative : TEST
-# change sign because sigmoid(-x) = 1 - sigmoid(x)
-#tc_loss = (F.logsigmoid(d_z) - F.logsigmoid(- d_z)).clamp(0).mean()
-    tc_loss = (d_z[:, 0:1] - d_z[:, 1:2]).mean()
-
-    anneal_rec = (linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
-                  if model.training else 1)
-
-    # TODO replace this code with the following commented out code after viz is fixed
-    # https://github.com/YannDubs/disentangling-vae/pull/25#issuecomment-473535863
->>>>>> > master
-    if self.is_mutual_info:
+        if self.is_mutual_info:
             # usual factor: as in paper
-        gamma = self.gamma
-        kl_loss = _kl_normal_loss(*latent_dist, storer)
-    else:
-        # TODO: test if batchTC a lot worst, if not remove `is_mutual_info` in factorKL
-        # testing to remove I[z;x] which corresponds to wassertien AE
-        _, log_qz, log_prod_qzi, _ = _get_log_pz_qz_prodzi_qzCx(latent_sample1,
-                                                                latent_dist,
-                                                                half_batch_size,
-                                                                self.n_data)
-        dw_kl_loss = (log_prod_qzi - log_qz).mean(dim=0)
-        # uses only dw_kl and adds one more TC term => same as using KL
-        # but removing the information
-        kl_loss = dw_kl_loss
-        gamma = self.gamma + 1
-        # computing this for storing and comparaison purposes
-        _ = _kl_normal_loss(*latent_dist, storer)
+            gamma = self.gamma
+            kl_loss = _kl_normal_loss(*latent_dist, storer)
+        else:
+            # TODO: test if batchTC a lot worst, if not remove `is_mutual_info` in factorKL
+            # testing to remove I[z;x] which corresponds to wassertien AE
+            _, log_qz, log_prod_qzi, _ = _get_log_pz_qz_prodzi_qzCx(latent_sample1,
+                                                                    latent_dist,
+                                                                    half_batch_size,
+                                                                    self.n_data)
+            dw_kl_loss = (log_prod_qzi - log_qz).mean(dim=0)
+            # uses only dw_kl and adds one more TC term => same as using KL
+            # but removing the information
+            kl_loss = dw_kl_loss
+            gamma = self.gamma + 1
+            # computing this for storing and comparaison purposes
+            _ = _kl_normal_loss(*latent_dist, storer)
 
-    anneal_reg = (linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
-                  if model.training else 1)
-    vae_loss = rec_loss + kl_loss + anneal_reg * gamma * tc_loss
+        anneal_reg = (linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
+                      if model.training else 1)
+        vae_loss = rec_loss + kl_loss + anneal_reg * gamma * tc_loss
 
-    if storer is not None:
-        storer['loss'].append(vae_loss.item())
-        storer['tc_loss'].append(tc_loss.item())
+        if storer is not None:
+            storer['loss'].append(vae_loss.item())
+            storer['tc_loss'].append(tc_loss.item())
 
-    if not model.training:
-        # don't backprop if evaluating
+        if not model.training:
+            # don't backprop if evaluating
+            return vae_loss
+
+        # Run VAE optimizer
+        optimizer.zero_grad()
+        vae_loss.backward(retain_graph=True)
+        optimizer.step()
+
+        # Discriminator Loss
+        # Get second sample of latent distribution
+        latent_sample2 = model.sample_latent(data2)
+        z_perm = _permute_dims(latent_sample2).detach()
+        d_z_perm = self.discriminator(z_perm)
+
+        # Calculate total correlation loss
+        # for cross entropy the target is the index => need to be long and says
+        # that it's first output for d_z and second for perm
+        ones = torch.ones(half_batch_size, dtype=torch.long, device=self.device)
+        d_tc_loss = 0.5 * (F.cross_entropy(d_z, 1 - ones) + F.cross_entropy(d_z_perm, ones))
+        # would make more sense to use
+        # here teaches him the real results => 0 for permuted and 1 for non permuted
+        #d_tc_loss = 0.5 * (self.bce(d_z.flatten(), ones) + self.bce(d_z_perm.flatten(), 1 - ones))
+
+        # should also anneals discriminator if not becomes too good ???
+        #d_tc_loss = anneal_reg * d_tc_loss
+
+        # Run discriminator optimizer
+        self.optimizer_d.zero_grad()
+        d_tc_loss.backward()
+        self.optimizer_d.step()
+
+        if storer is not None:
+            storer['discrim_loss'].append(d_tc_loss.item())
+
         return vae_loss
-
-    # Run VAE optimizer
-    optimizer.zero_grad()
-    vae_loss.backward(retain_graph=True)
-    optimizer.step()
-
-    # Discriminator Loss
-    # Get second sample of latent distribution
-    latent_sample2 = model.sample_latent(data2)
-    z_perm = _permute_dims(latent_sample2).detach()
-    d_z_perm = self.discriminator(z_perm)
-
-    # Calculate total correlation loss
-    ones = torch.ones(half_batch_size, dtype=torch.long, device=self.device)
-    zeros = torch.zeros(half_batch_size, dtype=torch.long, device=self.device)
-    d_tc_loss = 0.5 * (F.cross_entropy(d_z, zeros) + F.cross_entropy(d_z_perm, ones))
-    # would make more sense to use (but doesn't give good results)
-    # change sign because sigmoid(-x) = 1 - sigmoid(x)
-    #d_tc_loss = - (0.5 * (F.logsigmoid(d_z) + F.logsigmoid(- d_z_perm))).clamp(0).mean()
-
-    # also anneals discriminator if not becomes too god
-    d_tc_loss = anneal_reg * d_tc_loss
-
-    # Run discriminator optimizer
-    self.optimizer_d.zero_grad()
-    d_tc_loss.backward()
-    self.optimizer_d.step()
-
-    if storer is not None:
-        storer['discrim_loss'].append(d_tc_loss.item())
-
-    return vae_loss
 
 
 class BatchTCLoss(BaseLoss):
