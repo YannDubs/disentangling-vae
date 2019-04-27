@@ -1,18 +1,19 @@
+"""
+Module containing the encoders.
+"""
 import numpy as np
 
 import torch
 from torch import nn
 
 
-def get_Encoder(name):
-    """Return the correct encoder."""
-    if name == "Burgess":
-        return EncoderBetaB
-    else:
-        raise ValueError("Uknown encoder : {}".format(name))
+# ALL encoders should be called Enccoder<Model>
+def get_encoder(model_type):
+    model_type = model_type.lower().capitalize()
+    return eval("Encoder{}".format(model_type))
 
 
-class EncoderBetaB(nn.Module):
+class EncoderBurgess(nn.Module):
     def __init__(self, img_size,
                  latent_dim=10):
         r"""Encoder of the model proposed in [1].
@@ -36,7 +37,7 @@ class EncoderBetaB(nn.Module):
             [1] Burgess, Christopher P., et al. "Understanding disentangling in
             $\beta$-VAE." arXiv preprint arXiv:1804.03599 (2018).
         """
-        super(EncoderBetaB, self).__init__()
+        super(EncoderBurgess, self).__init__()
 
         # Layer parameters
         hid_channels = 32

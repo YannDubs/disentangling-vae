@@ -5,44 +5,48 @@ import abc
 import math
 
 import torch
+import torch.nn as nn
 from torch.nn import functional as F
 from torch import optim
 
 from .discriminator import Discriminator
-from disvae.utils.math import log_density_normal, log_importance_weight_matrix
+from disvae.utils.math import (log_density_gaussian, log_importance_weight_matrix,
+                               matrix_log_density_gaussian)
 
 
-# TO-DO: clean data_size and device
-def get_loss_f(name, kwargs_parse={}):
+LOSSES = ["VAE", "betaH", "betaB", "factor", "btcvae"]
+RECON_DIST = ["bernoulli", "laplace", "gaussian"]
+
+
+# TO-DO: clean n_data and device
+def get_loss_f(loss_name, **kwargs_parse):
     """Return the correct loss function given the argparse arguments."""
-    kwargs_all = dict(rec_dist=kwargs_parse["rec_dist"], steps_anneal=kwargs_parse["reg_anneal"])
-    if name == "betaH":
+    kwargs_all = dict(rec_dist=kwargs_parse["rec_dist"],
+                      steps_anneal=kwargs_parse["reg_anneal"])
+    if loss_name == "betaH":
         return BetaHLoss(beta=kwargs_parse["betaH_B"], **kwargs_all)
-    elif name == "VAE":
+    elif loss_name == "VAE":
         return BetaHLoss(beta=1, **kwargs_all)
-    elif name == "betaB":
+    elif loss_name == "betaB":
         return BetaBLoss(C_init=kwargs_parse["betaB_initC"],
                          C_fin=kwargs_parse["betaB_finC"],
-                         C_n_interp=kwargs_parse["betaB_stepsC"],
                          gamma=kwargs_parse["betaB_G"],
                          **kwargs_all)
-    elif name == "factor":
+    elif loss_name == "factor":
         return FactorKLoss(kwargs_parse["device"],
-                           kwargs_parse["data_size"],
                            gamma=kwargs_parse["factor_G"],
-                           is_mutual_info=not kwargs_parse["no_mutual_info"],
-                           is_mss=not kwargs_parse["no_mss"],
+                           disc_kwargs=dict(latent_dim=kwargs_parse["latent_dim"]),
+                           optim_kwargs=dict(lr=kwargs_parse["lr_disc"], betas=(0.5, 0.9)),
                            **kwargs_all)
-    elif name == "batchTC":
-        return BatchTCLoss(kwargs_parse["device"],
-                           kwargs_parse["data_size"],
-                           alpha=kwargs_parse["batchTC_A"],
-                           beta=kwargs_parse["batchTC_B"],
-                           gamma=kwargs_parse["batchTC_G"],
-                           is_mss=not kwargs_parse["no_mss"],
-                           **kwargs_all)
+    elif loss_name == "btcvae":
+        return BtcvaeLoss(kwargs_parse["n_data"],
+                          alpha=kwargs_parse["btcvae_A"],
+                          beta=kwargs_parse["btcvae_B"],
+                          gamma=kwargs_parse["btcvae_G"],
+                          **kwargs_all)
     else:
-        raise ValueError("Uknown loss : {}".format(name))
+        assert loss_name not in LOSSES
+        raise ValueError("Uknown loss : {}".format(loss_name))
 
 
 class BaseLoss(abc.ABC):
@@ -71,7 +75,7 @@ class BaseLoss(abc.ABC):
         self.steps_anneal = steps_anneal
 
     @abc.abstractmethod
-    def __call__(self, data, recon_data, latent_dist, is_train, storer):
+    def __call__(self, data, recon_data, latent_dist, is_train, storer, **kwargs):
         """
         Calculates loss for a batch of data.
 
@@ -88,8 +92,14 @@ class BaseLoss(abc.ABC):
             sufficient statistics of the latent dimension. E.g. for gaussian
             (mean, log_var) each of shape : (batch_size, latent_dim).
 
+        is_train : bool
+            Whether currently in train mode.
+
         storer : dict
             Dictionary in which to store important variables for vizualisation.
+
+        kwargs:
+            Loss specific arguments
         """
 
     def _pre_call(self, is_train, storer):
@@ -113,27 +123,29 @@ class BetaHLoss(BaseLoss):
     beta : float, optional
         Weight of the kl divergence.
 
-    References:
-        [1] Higgins, Irina, et al. "beta-vae: Learning basic visual concepts with
-        a constrained variational framework." (2016).
-
     kwargs:
         Additional arguments for `BaseLoss`, e.g. rec_dist`.
+
+    References
+    ----------
+        [1] Higgins, Irina, et al. "beta-vae: Learning basic visual concepts with
+        a constrained variational framework." (2016).
     """
 
     def __init__(self, beta=4, **kwargs):
         super().__init__(**kwargs)
         self.beta = beta
 
-    def __call__(self, data, recon_data, latent_dist, is_train, storer):
+    def __call__(self, data, recon_data, latent_dist, is_train, storer, **kwargs):
         storer = self._pre_call(is_train, storer)
 
         rec_loss = _reconstruction_loss(data, recon_data,
-                                        storer=storer, distribution=self.rec_dist)
+                                        storer=storer,
+                                        distribution=self.rec_dist)
         kl_loss = _kl_normal_loss(*latent_dist, storer)
-        anneal_rec = (linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
+        anneal_reg = (linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
                       if is_train else 1)
-        loss = rec_loss + anneal_rec * (self.beta * kl_loss)
+        loss = rec_loss + anneal_reg * (self.beta * kl_loss)
 
         if storer is not None:
             storer['loss'].append(loss.item())
@@ -153,9 +165,6 @@ class BetaBLoss(BaseLoss):
     C_fin : float, optional
         Final annealed capacity C.
 
-    C_n_interp : float, optional
-        Number of training iterations for interpolating C.
-
     gamma : float, optional
         Weight of the KL divergence term.
 
@@ -168,26 +177,25 @@ class BetaBLoss(BaseLoss):
         $\beta$-VAE." arXiv preprint arXiv:1804.03599 (2018).
     """
 
-    def __init__(self, C_init=0., C_fin=5., C_n_interp=25000, gamma=30., **kwargs):
+    def __init__(self, C_init=0., C_fin=5., gamma=30., **kwargs):
         super().__init__(**kwargs)
         self.gamma = gamma
         self.C_init = C_init
         self.C_fin = C_fin
-        self.C_n_interp = C_n_interp
 
-    def __call__(self, data, recon_data, latent_dist, is_train, storer):
+    def __call__(self, data, recon_data, latent_dist, is_train, storer, **kwargs):
         storer = self._pre_call(is_train, storer)
 
         rec_loss = _reconstruction_loss(data, recon_data,
-                                        storer=storer, distribution=self.rec_dist)
+                                        storer=storer,
+                                        distribution=self.rec_dist)
         kl_loss = _kl_normal_loss(*latent_dist, storer)
 
-        C = (linear_annealing(self.C_init, self.C_fin, self.n_train_steps, self.C_n_interp)
+        C = (linear_annealing(self.C_init, self.C_fin, self.n_train_steps, self.steps_anneal)
              if is_train else self.C_fin)
 
         loss = rec_loss + self.gamma * (kl_loss - C).abs()
 
-        batch_size = data.size(0)
         if storer is not None:
             storer['loss'].append(loss.item())
 
@@ -196,48 +204,43 @@ class BetaBLoss(BaseLoss):
 
 class FactorKLoss(BaseLoss):
     """
-        Compute the Factor-VAE loss as per Algorithm 2 of [1]
+    Compute the Factor-VAE loss as per Algorithm 2 of [1]
 
-        Parameters
-        ----------
-        device : torch.device
+    Parameters
+    ----------
+    device : torch.device
 
-        beta : float, optional
-            Weight of the TC loss term. `gamma` in the paper.
+    gamma : float, optional
+        Weight of the TC loss term. `gamma` in the paper.
 
-        is_mutual_info : bool
-            True : includes the mutual information term in the loss
-            False : removes mutual information
+    discriminator : disvae.discriminator.Discriminator
 
-        discriminator : disvae.discriminator.Discriminator
+    optimizer_d : torch.optim
 
-        optimizer_d : torch.optim
+    kwargs:
+        Additional arguments for `BaseLoss`, e.g. rec_dist`.
 
-        kwargs:
-            Additional arguments for `BaseLoss`, e.g. rec_dist`.
+    References
+    ----------
+        [1] Kim, Hyunjik, and Andriy Mnih. "Disentangling by factorising."
+        arXiv preprint arXiv:1802.05983 (2018).
+    """
 
-        References
-        ----------
-            [1] Kim, Hyunjik, and Andriy Mnih. "Disentangling by factorising."
-            arXiv preprint arXiv:1802.05983 (2018).
-        """
-
-    def __init__(self, device, data_size, gamma=40., is_mutual_info=True, is_mss=False,
-                 disc_kwargs=dict(neg_slope=0.2, latent_dim=10, hidden_units=1000),
-                 optim_kwargs=dict(lr=5e-4, betas=(0.5, 0.9)),
+    def __init__(self, device,
+                 gamma=10.,
+                 disc_kwargs={},
+                 optim_kwargs=dict(lr=5e-5, betas=(0.5, 0.9)),
                  **kwargs):
         super().__init__(**kwargs)
         self.gamma = gamma
-        self.data_size = data_size
         self.device = device
-        self.is_mutual_info = is_mutual_info
-        self.is_mss = is_mss
-
         self.discriminator = Discriminator(**disc_kwargs).to(self.device)
-
         self.optimizer_d = optim.Adam(self.discriminator.parameters(), **optim_kwargs)
 
-    def __call__(self, data, model, optimizer, storer):
+    def __call__(self, *args, **kwargs):
+        raise ValueError("Use `call_optimize` to also train the discriminator")
+
+    def call_optimize(self, data, model, optimizer, storer):
         storer = self._pre_call(model.training, storer)
 
         # factor-vae split data into two batches. In the paper they sample 2 batches
@@ -250,58 +253,21 @@ class FactorKLoss(BaseLoss):
         # Factor VAE Loss
         recon_batch, latent_dist, latent_sample1 = model(data1)
         rec_loss = _reconstruction_loss(data1, recon_batch,
-                                        storer=storer, distribution=self.rec_dist)
-        # TODO: remove this kl_loss term once viz is sorted
-        # https://github.com/YannDubs/disentangling-vae/pull/25#issuecomment-473535863
+                                        storer=storer,
+                                        distribution=self.rec_dist)
+
         kl_loss = _kl_normal_loss(*latent_dist, storer)
+
         d_z = self.discriminator(latent_sample1)
+        # We want log(p_true/p_false). If not using logisitc regression but softmax
+        # then p_true = exp(logit_true) / Z; p_false = exp(logit_false) / Z
+        # so log(p_true/p_false) = logit_true - logit_false
+        tc_loss = (d_z[:, 0] - d_z[:, 1]).mean()
+        # with sigmoid (not good results) should be `tc_loss = (2 * d_z.flatten()).mean()`
 
-        # clamping to 0 because TC cannot be negative : TEST
-        # change sign because sigmoid(-x) = 1 - sigmoid(x)
-        #tc_loss = (F.logsigmoid(d_z) - F.logsigmoid(- d_z)).clamp(0).mean()
-        tc_loss = (d_z[:, 0:1] - d_z[:, 1:2]).mean()
-
-        anneal_rec = (linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
+        anneal_reg = (linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
                       if model.training else 1)
-
-        # TODO replace this code with the following commented out code after viz is fixed
-        # https://github.com/YannDubs/disentangling-vae/pull/25#issuecomment-473535863
-        if self.is_mutual_info:
-            # return vae loss
-            vae_loss = rec_loss + anneal_rec * (kl_loss + self.gamma * tc_loss)
-        else:
-            # return vae loss without mutual information term
-            # change latent dist to torch.tensor (could probably avoid this)
-            latent_dist = torch.stack((latent_dist[0], latent_dist[1]), dim=2)
-            # calculate log p(z)
-            prior_params = torch.zeros(half_batch_size, latent_dist.size(1), 2).to(self.device)
-            logpz = log_density_normal(latent_sample1, prior_params, half_batch_size,
-                                       return_matrix=False).view(half_batch_size, -1).sum(1)
-
-            if not self.is_mss:
-                # minibatch weighted sampling
-                _, logqz_prodmarginals = _minibatch_weighted_sampling(latent_dist, latent_sample1,
-                                                                      self.data_size)
-            else:
-                # minibatch stratified sampling
-                _, logqz_prodmarginals = _minibatch_stratified_sampling(latent_dist, latent_sample1,
-                                                                        self.data_size)
-
-            gamma = self.gamma + 1
-
-            dw_kl_loss = (logqz_prodmarginals - logpz).mean()
-            vae_loss = rec_loss + anneal_rec * (gamma * tc_loss + dw_kl_loss)
-
-        # if self.is_mutual_info:
-        #     beta = self.beta
-        #     kl_loss = _kl_normal_loss(*latent_dist, storer)
-        # else:
-        #     # beta has to be increased by one for correct comparaison
-        #     # as the TC term is included in `_kl_normal_loss`
-        #     beta = self.beta + 1
-        #     kl_loss = _dimwise_kl_loss(*latent_dist, storer)
-        #
-        # vae_loss = rec_loss + kl_loss + beta * tc_loss
+        vae_loss = rec_loss + kl_loss + anneal_reg * self.gamma * tc_loss
 
         if storer is not None:
             storer['loss'].append(vae_loss.item())
@@ -321,12 +287,18 @@ class FactorKLoss(BaseLoss):
         latent_sample2 = model.sample_latent(data2)
         z_perm = _permute_dims(latent_sample2).detach()
         d_z_perm = self.discriminator(z_perm)
+
         # Calculate total correlation loss
+        # for cross entropy the target is the index => need to be long and says
+        # that it's first output for d_z and second for perm
         ones = torch.ones(half_batch_size, dtype=torch.long, device=self.device)
-        zeros = torch.zeros(half_batch_size, dtype=torch.long, device=self.device)
+        zeros = torch.zeros_like(ones)
         d_tc_loss = 0.5 * (F.cross_entropy(d_z, zeros) + F.cross_entropy(d_z_perm, ones))
-        # change sign because sigmoid(-x) = 1 - sigmoid(x)
-        #d_tc_loss = - (0.5 * (F.logsigmoid(d_z) + F.logsigmoid(- d_z_perm))).clamp(0).mean()
+        # with sigmoid would be :
+        # d_tc_loss = 0.5 * (self.bce(d_z.flatten(), ones) + self.bce(d_z_perm.flatten(), 1 - ones))
+
+        # TO-DO: check ifshould also anneals discriminator if not becomes too good ???
+        #d_tc_loss = anneal_reg * d_tc_loss
 
         # Run discriminator optimizer
         self.optimizer_d.zero_grad()
@@ -339,173 +311,88 @@ class FactorKLoss(BaseLoss):
         return vae_loss
 
 
-class BatchTCLoss(BaseLoss):
+class BtcvaeLoss(BaseLoss):
     """
-        Compute the decomposed KL loss with either minibatch weighted sampling or
-        minibatch stratified sampling according to [1]
+    Compute the decomposed KL loss with either minibatch weighted sampling or
+    minibatch stratified sampling according to [1]
 
-        Parameters
-        ----------
-        data_size: int
-            Size of the dataset
+    Parameters
+    ----------
+    n_data: int
+        Number of data in the training set
 
-        alpha : float
-            Weight of the mutual information term.
+    alpha : float
+        Weight of the mutual information term.
 
-        beta : float
-            Weight of the total correlation term.
+    beta : float
+        Weight of the total correlation term.
 
-        gamma : float
-            Weight of the dimension-wise KL term.
+    gamma : float
+        Weight of the dimension-wise KL term.
 
-        latent_dim: int
-            Dimension of the latent variable
+    is_mss : bool
+        Whether to use minibatch stratified sampling instead of minibatch
+        weighted sampling.
 
-        is_mss : bool
-            Selects either minibatch stratified sampling (True) or minibatch
-            weighted  sampling (False)
+    kwargs:
+        Additional arguments for `BaseLoss`, e.g. rec_dist`.
 
-        kwargs:
-            Additional arguments for `BaseLoss`, e.g. rec_dist`.
-
-        References
-        ----------
-           [1] Chen, Tian Qi, et al. "Isolating sources of disentanglement in variational
-           autoencoders." Advances in Neural Information Processing Systems. 2018.
+    References
+    ----------
+       [1] Chen, Tian Qi, et al. "Isolating sources of disentanglement in variational
+       autoencoders." Advances in Neural Information Processing Systems. 2018.
     """
 
-    def __init__(self, device, data_size, alpha=1., beta=6., gamma=1., is_mss=False, **kwargs):
+    def __init__(self, n_data, alpha=1., beta=6., gamma=1., is_mss=True, **kwargs):
         super().__init__(**kwargs)
-        # beta values: dsprites: 6, celeba: 15
-        self.device = device
-        self.dataset_size = data_size
+        self.n_data = n_data
         self.beta = beta
         self.alpha = alpha
         self.gamma = gamma
         self.is_mss = is_mss  # minibatch stratified sampling
 
-    def __call__(self, data, recon_batch, latent_dist, is_train, storer, latent_sample=None):
+    def __call__(self, data, recon_batch, latent_dist, is_train, storer,
+                 latent_sample=None):
         storer = self._pre_call(is_train, storer)
+        batch_size, latent_dim = latent_sample.shape
 
-        batch_size = data.size(0)
-        # change latent dist to torch.tensor (could probably avoid this)
-        latent_dist = torch.stack((latent_dist[0], latent_dist[1]), dim=2)
-
-        # calculate log q(z|x) and _log q(z) matrix
-        logqz_condx = log_density_normal(latent_sample, latent_dist, batch_size,
-                                         return_matrix=False).sum(dim=1)
-
-        # calculate log p(z)
-        prior_params = torch.zeros(batch_size, latent_dist.size(1), 2).to(self.device)
-        logpz = log_density_normal(latent_sample, prior_params, batch_size,
-                                   return_matrix=False).view(batch_size, -1).sum(1)
-
-        if not self.is_mss:
-            # minibatch weighted sampling
-            logqz, logqz_prodmarginals = _minibatch_weighted_sampling(latent_dist, latent_sample,
-                                                                      self.dataset_size)
-
-        else:
-            # minibatch stratified sampling
-            logqz, logqz_prodmarginals = _minibatch_stratified_sampling(latent_dist, latent_sample,
-                                                                        self.dataset_size)
-
-        # rec loss, mutual information, total correlation and dim-wise kl
         rec_loss = _reconstruction_loss(data, recon_batch,
-                                        storer=storer, distribution=self.rec_dist)
-        mi_loss = (logqz_condx - logqz).mean()
-        tc_loss = (logqz - logqz_prodmarginals).mean()
-        dw_kl_loss = (logqz_prodmarginals - logpz).mean()
+                                        storer=storer,
+                                        distribution=self.rec_dist)
+        log_pz, log_qz, log_prod_qzi, log_q_zCx = _get_log_pz_qz_prodzi_qzCx(latent_sample,
+                                                                             latent_dist,
+                                                                             self.n_data,
+                                                                             is_mss=self.is_mss)
+        # I[z;x] = KL[q(z,x)||q(x)q(z)] = E_x[KL[q(z|x)||q(z)]]
+        mi_loss = (log_q_zCx - log_qz).mean()
+        # TC[z] = KL[q(z)||\prod_i z_i]
+        tc_loss = (log_qz - log_prod_qzi).mean()
+        # dw_kl_loss is KL[q(z)||p(z)] instead of usual KL[q(z|x)||p(z))]
+        dw_kl_loss = (log_prod_qzi - log_pz).mean()
 
-        anneal_rec = (linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
+        anneal_reg = (linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
                       if is_train else 1)
 
         # total loss
-        loss = rec_loss + anneal_rec * (self.alpha * mi_loss + self.beta * tc_loss + self.gamma * dw_kl_loss)
+        loss = rec_loss + (self.alpha * mi_loss +
+                           self.beta * tc_loss +
+                           anneal_reg * self.gamma * dw_kl_loss)
 
         if storer is not None:
             storer['loss'].append(loss.item())
             storer['mi_loss'].append(mi_loss.item())
             storer['tc_loss'].append(tc_loss.item())
             storer['dw_kl_loss'].append(dw_kl_loss.item())
-
-            # TODO Remove this when visualisation fixed
-            tc_loss_vec = (logqz - logqz_prodmarginals)
-            for i in range(latent_dist.size(1)):
-                storer['kl_loss_' + str(i)].append(tc_loss_vec[i].item())
+            # computing this for storing and comparaison purposes
+            _ = _kl_normal_loss(*latent_dist, storer)
 
         return loss
 
 
-def _minibatch_weighted_sampling(latent_dist, latent_sample, data_size):
-    """
-        Estimates log q(z) and the log (product of marginals of q(z_j)) with minibatch
-        weighted sampling.
-
-        Parameters
-        ----------
-        latent_dist : torch.Tensor
-            Mean and logvar of the normal distribution. Shape (batch_size, latent_dim, 2)
-
-        latent_sample: torch.Tensor
-            sample from the latent dimension using the reparameterisation trick
-            shape : (batch_size, latent_dim).
-
-        data_size : int
-            Number of data in the training set
-
-        References :
-           [1] Chen, Tian Qi, et al. "Isolating sources of disentanglement in variational
-           autoencoders." Advances in Neural Information Processing Systems. 2018.
-        """
-    batch_size = latent_dist.size(0)
-
-    _logqz = log_density_normal(latent_sample, latent_dist,
-                                batch_size, return_matrix=True)
-    logqz_prodmarginals = (torch.logsumexp(_logqz, dim=1, keepdim=False) -
-                           math.log(batch_size * data_size)).sum(dim=1)
-    logqz = torch.logsumexp(_logqz.sum(2), dim=1, keepdim=False) \
-        - math.log(batch_size * data_size)
-
-    return logqz, logqz_prodmarginals
-
-
-def _minibatch_stratified_sampling(latent_dist, latent_sample, data_size):
-    """
-        Estimates log q(z) and the log (product of marginals of q(z_j)) with minibatch
-        stratified sampling.
-
-        Parameters
-        ----------
-        latent_dist : torch.Tensor
-            Mean and logvar of the normal distribution. Shape (batch_size, latent_dim, 2)
-
-        latent_sample: torch.Tensor
-            sample from the latent dimension using the reparameterisation trick
-            shape : (batch_size, latent_dim).
-
-        data_size : int
-            Number of data in the training set
-
-        References :
-           [1] Chen, Tian Qi, et al. "Isolating sources of disentanglement in variational
-           autoencoders." Advances in Neural Information Processing Systems. 2018.
-        """
-    batch_size = latent_dist.size(0)
-
-    _logqz = log_density_normal(latent_sample, latent_dist,
-                                batch_size, return_matrix=True)
-    logiw_matrix = log_importance_weight_matrix(batch_size, data_size).to(latent_dist.device)
-    logqz = torch.logsumexp(logiw_matrix + _logqz.sum(2), dim=1, keepdim=False)
-    logqz_prodmarginals = torch.logsumexp(logiw_matrix.view(batch_size, batch_size, 1) +
-                                          _logqz, dim=1, keepdim=False).sum(1)
-
-    return logqz, logqz_prodmarginals
-
-
 def _reconstruction_loss(data, recon_data, distribution="bernoulli", storer=None):
     """
-    Calculates the per image reconstruction loss for a batch of data.
+    Calculates the per image reconstruction loss for a batch of data. I.e. negative
+    log likelihood.
 
     Parameters
     ----------
@@ -530,9 +417,9 @@ def _reconstruction_loss(data, recon_data, distribution="bernoulli", storer=None
 
     Returns
     -------
-        loss : torch.Tensor
-            Per image cross entropy (i.e. normalized per batch but not pixel and
-            channel)
+    loss : torch.Tensor
+        Per image cross entropy (i.e. normalized per batch but not pixel and
+        channel)
     """
     batch_size, n_chan, height, width = recon_data.size()
     is_colored = n_chan == 3
@@ -546,7 +433,10 @@ def _reconstruction_loss(data, recon_data, distribution="bernoulli", storer=None
         # loss in [0,255] space but normalized by 255 to not be too big but
         # multiply by 255 and divide 255, is the same as not doing anything for L1
         loss = F.l1_loss(recon_data, data, reduction="sum")
+        loss = loss * 3  # emperical value to give similar values than bernoulli => use same hyperparam
+        loss = loss * (loss != 0)  # masking to avoid nan
     else:
+        assert distribution not in RECON_DIST
         raise ValueError("Unkown distribution: {}".format(distribution))
 
     loss = loss / batch_size
@@ -624,3 +514,29 @@ def linear_annealing(init, fin, step, annealing_steps):
     delta = fin - init
     annealed = min(init + delta * step / annealing_steps, fin)
     return annealed
+
+
+# Batch TC specific
+# TO-DO: test if mss is better!
+def _get_log_pz_qz_prodzi_qzCx(latent_sample, latent_dist, n_data, is_mss=True):
+    batch_size, hidden_dim = latent_sample.shape
+
+    # calculate log q(z|x)
+    log_q_zCx = log_density_gaussian(latent_sample, *latent_dist).sum(dim=1)
+
+    # calculate log p(z)
+    # mean and log var is 0
+    zeros = torch.zeros_like(latent_sample)
+    log_pz = log_density_gaussian(latent_sample, zeros, zeros).sum(1)
+
+    mat_log_qz = matrix_log_density_gaussian(latent_sample, *latent_dist)
+
+    if is_mss:
+        # use stratification
+        log_iw_mat = log_importance_weight_matrix(batch_size, n_data).to(latent_sample.device)
+        mat_log_qz = mat_log_qz + log_iw_mat.view(batch_size, batch_size, 1)
+
+    log_qz = torch.logsumexp(mat_log_qz.sum(2), dim=1, keepdim=False)
+    log_prod_qzi = torch.logsumexp(mat_log_qz, dim=1, keepdim=False).sum(1)
+
+    return log_pz, log_qz, log_prod_qzi, log_q_zCx

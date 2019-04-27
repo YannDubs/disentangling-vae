@@ -1,5 +1,9 @@
-import torch
+"""
+Module containing discriminator for FactorVAE.
+"""
 from torch import nn
+
+from disvae.utils.initialization import weights_init
 
 
 class Discriminator(nn.Module):
@@ -40,6 +44,7 @@ class Discriminator(nn.Module):
         # Layer parameters
         self.z_dim = latent_dim
         self.hidden_units = hidden_units
+        # theoretically 1 with sigmoid but gives bad results => use 2 and softmax
         out_units = 2
 
         # Fully connected layers
@@ -49,6 +54,8 @@ class Discriminator(nn.Module):
         self.lin4 = nn.Linear(hidden_units, hidden_units)
         self.lin5 = nn.Linear(hidden_units, hidden_units)
         self.lin6 = nn.Linear(hidden_units, out_units)
+
+        self.reset_parameters()
 
     def forward(self, z):
 
@@ -61,3 +68,6 @@ class Discriminator(nn.Module):
         z = self.lin6(z)
 
         return z
+
+    def reset_parameters(self):
+        self.apply(weights_init)

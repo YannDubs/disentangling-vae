@@ -2,15 +2,43 @@
 import math
 
 from tqdm import trange, tqdm
-import numpy as np
 import torch
 
 
-def log_density_gaussian(x, mu, logvar):
-    """Calculates log density of a gaussian.
+def matrix_log_density_gaussian(x, mu, logvar):
+    """Calculates log density of a Gaussian for all combination of bacth pairs of
+    `x` and `mu`. I.e. return tensor of shape `(batch_size, batch_size, dim)`
+    instead of (batch_size, dim) in the usual log density.
 
     Parameters
     ----------
+    x: torch.Tensor
+        Value at which to compute the density. Shape: (batch_size, dim).
+
+    mu: torch.Tensor
+        Mean. Shape: (batch_size, dim).
+
+    logvar: torch.Tensor
+        Log variance. Shape: (batch_size, dim).
+
+    batch_size: int
+        number of training images in the batch
+    """
+    batch_size, dim = x.shape
+    x = x.view(batch_size, 1, dim)
+    mu = mu.view(1, batch_size, dim)
+    logvar = logvar.view(1, batch_size, dim)
+    return log_density_gaussian(x, mu, logvar)
+
+
+def log_density_gaussian(x, mu, logvar):
+    """Calculates log density of a Gaussian.
+
+    Parameters
+    ----------
+    x: torch.Tensor or np.ndarray or float
+        Value at which to compute the density.
+
     mu: torch.Tensor or np.ndarray or float
         Mean.
 
@@ -20,42 +48,6 @@ def log_density_gaussian(x, mu, logvar):
     normalization = - 0.5 * (math.log(2 * math.pi) + logvar)
     inv_var = torch.exp(-logvar)
     log_density = normalization - 0.5 * ((x - mu)**2 * inv_var)
-    return log_density
-
-
-def log_density_normal(latent_sample, latent_dist, batch_size, return_matrix=False):
-    """
-    Calculates log density of a normal distribution with latent samples
-    and latent distribution parameters.
-
-    Parameters
-    ----------
-    latent_sample: torch.Tensor
-        sample from the latent dimension using the reparameterisation trick
-        shape : (batch_size, latent_dim).
-
-    latent_dist: torch.Tensor
-        parameters of the latent distribution: mean and logvar
-        shape: (batch_size, latent_dim, 2)
-
-    batch_size: int
-        number of training images in the batch
-
-    return_matrix: bool
-        True returns size (batch_size, batch_size, latent_dim) - used for mws and mss
-        False returns size (batch_size, latent_dim)
-        """
-    if return_matrix:
-        latent_sample = latent_sample.view(batch_size, 1, latent_dist.size(1))
-        latent_dist = latent_dist.view(1, batch_size, latent_dist.size(1), 2)
-
-    mu = latent_dist.select(-1, 0)
-    logvar = latent_dist.select(-1, 1)
-
-    inv_var = torch.exp(-logvar)
-    tmp = (latent_sample - mu)
-    log_density = -0.5 * (torch.pow(tmp, 2) * inv_var + logvar + np.log(2 * np.pi))
-
     return log_density
 
 
