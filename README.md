@@ -49,7 +49,7 @@ usage: main.py [-h] [-L {CRITICAL,ERROR,WARNING,INFO,DEBUG,NOTSET}]
                [-r {bernoulli,laplace,gaussian}] [-a REG_ANNEAL]
                [--betaH-B BETAH_B] [--betaB-initC BETAB_INITC]
                [--betaB-finC BETAB_FINC] [--betaB-G BETAB_G]
-               [--factor-G FACTOR_G] [--no-mutual-info] [--lr-disc LR_DISC]
+               [--factor-G FACTOR_G] [--lr-disc LR_DISC]
                [--btcvae-A BTCVAE_A] [--btcvae-G BTCVAE_G]
                [--btcvae-B BTCVAE_B] [--is-eval-only] [--is-metrics]
                [--no-test] [--eval-batchsize EVAL_BATCHSIZE]
@@ -114,7 +114,6 @@ BetaB specific parameters:
 factor VAE specific parameters:
   --factor-G FACTOR_G   Weight of the TC term (gamma in the paper). (default:
                         6)
-  --no-mutual-info      Remove mutual information. (default: False)
   --lr-disc LR_DISC     Learning rate of the discriminator. (default: 5e-05)
 
 beta-tcvae specific parameters:

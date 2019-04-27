@@ -112,9 +112,6 @@ def parse_arguments(args_to_parse):
     factor.add_argument('--factor-G', type=float,
                         default=default_config['factor_G'],
                         help="Weight of the TC term (gamma in the paper).")
-    factor.add_argument('--no-mutual-info', action='store_true',
-                        default=default_config['no_mutual_info'],
-                        help="Remove mutual information.")
     factor.add_argument('--lr-disc', type=float,
                         default=default_config['lr_disc'],
                         help='Learning rate of the discriminator.')

@@ -34,9 +34,7 @@ def get_loss_f(loss_name, **kwargs_parse):
                          **kwargs_all)
     elif loss_name == "factor":
         return FactorKLoss(kwargs_parse["device"],
-                           kwargs_parse["n_data"],
                            gamma=kwargs_parse["factor_G"],
-                           is_mutual_info=not kwargs_parse["no_mutual_info"],
                            disc_kwargs=dict(latent_dim=kwargs_parse["latent_dim"]),
                            optim_kwargs=dict(lr=kwargs_parse["lr_disc"], betas=(0.5, 0.9)),
                            **kwargs_all)
@@ -212,14 +210,8 @@ class FactorKLoss(BaseLoss):
     ----------
     device : torch.device
 
-    n_data: int, optional
-        Number of data in the training set. Required if `is_mutual_info=False`
-
     gamma : float, optional
         Weight of the TC loss term. `gamma` in the paper.
-
-    is_mutual_info : bool
-        whether to include the mutual information term in the loss.
 
     discriminator : disvae.discriminator.Discriminator
 
@@ -235,18 +227,13 @@ class FactorKLoss(BaseLoss):
     """
 
     def __init__(self, device,
-                 n_data=None,
                  gamma=10.,
-                 is_mutual_info=True,
                  disc_kwargs={},
                  optim_kwargs=dict(lr=5e-5, betas=(0.5, 0.9)),
                  **kwargs):
         super().__init__(**kwargs)
         self.gamma = gamma
-        self.n_data = n_data
         self.device = device
-        self.is_mutual_info = is_mutual_info
-
         self.discriminator = Discriminator(**disc_kwargs).to(self.device)
         self.optimizer_d = optim.Adam(self.discriminator.parameters(), **optim_kwargs)
 
@@ -268,6 +255,9 @@ class FactorKLoss(BaseLoss):
         rec_loss = _reconstruction_loss(data1, recon_batch,
                                         storer=storer,
                                         distribution=self.rec_dist)
+
+        kl_loss = _kl_normal_loss(*latent_dist, storer)
+
         d_z = self.discriminator(latent_sample1)
         # We want log(p_true/p_false). If not using logisitc regression but softmax
         # then p_true = exp(logit_true) / Z; p_false = exp(logit_false) / Z
@@ -275,28 +265,9 @@ class FactorKLoss(BaseLoss):
         tc_loss = (d_z[:, 0] - d_z[:, 1]).mean()
         # with sigmoid (not good results) should be `tc_loss = (2 * d_z.flatten()).mean()`
 
-        if self.is_mutual_info:
-            # usual factor: as in paper
-            gamma = self.gamma
-            kl_loss = _kl_normal_loss(*latent_dist, storer)
-        else:
-            # TODO: test if btcvae a lot worst, if not remove `is_mutual_info` in factorKL
-            # testing to remove I[z;x] which corresponds to wassertien AE
-            log_pz, _, log_prod_qzi, _ = _get_log_pz_qz_prodzi_qzCx(latent_sample1,
-                                                                    latent_dist,
-                                                                    half_batch_size,
-                                                                    self.n_data)
-            dw_kl_loss = (log_prod_qzi - log_pz).mean(dim=0)
-            # uses only dw_kl and adds one more TC term => same as using KL
-            # but removing the information
-            kl_loss = dw_kl_loss
-            gamma = self.gamma + 1
-            # computing this for storing and comparaison purposes
-            _ = _kl_normal_loss(*latent_dist, storer)
-
         anneal_reg = (linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
                       if model.training else 1)
-        vae_loss = rec_loss + kl_loss + anneal_reg * gamma * tc_loss
+        vae_loss = rec_loss + kl_loss + anneal_reg * self.gamma * tc_loss
 
         if storer is not None:
             storer['loss'].append(vae_loss.item())
