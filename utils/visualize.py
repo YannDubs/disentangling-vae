@@ -12,9 +12,8 @@ from torchvision.utils import make_grid, save_image
 
 from utils.datasets import get_background
 from utils.viz_helpers import (read_loss_from_file, add_labels, make_grid_img,
-                               sort_list_by_other)
+                               sort_list_by_other, FPS_GIF, concatenate_pad)
 
-FPS_GIF = 12
 TRAIN_FILE = "train_losses.log"
 DECIMAL_POINTS = 3
 GIF_FILE = "training.gif"
@@ -329,7 +328,7 @@ class Visualizer():
         filename = os.path.join(self.model_dir, PLOT_NAMES["reconstruct_traverse"])
         concatenated.save(filename)
 
-    def gif_traversals(self, data, n_latents=None, n_per_gif=10):
+    def gif_traversals(self, data, n_latents=None, n_per_gif=15):
         """Generates a grid of gifs of latent posterior traversals where the rows
         are the latent dimensions and the columns are random images.
 
@@ -356,18 +355,15 @@ class Visualizer():
 
             height, width, c = grid.shape
             padding_width = (width - width_col * n_per_gif) // (n_per_gif + 1)
-            pad = np.ones((height, padding_width, c), dtype=np.uint8
-                          ) * (1 - get_background(self.dataset)) * 255
 
             # split the grids into a list of column images (and removes padding)
             for j in range(n_per_gif):
-                if i == 0:
-                    all_cols[j].append(pad)
                 all_cols[j].append(grid[:, [(j + 1) * padding_width + j * width_col + i
                                             for i in range(width_col)], :])
-                all_cols[j].append(pad)
 
-        all_cols = [np.concatenate(cols, axis=1) for cols in all_cols]
+        pad_values = (1 - get_background(self.dataset)) * 255
+        all_cols = [concatenate_pad(cols, pad_size=2, pad_values=pad_values, axis=1)
+                    for cols in all_cols]
 
         filename = os.path.join(self.model_dir, PLOT_NAMES["gif_traversals"])
         imageio.mimsave(filename, all_cols, fps=FPS_GIF)

@@ -4,6 +4,7 @@ import numpy as np
 import ast
 import configparser
 import argparse
+import random
 
 import torch
 
@@ -23,6 +24,7 @@ def set_seed(seed):
     """Set all random seeds."""
     if seed is not None:
         np.random.seed(seed)
+        random.seed(seed)
         torch.manual_seed(seed)
         # if want pure determinism could uncomment below: but slower
         # torch.backends.cudnn.deterministic = True

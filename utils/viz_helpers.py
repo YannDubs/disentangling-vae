@@ -1,14 +1,19 @@
 import random
 
+import numpy as np
 from PIL import Image, ImageDraw
 import pandas as pd
 import torch
+import imageio
 
 from torchvision.utils import make_grid
 from utils.datasets import get_dataloaders
+from utils.helpers import set_seed
+
+FPS_GIF = 12
 
 
-def get_samples(dataset, num_samples, idcs=None):
+def get_samples(dataset, num_samples, idcs=[]):
     """ Generate a number of samples from the dataset.
 
     Parameters
@@ -23,13 +28,12 @@ def get_samples(dataset, num_samples, idcs=None):
         List of indices to of images to put at the begning of the samples.
     """
     data_loader = get_dataloaders(dataset,
-                                  batch_size=num_samples,
+                                  batch_size=1,
                                   shuffle=idcs is None)
-    if idcs is None:
-        samples = iter(data_loader).next()[0]
-    else:
-        idcs += random.sample(range(len(data_loader.dataset)), num_samples - len(idcs))
-        samples = torch.stack([data_loader.dataset[i][0] for i in idcs], dim=0)
+
+    idcs += random.sample(range(len(data_loader.dataset)), num_samples - len(idcs))
+    samples = torch.stack([data_loader.dataset[i][0] for i in idcs], dim=0)
+    print("Selected idcs: {}".format(idcs))
 
     return samples
 
@@ -73,9 +77,9 @@ def add_labels(input_image, labels):
     """
     new_width = input_image.width + 100
     new_size = (new_width, input_image.height)
-    traversal_images_with_text = Image.new("RGB", new_size, color='white')
-    traversal_images_with_text.paste(input_image, (0, 0))
-    draw = ImageDraw.Draw(traversal_images_with_text)
+    new_img = Image.new("RGB", new_size, color='white')
+    new_img.paste(input_image, (0, 0))
+    draw = ImageDraw.Draw(new_img)
 
     for i, s in enumerate(labels):
         draw.text(xy=(new_width - 100 + 0.005,
@@ -83,7 +87,7 @@ def add_labels(input_image, labels):
                   text=s,
                   fill=(0, 0, 0))
 
-    return traversal_images_with_text
+    return new_img
 
 
 def make_grid_img(tensor, **kwargs):
@@ -112,3 +116,33 @@ def get_image_list(image_file_name_list):
     for file_name in image_file_name_list:
         image_list.append(Image.open(file_name))
     return image_list
+
+
+def arr_im_convert(arr, convert="RGBA"):
+    """Convert an image array."""
+    return np.asarray(Image.fromarray(arr).convert(convert))
+
+
+def plot_grid_gifs(filename, grid_files, pad_size=7, pad_values=255):
+    """Take a grid of gif files and merge them in order with padding."""
+    grid_gifs = [[imageio.mimread(f) for f in row] for row in grid_files]
+    n_per_gif = len(grid_gifs[0][0])
+
+    # convert all to RGBA which is the most general => can merge any image
+    imgs = [concatenate_pad([concatenate_pad([arr_im_convert(gif[i], convert="RGBA")
+                                              for gif in row], pad_size, pad_values, axis=1)
+                             for row in grid_gifs], pad_size, pad_values, axis=0)
+            for i in range(n_per_gif)]
+
+    imageio.mimsave(filename, imgs, fps=FPS_GIF)
+
+
+def concatenate_pad(arrays, pad_size, pad_values, axis=0):
+    """Concatenate lsit of array with padding inbetween."""
+    pad = np.ones_like(arrays[0]).take(indices=range(pad_size), axis=axis) * pad_values
+
+    new_arrays = [pad]
+    for arr in arrays:
+        new_arrays += [arr, pad]
+    new_arrays += [pad]
+    return np.concatenate(new_arrays, axis=axis)

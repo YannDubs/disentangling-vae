@@ -37,11 +37,11 @@ def parse_arguments(args_to_parse):
                         help='The number of rows to visualize (if applicable).')
     parser.add_argument('-c', '--n-cols', type=int, default=10,
                         help='The number of columns to visualize (if applicable).')
-    parser.add_argument('-t', '--max-traversal', default=0.475,  # 0.475 corresponds to ~2 absolute
+    parser.add_argument('-t', '--max-traversal', default=2,
                         type=lambda v: check_bounds(v, lb=0, is_inclusive=False,
                                                     type=float, name="max-traversal"),
                         help='The maximum displacement induced by a latent traversal. Symmetrical traversals are assumed. If `m>=0.5` then uses absolute value traversal, if `m<0.5` uses a percentage of the distribution (quantile). E.g. for the prior the distribution is a standard normal so `m=0.45` corresponds to an absolute value of `1.645` because `2m=90%%` of a standard normal is between `-1.645` and `1.645`. Note in the case of the posterior, the distribution is not standard normal anymore.')
-    parser.add_argument('-i', '--idcs', type=int, nargs='+',
+    parser.add_argument('-i', '--idcs', type=int, nargs='+', default=[],
                         help='List of indices to of images to put at the begining of the samples.')
     parser.add_argument('-u', '--upsample-factor', default=1,
                         type=lambda v: check_bounds(v, lb=1, is_inclusive=True,
