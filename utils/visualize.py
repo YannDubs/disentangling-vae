@@ -1,6 +1,7 @@
 import os
 from math import ceil, floor
 
+import imageio
 from PIL import Image
 import numpy as np
 from scipy import stats
@@ -13,15 +14,16 @@ from utils.datasets import get_background
 from utils.viz_helpers import (read_loss_from_file, add_labels, make_grid_img,
                                sort_list_by_other)
 
-
+FPS_GIF = 12
 TRAIN_FILE = "train_losses.log"
 DECIMAL_POINTS = 3
-
+GIF_FILE = "training.gif"
 PLOT_NAMES = dict(generate_samples="samples.png",
                   data_samples="data_samples.png",
                   reconstruct="reconstruct.png",
                   traversals="traversals.png",
-                  reconstruct_traverse="reconstruct_traverse.png")
+                  reconstruct_traverse="reconstruct_traverse.png",
+                  gif_traversals="posterior_traversals.gif",)
 
 
 class Visualizer():
@@ -187,7 +189,7 @@ class Visualizer():
         data = data[:size[0] * size[1], ...]
         return self._save_or_return(data, size, PLOT_NAMES["data_samples"])
 
-    def reconstruct(self, data, size=(8, 8), is_original=True):
+    def reconstruct(self, data, size=(8, 8), is_original=True, is_force_return=False):
         """Generate reconstructions of data through the model.
 
         Parameters
@@ -202,6 +204,9 @@ class Visualizer():
 
         is_original : bool, optional
             Whether to exclude the original plots.
+
+        is_force_return : bool, optional
+            Force returning instead of saving the image.
         """
         if is_original:
             if size[0] % 2 != 0:
@@ -218,13 +223,15 @@ class Visualizer():
         recs = recs.view(-1, *self.model.img_size).cpu()
 
         to_plot = torch.cat([originals, recs]) if is_original else recs
-        return self._save_or_return(to_plot, size, PLOT_NAMES["reconstruct"])
+        return self._save_or_return(to_plot, size, PLOT_NAMES["reconstruct"],
+                                    is_force_return=is_force_return)
 
     def traversals(self,
                    data=None,
                    is_reorder_latents=False,
                    n_per_latent=8,
-                   n_latents=10):
+                   n_latents=None,
+                   is_force_return=False):
         """Plot traverse through all latent dimensions (prior or posterior) one
         by one and plots a grid of images where each row corresponds to a latent
         traversal of one latent dimension.
@@ -240,11 +247,16 @@ class Visualizer():
             I.e. number of columns.
 
         n_latents : int, optional
-            The number of latent dimensions to display. I.e. number of rows.
+            The number of latent dimensions to display. I.e. number of rows. If `None`
+            uses all latents.
 
         is_reorder_latents : bool, optional
             If the latent dimensions should be reordered or not
+
+        is_force_return : bool, optional
+            Force returning instead of saving the image.
         """
+        n_latents = n_latents if n_latents is not None else self.model.latent_dim
         latent_samples = [self._traverse_line(dim, n_per_latent, data=data)
                           for dim in range(self.latent_dim)]
         decoded_traversal = self._decode_latents(torch.cat(latent_samples, dim=0))
@@ -263,12 +275,13 @@ class Visualizer():
         sampling_type = "prior" if data is None else "posterior"
         filename = "{}_{}".format(sampling_type, PLOT_NAMES["traversals"])
 
-        return self._save_or_return(decoded_traversal.data, size, filename)
+        return self._save_or_return(decoded_traversal.data, size, filename,
+                                    is_force_return=is_force_return)
 
     def reconstruct_traverse(self, data,
                              is_posterior=True,
                              n_per_latent=8,
-                             n_latents=10,
+                             n_latents=None,
                              is_show_text=False):
         """
         Creates a figure whith first row for original images, second are
@@ -285,7 +298,8 @@ class Visualizer():
             I.e. number of columns.
 
         n_latents : int, optional
-            The number of latent dimensions to display. I.e. number of rows.
+            The number of latent dimensions to display. I.e. number of rows. If `None`
+            uses all latents.
 
         is_posterior : bool, optional
             Whether to sample from the posterior.
@@ -293,14 +307,16 @@ class Visualizer():
         is_show_text : bool, optional
             Whether the KL values next to the traversal rows.
         """
-        cached_save_images = self.save_images
-        self.save_images = False
-        reconstructions = self.reconstruct(data[:2 * n_per_latent, ...], size=(2, n_per_latent))
+        n_latents = n_latents if n_latents is not None else self.model.latent_dim
+
+        reconstructions = self.reconstruct(data[:2 * n_per_latent, ...],
+                                           size=(2, n_per_latent),
+                                           is_force_return=True)
         traversals = self.traversals(data=data[0:1, ...] if is_posterior else None,
                                      is_reorder_latents=True,
                                      n_per_latent=n_per_latent,
-                                     n_latents=n_latents)
-        self.save_images = cached_save_images
+                                     n_latents=n_latents,
+                                     is_force_return=True)
 
         concatenated = np.concatenate((reconstructions, traversals), axis=0)
         concatenated = Image.fromarray(concatenated)
@@ -312,3 +328,107 @@ class Visualizer():
 
         filename = os.path.join(self.model_dir, PLOT_NAMES["reconstruct_traverse"])
         concatenated.save(filename)
+
+    def gif_traversals(self, data, n_latents=None, n_per_gif=10):
+        """Generates a grid of gifs of latent posterior traversals where the rows
+        are the latent dimensions and the columns are random images.
+
+        Parameters
+        ----------
+        data : bool
+            Data to use for computing the latent posteriors. The number of datapoint
+            (batchsize) will determine the number of columns of the grid.
+
+        n_latents : int, optional
+            The number of latent dimensions to display. I.e. number of rows. If `None`
+            uses all latents.
+
+        n_per_gif : int, optional
+            Number of images per gif (number of traversals)
+        """
+        n_images, _, _, width_col = data.shape
+        width_col = int(width_col * self.upsample_factor)
+        all_cols = [[] for c in range(n_per_gif)]
+        for i in range(n_images):
+            grid = self.traversals(data=data[i:i + 1, ...], is_reorder_latents=True,
+                                   n_per_latent=n_per_gif, n_latents=n_latents,
+                                   is_force_return=True)
+
+            height, width, c = grid.shape
+            padding_width = (width - width_col * n_per_gif) // (n_per_gif + 1)
+            pad = np.ones((height, padding_width, c), dtype=np.uint8
+                          ) * (1 - get_background(self.dataset)) * 255
+
+            # split the grids into a list of column images (and removes padding)
+            for j in range(n_per_gif):
+                if i == 0:
+                    all_cols[j].append(pad)
+                all_cols[j].append(grid[:, [(j + 1) * padding_width + j * width_col + i
+                                            for i in range(width_col)], :])
+                all_cols[j].append(pad)
+
+        all_cols = [np.concatenate(cols, axis=1) for cols in all_cols]
+
+        filename = os.path.join(self.model_dir, PLOT_NAMES["gif_traversals"])
+        imageio.mimsave(filename, all_cols, fps=FPS_GIF)
+
+
+class GifTraversalsTraining:
+    """Creates a Gif of traversals by generating an image at every training epoch.
+
+    Parameters
+    ----------
+    model : disvae.vae.VAE
+
+    dataset : str
+        Name of the dataset.
+
+    model_dir : str
+        The directory that the model is saved to and where the images will
+        be stored.
+
+    is_reorder_latents : bool, optional
+        If the latent dimensions should be reordered or not
+
+    n_per_latent : int, optional
+        The number of points to include in the traversal of a latent dimension.
+        I.e. number of columns.
+
+    n_latents : int, optional
+        The number of latent dimensions to display. I.e. number of rows. If `None`
+        uses all latents.
+
+    kwargs:
+        Additional arguments to `Visualizer`
+    """
+
+    def __init__(self, model, dataset, model_dir,
+                 is_reorder_latents=False,
+                 n_per_latent=10,
+                 n_latents=None,
+                 **kwargs):
+        self.save_filename = os.path.join(model_dir, GIF_FILE)
+        self.visualizer = Visualizer(model, dataset, model_dir,
+                                     save_images=False, **kwargs)
+
+        self.images = []
+        self.is_reorder_latents = is_reorder_latents
+        self.n_per_latent = n_per_latent
+        self.n_latents = n_latents if n_latents is not None else model.latent_dim
+
+    def __call__(self):
+        """Generate the next gif image. Should be called after each epoch."""
+        cached_training = self.visualizer.model.training
+        self.visualizer.model.eval()
+        img_grid = self.visualizer.traversals(data=None,  # GIF from prior
+                                              is_reorder_latents=self.is_reorder_latents,
+                                              n_per_latent=self.n_per_latent,
+                                              n_latents=self.n_latents)
+        self.images.append(img_grid)
+        if cached_training:
+            self.visualizer.model.train()
+
+    def save_reset(self):
+        """Saves the GIF and resets the list of images. Call at the end of training."""
+        imageio.mimsave(self.save_filename, self.images, fps=FPS_GIF)
+        self.images = []

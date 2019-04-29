@@ -4,11 +4,11 @@
 # want all in parallel
 
 logger="train_all.out"
-for loss in betaH VAE #factor btcvae betaB
+for loss in  factor btcvae betaB betaH VAE
 do
     echo " " >> $logger
     echo $loss >> $logger
-    for dataset in celeba dsprites chairs mnist
+    for dataset in dsprites celeba chairs mnist
     do
         echo $dataset >> $logger
         python main.py "$loss"_"$dataset" -x "$loss"_"$dataset"  --no-progress-bar &

@@ -10,7 +10,7 @@ from disvae.utils.modelIO import load_model, load_metadata
 
 
 PLOT_TYPES = ['generate-samples', 'data-samples', 'reconstruct', "traversals",
-              'reconstruct-traverse']
+              'reconstruct-traverse', "gif-traversals"]
 
 
 def parse_arguments(args_to_parse):
@@ -100,6 +100,8 @@ def main(args):
                                      n_latents=args.n_rows,
                                      n_per_latent=args.n_cols,
                                      is_show_text=args.is_show_loss)
+        elif plot_type == "gif-traversals":
+            viz.gif_traversals(samples[:args.n_cols, ...], n_latents=args.n_rows)
         else:
             raise ValueError("Unkown plot_type={}".format(plot_type))
 
