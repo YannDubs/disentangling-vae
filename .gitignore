@@ -34,6 +34,7 @@ __pycache__/
 *.tar
 *.sublime*
 *.swp
+*.out
 
 # placeholders to keep directories
 !.keep

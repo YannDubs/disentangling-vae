@@ -4,7 +4,7 @@
 # want all in parallel
 
 logger="train_all.out"
-for loss in betaB factor betaH VAE btcvae
+for loss in betaH VAE #factor btcvae betaB
 do
     echo " " >> $logger
     echo $loss >> $logger

@@ -66,6 +66,16 @@ def get_config_section(filenames, section):
     return dict_session
 
 
+def check_bounds(value, type=float, lb=-float("inf"), ub=float("inf"),
+                 is_inclusive=True, name="value"):
+    """Argparse bound checker"""
+    value = type(value)
+    is_in_bound = lb <= value <= ub if is_inclusive else lb < value < ub
+    if not is_in_bound:
+        raise argparse.ArgumentTypeError("{}={} outside of bounds ({},{})".format(name, value, lb, ub))
+    return value
+
+
 class FormatterNoDuplicate(argparse.ArgumentDefaultsHelpFormatter):
     """Formatter overriding `argparse.ArgumentDefaultsHelpFormatter` to show
     `-e, --epoch EPOCH` instead of `-e EPOCH, --epoch EPOCH`

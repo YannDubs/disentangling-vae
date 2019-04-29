@@ -92,8 +92,13 @@ class Trainer():
             self.losses_logger.log(epoch, storer)
 
             if self.gif_visualizer is not None:
-                img_grid = self.gif_visualizer.all_latent_traversals(size=10)
+                self.model.eval()
+                img_grid = self.gif_visualizer.traversals(data=None,  # traversals from prior
+                                                          is_reorder_latents=False,
+                                                          n_per_latent=10,
+                                                          n_latents=self.model.latent_dim)
                 training_progress_images.append(img_grid)
+                self.model.train()
 
             if epoch % checkpoint_every == 0:
                 save_model(self.model, self.save_dir,
