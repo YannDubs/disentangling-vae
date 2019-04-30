@@ -12,6 +12,7 @@ experiments/
 *backup*/
 archive*
 log*
+pretrained_models
 
 # Byte-compiled / optimized / DLL files
 *.egg-info
@@ -34,6 +35,7 @@ __pycache__/
 *.tar
 *.sublime*
 *.swp
+*.out
 
 # placeholders to keep directories
 !.keep

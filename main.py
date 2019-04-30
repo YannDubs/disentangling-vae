@@ -13,7 +13,7 @@ from disvae.models.vae import MODELS
 from utils.datasets import get_dataloaders, get_img_size, DATASETS
 from utils.helpers import (create_safe_directory, get_device, set_seed, get_n_param,
                            get_config_section, update_namespace_, FormatterNoDuplicate)
-from viz.visualize import Visualizer
+from utils.visualize import GifTraversalsTraining
 
 
 CONFIG_FILE = "hyperparam.ini"
@@ -42,7 +42,7 @@ def parse_arguments(args_to_parse):
     # General options
     general = parser.add_argument_group('General options')
     general.add_argument('name', type=str,
-                         help="Name of the model for storing or loading purposes.")
+                         help="Name of the model for storing and loading purposes.")
     general.add_argument('-L', '--log-level', help="Logging levels.",
                          default=default_config['log_level'], choices=LOG_LEVELS)
     general.add_argument('--no-progress-bar', action='store_true',
@@ -208,9 +208,7 @@ def main(args):
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
         model = model.to(device)  # make sure trainer and viz on same device
-        gif_visualizer = Visualizer(model, args.dataset,
-                                    model_dir=exp_dir,
-                                    save_images=False)
+        gif_visualizer = GifTraversalsTraining(model, args.dataset, exp_dir)
         loss_f = get_loss_f(args.loss,
                             n_data=len(train_loader.dataset),
                             device=device,

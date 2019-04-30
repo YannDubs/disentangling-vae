@@ -4,11 +4,12 @@
 # want all in parallel
 
 logger="train_all.out"
-for loss in betaB factor betaH VAE btcvae
+echo "STARTING" > $logger
+for loss in  betaB #factor btcvae betaH VAE
 do
     echo " " >> $logger
     echo $loss >> $logger
-    for dataset in celeba dsprites chairs mnist
+    for dataset in dsprites celeba chairs mnist
     do
         echo $dataset >> $logger
         python main.py "$loss"_"$dataset" -x "$loss"_"$dataset"  --no-progress-bar &
@@ -16,6 +17,6 @@ do
     wait
 done
 
-echo "best_celeba" >> $logger
-python main.py best_celeba -x best_celeba --no-progress-bar
+#echo "best_celeba" >> $logger
+#python main.py best_celeba -x best_celeba --no-progress-bar
 

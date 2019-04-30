@@ -12,7 +12,6 @@ from disvae.utils.modelIO import save_model
 
 
 TRAIN_LOSSES_LOGFILE = "train_losses.log"
-GIF_FILE = "training.gif"
 
 
 class Trainer():
@@ -79,10 +78,6 @@ class Trainer():
             Save a checkpoint of the trained model every n epoch.
         """
         start = default_timer()
-
-        if self.gif_visualizer is not None:
-            training_progress_images = []
-
         self.model.train()
         for epoch in range(epochs):
             storer = defaultdict(list)
@@ -92,17 +87,14 @@ class Trainer():
             self.losses_logger.log(epoch, storer)
 
             if self.gif_visualizer is not None:
-                img_grid = self.gif_visualizer.all_latent_traversals(size=10)
-                training_progress_images.append(img_grid)
+                self.gif_visualizer()
 
             if epoch % checkpoint_every == 0:
                 save_model(self.model, self.save_dir,
                            filename="model-{}.pt".format(epoch))
 
         if self.gif_visualizer is not None:
-            imageio.mimsave(os.path.join(self.save_dir, GIF_FILE),
-                            training_progress_images,
-                            fps=24)
+            self.gif_visualizer.save_reset()
 
         self.model.eval()
 

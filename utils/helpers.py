@@ -4,6 +4,7 @@ import numpy as np
 import ast
 import configparser
 import argparse
+import random
 
 import torch
 
@@ -23,6 +24,7 @@ def set_seed(seed):
     """Set all random seeds."""
     if seed is not None:
         np.random.seed(seed)
+        random.seed(seed)
         torch.manual_seed(seed)
         # if want pure determinism could uncomment below: but slower
         # torch.backends.cudnn.deterministic = True
@@ -64,6 +66,16 @@ def get_config_section(filenames, section):
     dict_session = dict(parser[section])
     dict_session = {k: ast.literal_eval(v) for k, v in dict_session.items()}
     return dict_session
+
+
+def check_bounds(value, type=float, lb=-float("inf"), ub=float("inf"),
+                 is_inclusive=True, name="value"):
+    """Argparse bound checker"""
+    value = type(value)
+    is_in_bound = lb <= value <= ub if is_inclusive else lb < value < ub
+    if not is_in_bound:
+        raise argparse.ArgumentTypeError("{}={} outside of bounds ({},{})".format(name, value, lb, ub))
+    return value
 
 
 class FormatterNoDuplicate(argparse.ArgumentDefaultsHelpFormatter):
