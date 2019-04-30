@@ -1,6 +1,6 @@
 # Disentangled VAE 
 
-This repository contains code (training / metrics / plotting) to investigate disentangling in VAE as well as compare 5 different losses ([summary of the differences](#loss-overview)) using the same model:
+This repository contains code (training / metrics / plotting) to investigate disentangling in VAE as well as compare 5 different losses ([summary of the differences](#loss-overview)) using a [single architecture](#single-model-comparison):
 
 * **Standard VAE Loss** from [Auto-Encoding Variational Bayes](https://arxiv.org/abs/1312.6114)
 * **β-VAE<sub>H</sub>** from [β-VAE: Learning Basic Visual Concepts with a Constrained Variational Framework](https://openreview.net/pdf?id=Sy2fzU9gl)
@@ -17,7 +17,7 @@ Table of Contents:
 2. [Run](#run)
 3. [Plot](#plot)
 3. [Data](#data)
-4. [Personal Work](#personal-work)
+4. [Our Contributions](#our-contributions)
 5. [Losses Explanation](#loss-explanation)
 
 ## Install
@@ -35,7 +35,7 @@ Use `python main.py <model-name> <param>` to train and/or evaluate a model. For 
 python main.py btcvae_celeba_mini -d celeba -l btcvae --lr 0.001 -b 256 -e 5
 ```
 
-You can run predefined experiments and hyper-parameters using `-x <experiment>`. Those hyperparameters are found in `hyperparam.ini`. All of the pretrained predefined experiments are found in `results/<experiment>` (created using `./bin/train_all.sh`).
+You can run predefined experiments and hyper-parameters using `-x <experiment>`. Those hyperparameters are found in `hyperparam.ini`. Pretrained models for each experiment can be found in `results/<experiment>` (created using `./bin/train_all.sh`).
 
 
 ### Output
@@ -145,7 +145,7 @@ python main_viz.py btcvae_celeba_mini gif-traversals reconstruct-
                         traverse -c 7 -r 6 -t 2 --is-posterior
 ```
 
-This will save the plots in the model directory  `results/<model-name>/`. All of the plots for the predefined experiments are found in their respective directories (created using `./bin/plot_all.sh`).
+This will save the plots in the model directory  `results/<model-name>/`. Generated plots for all experiments are found in their respective directories (created using `./bin/plot_all.sh`).
 
 ### Help
 ```
@@ -200,6 +200,24 @@ optional arguments:
                         (default: False)
 ```
 
+### Examples
+
+Here are examples of plots you can generate:
+
+* `python main_viz.py <model> reconstruct-traverse --is-show-loss --is-posterior` first row are originals, second are reconstructions, rest are traversals. Shown for `btcvae_dsprites`:
+
+    ![btcvae_dsprites reconstruct-traverse](results/reconstruct_traverse.png)
+
+* `python main_viz.py <model> gif-traversals` grid of gifs where rows are latent dimensions, columns are examples, each gif shows posterior traversals. Shown for `btcvae_celeba`:
+
+    ![btcvae_celeba gif-traversals](results/posterior_traversals.png)
+
+* Grid of gifs generated using code in `bin/plot_all.sh`. The columns of the grid correspond to the datasets (besides FashionMNIST), the rows correspond to the models (in order: Standard VAE, β-VAE<sub>H</sub>, β-VAE<sub>B</sub>, FactorVAE, β-TCVAE):
+
+    ![grid_posteriors](results/grid_posteriors.gif)
+
+For more examples, all of the plots for the predefined experiments are found in their respective directories (created using `./bin/plot_all.sh`).
+
 ## Data
 
 Current datasets that can be used:
@@ -215,7 +233,7 @@ The dataset will be downloaded the first time you run it and will be stored in `
 2. Change the URLs (`urls["train"]`) for the dataset you want in `utils/datasets.py` (please open a PR in this case :) )
 3. Download by hand the data and save it with the same names (not recommended)
 
-## Personal Work
+## Our Contributions
 
 In addition to replicating the aforementioned papers, we also propose and investigate the following:
 
