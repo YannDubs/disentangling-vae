@@ -206,11 +206,11 @@ Here are examples of plots you can generate:
 
 * `python main_viz.py <model> reconstruct-traverse --is-show-loss --is-posterior` first row are originals, second are reconstructions, rest are traversals. Shown for `btcvae_dsprites`:
 
-    ![btcvae_dsprites reconstruct-traverse](results/reconstruct_traverse.png)
+    ![btcvae_dsprites reconstruct-traverse](results/btcvae_dsprites/reconstruct_traverse.png)
 
 * `python main_viz.py <model> gif-traversals` grid of gifs where rows are latent dimensions, columns are examples, each gif shows posterior traversals. Shown for `btcvae_celeba`:
 
-    ![btcvae_celeba gif-traversals](results/posterior_traversals.png)
+    ![btcvae_celeba gif-traversals](results/btcvae_celeba/posterior_traversals.gif)
 
 * Grid of gifs generated using code in `bin/plot_all.sh`. The columns of the grid correspond to the datasets (besides FashionMNIST), the rows correspond to the models (in order: Standard VAE, β-VAE<sub>H</sub>, β-VAE<sub>B</sub>, FactorVAE, β-TCVAE):
 
