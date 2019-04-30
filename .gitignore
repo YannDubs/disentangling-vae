@@ -12,6 +12,7 @@ experiments/
 *backup*/
 archive*
 log*
+pretrained_models
 
 # Byte-compiled / optimized / DLL files
 *.egg-info

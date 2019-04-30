@@ -1,8 +1,6 @@
 # Disentangled VAE 
 
-Work In Progress...
-
-This repository contains code to investigate disentangling in VAE as well as compare 5 different losses ([summary of the differences](#loss-overview)) using the same model:
+This repository contains code (training / metrics / plotting) to investigate disentangling in VAE as well as compare 5 different losses ([summary of the differences](#loss-overview)) using the same model:
 
 * **Standard VAE Loss** from [Auto-Encoding Variational Bayes](https://arxiv.org/abs/1312.6114)
 * **β-VAE<sub>H</sub>** from [β-VAE: Learning Basic Visual Concepts with a Constrained Variational Framework](https://openreview.net/pdf?id=Sy2fzU9gl)
@@ -14,6 +12,14 @@ Notes:
 - Tested for python >= 3.6
 - Tested for CPU and GPU
 
+Table of Contents:
+1. [Install](#install)
+2. [Run](#run)
+3. [Plot](#plot)
+3. [Data](#data)
+4. [Personal Work](#personal-work)
+5. [Losses Explanation](#loss-explanation)
+
 ## Install
 
 ```
@@ -23,7 +29,14 @@ pip install -r requirements.txt
 
 ## Run
 
-Use `python main.py <saving-name> <param>` to train and/or evaluate a model. 
+Use `python main.py <model-name> <param>` to train and/or evaluate a model. For example:
+
+```
+python main.py btcvae_celeba_mini -d celeba -l btcvae --lr 0.001 -b 256 -e 5
+```
+
+You can run predefined experiments and hyper-parameters using `-x <experiment>`. Those hyperparameters are found in `hyperparam.ini`. All of the pretrained predefined experiments are found in `results/<experiment>` (created using `./bin/train_all.sh`).
+
 
 ### Output
 This will create a directory `results/<saving-name>/` which will contain:
@@ -39,21 +52,7 @@ This will create a directory `results/<saving-name>/` which will contain:
 
 ### Help
 ```
-usage: main.py [-h] [-L {CRITICAL,ERROR,WARNING,INFO,DEBUG,NOTSET}]
-               [--no-progress-bar] [--no-cuda] [-s SEED]
-               [--checkpoint-every CHECKPOINT_EVERY]
-               [-d {mnist,fashion,dsprites,celeba,chairs}]
-               [-x {custom,debug,best_celeba,VAE_mnist,VAE_fashion,VAE_dsprites,VAE_celeba,VAE_chairs,betaH_mnist,betaH_fashion,betaH_dsprites,betaH_celeba,betaH_chairs,betaB_mnist,betaB_fashion,betaB_dsprites,betaB_celeba,betaB_chairs,factor_mnist,factor_fashion,factor_dsprites,factor_celeba,factor_chairs,btcvae_mnist,btcvae_fashion,btcvae_dsprites,btcvae_celeba,btcvae_chairs}]
-               [-e EPOCHS] [-b BATCH_SIZE] [--lr LR] [-m {Burgess}]
-               [-z LATENT_DIM] [-l {VAE,betaH,betaB,factor,btcvae}]
-               [-r {bernoulli,laplace,gaussian}] [-a REG_ANNEAL]
-               [--betaH-B BETAH_B] [--betaB-initC BETAB_INITC]
-               [--betaB-finC BETAB_FINC] [--betaB-G BETAB_G]
-               [--factor-G FACTOR_G] [--lr-disc LR_DISC]
-               [--btcvae-A BTCVAE_A] [--btcvae-G BTCVAE_G]
-               [--btcvae-B BTCVAE_B] [--is-eval-only] [--is-metrics]
-               [--no-test] [--eval-batchsize EVAL_BATCHSIZE]
-               name
+usage: main.py ...
 
 PyTorch implementation and evaluation of disentangled Variational AutoEncoders
 and metrics.
@@ -137,6 +136,70 @@ Evaluation specific options:
                         Batch size for evaluation. (default: 1000)
 ```
 
+## Plot
+
+Use `python main_viz.py <model-name> <plot_types> <param>` to plot using pretrained models. For example:
+
+```
+python main_viz.py btcvae_celeba_mini gif-traversals reconstruct-
+                        traverse -c 7 -r 6 -t 2 --is-posterior
+```
+
+This will save the plots in the model directory  `results/<model-name>/`. All of the plots for the predefined experiments are found in their respective directories (created using `./bin/plot_all.sh`).
+
+### Help
+```
+usage: main_viz.py ...
+
+CLI for plotting using pretrained models of `disvae`
+
+positional arguments:
+  name                  Name of the model for storing and loading purposes.
+  {generate-samples,data-samples,reconstruct,traversals,reconstruct-traverse,gif-traversals,all}
+                        List of all plots to generate. `generate-samples`:
+                        random decoded samples. `data-samples` samples from
+                        the dataset. `reconstruct` first rnows//2 will be the
+                        original and rest will be the corresponding
+                        reconstructions. `traversals` traverses the most
+                        important rnows dimensions with ncols different
+                        samples from the prior or posterior. `reconstruct-
+                        traverse` first row for original, second are
+                        reconstructions, rest are traversals. `gif-traversals`
+                        grid of gifs where rows are latent dimensions, columns
+                        are examples, each gif shows posterior traversals.
+                        `all` runs every plot.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -s, --seed SEED       Random seed. Can be `None` for stochastic behavior.
+                        (default: None)
+  -r, --n-rows N_ROWS   The number of rows to visualize (if applicable).
+                        (default: 6)
+  -c, --n-cols N_COLS   The number of columns to visualize (if applicable).
+                        (default: 7)
+  -t, --max-traversal MAX_TRAVERSAL
+                        The maximum displacement induced by a latent
+                        traversal. Symmetrical traversals are assumed. If
+                        `m>=0.5` then uses absolute value traversal, if
+                        `m<0.5` uses a percentage of the distribution
+                        (quantile). E.g. for the prior the distribution is a
+                        standard normal so `m=0.45` corresponds to an absolute
+                        value of `1.645` because `2m=90%` of a standard normal
+                        is between `-1.645` and `1.645`. Note in the case of
+                        the posterior, the distribution is not standard normal
+                        anymore. (default: 2)
+  -i, --idcs IDCS [IDCS ...]
+                        List of indices to of images to put at the begining of
+                        the samples. (default: [])
+  -u, --upsample-factor UPSAMPLE_FACTOR
+                        The scale factor with which to upsample the image (if
+                        applicable). (default: 1)
+  --is-show-loss        Displays the loss on the figures (if applicable).
+                        (default: False)
+  --is-posterior        Traverses the posterior instead of the prior.
+                        (default: False)
+```
+
 ## Data
 
 Current datasets that can be used:
@@ -176,7 +239,7 @@ The model is decoupled from all the losses and it should thus be very easy to mo
 ![Model Architecture](doc/imgs/architecture.png)
 
 
-## Loss Overview
+## Losses Explanation
 
 All the previous losses are special cases of the following loss:
 
