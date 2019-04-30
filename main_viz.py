@@ -10,7 +10,7 @@ from disvae.utils.modelIO import load_model, load_metadata
 
 
 PLOT_TYPES = ['generate-samples', 'data-samples', 'reconstruct', "traversals",
-              'reconstruct-traverse', "gif-traversals"]
+              'reconstruct-traverse', "gif-traversals", "all"]
 
 
 def parse_arguments(args_to_parse):
@@ -28,14 +28,12 @@ def parse_arguments(args_to_parse):
     parser.add_argument('name', type=str,
                         help="Name of the model for storing and loading purposes.")
     parser.add_argument("plots", type=str, nargs='+', choices=PLOT_TYPES,
-                        help="List of all plots to generate. `generate-samples`: random decoded samples. `data-samples` samples from the dataset. `reconstruct` first rnows//2 will be the original and rest will be the corresponding reconstructions. `traversals` traverses the most important rnows dimensions with ncols different samples from the prior or posterior. `reconstruct-traverse` first row for original, second are reconstructions, rest are traversals.")
+                        help="List of all plots to generate. `generate-samples`: random decoded samples. `data-samples` samples from the dataset. `reconstruct` first rnows//2 will be the original and rest will be the corresponding reconstructions. `traversals` traverses the most important rnows dimensions with ncols different samples from the prior or posterior. `reconstruct-traverse` first row for original, second are reconstructions, rest are traversals. `gif-traversals` grid of gifs where rows are latent dimensions, columns are examples, each gif shows posterior traversals. `all` runs every plot.")
     parser.add_argument('-s', '--seed', type=int, default=None,
                         help='Random seed. Can be `None` for stochastic behavior.')
-    parser.add_argument('-d', '--dim', default=0,
-                        help='Which latent dimension to visualize (if applicable).')
-    parser.add_argument('-r', '--n-rows', type=int, default=10,
+    parser.add_argument('-r', '--n-rows', type=int, default=6,
                         help='The number of rows to visualize (if applicable).')
-    parser.add_argument('-c', '--n-cols', type=int, default=10,
+    parser.add_argument('-c', '--n-cols', type=int, default=7,
                         help='The number of columns to visualize (if applicable).')
     parser.add_argument('-t', '--max-traversal', default=2,
                         type=lambda v: check_bounds(v, lb=0, is_inclusive=False,
@@ -81,6 +79,9 @@ def main(args):
     # same samples for all plots: sample max then take first `x`data  for all plots
     num_samples = args.n_cols * args.n_rows
     samples = get_samples(dataset, num_samples, idcs=args.idcs)
+
+    if "all" in args.plots:
+        args.plots = [p for p in PLOT_TYPES if p != "all"]
 
     for plot_type in args.plots:
         if plot_type == 'generate-samples':

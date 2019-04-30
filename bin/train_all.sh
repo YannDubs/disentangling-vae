@@ -4,7 +4,8 @@
 # want all in parallel
 
 logger="train_all.out"
-for loss in  factor btcvae betaB betaH VAE
+echo "STARTING" > $logger
+for loss in  betaB #factor btcvae betaH VAE
 do
     echo " " >> $logger
     echo $loss >> $logger
@@ -16,6 +17,6 @@ do
     wait
 done
 
-echo "best_celeba" >> $logger
-python main.py best_celeba -x best_celeba --no-progress-bar
+#echo "best_celeba" >> $logger
+#python main.py best_celeba -x best_celeba --no-progress-bar
 

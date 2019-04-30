@@ -177,7 +177,7 @@ class BetaBLoss(BaseLoss):
         $\beta$-VAE." arXiv preprint arXiv:1804.03599 (2018).
     """
 
-    def __init__(self, C_init=0., C_fin=5., gamma=30., **kwargs):
+    def __init__(self, C_init=0., C_fin=20., gamma=100., **kwargs):
         super().__init__(**kwargs)
         self.gamma = gamma
         self.C_init = C_init
