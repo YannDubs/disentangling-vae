@@ -1,6 +1,6 @@
 # Disentangled VAE 
 
-This repository contains code (training / metrics / plotting) to investigate disentangling in VAE as well as compare 5 different losses ([summary of the differences](#loss-overview)) using a [single architecture](#single-model-comparison):
+This repository contains code (training / metrics / plotting) to investigate disentangling in VAE as well as compare 5 different losses ([summary of the differences](#losses-explanation)) using a [single architecture](#single-model-comparison):
 
 * **Standard VAE Loss** from [Auto-Encoding Variational Bayes](https://arxiv.org/abs/1312.6114)
 * **β-VAE<sub>H</sub>** from [β-VAE: Learning Basic Visual Concepts with a Constrained Variational Framework](https://openreview.net/pdf?id=Sy2fzU9gl)
@@ -18,7 +18,7 @@ Table of Contents:
 3. [Plot](#plot)
 3. [Data](#data)
 4. [Our Contributions](#our-contributions)
-5. [Losses Explanation](#loss-explanation)
+5. [Losses Explanation](#losses-explanation)
 
 ## Install
 
