@@ -10,4 +10,3 @@ do
         python main.py "$loss"_"$dataset"_a$alpha -x "$loss"_"$dataset" --btcvae-A $alpha --no-progress-bar &
     done
 done
-

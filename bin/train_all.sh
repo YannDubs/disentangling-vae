@@ -17,6 +17,8 @@ do
     wait
 done
 
-#echo "best_celeba" >> $logger
-#python main.py best_celeba -x best_celeba --no-progress-bar
+echo "best_celeba" >> $logger
+python main.py best_celeba -x best_celeba --no-progress-bar &
 
+echo "best_dsprites" >> $logger
+python main.py best_dsprites -x best_dsprites --no-progress-bar

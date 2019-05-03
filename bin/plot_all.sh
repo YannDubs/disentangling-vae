@@ -9,7 +9,7 @@ echo "STARTING" > $logger
 
 # many idcs sameas https://github.com/1Konny/FactorVAE/blob/master/solver.py
 # to compare
-cherry_celeba_idcs="32260 191281 143307 101535 70059 88413 87889 176606 131612 179144"
+cherry_celeba_idcs="88413 176606 179144 32260 191281 143307 101535 70059 87889 131612 "
 cherry_mnist_idcs="1 40 25 7 92 41001 90 41002 823 41219" # take every number in order
 cherry_dsprites_idcs="92595 339150 656090" #take every shape: square ellipse heart
 cherry_chairs_idcs="40919 5172 22330"
@@ -56,6 +56,7 @@ do
 done
 
 python main_viz.py best_celeba all -i $cherry_celeba_idcs $kwargs
+python main_viz.py best_dsprites all -i $cherry_dsprites_idcs $kwargs
 
 
 echo "### GIF GRID MUTUAL INFO ###" >> $logger
