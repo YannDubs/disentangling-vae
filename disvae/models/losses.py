@@ -14,7 +14,7 @@ from disvae.utils.math import (log_density_gaussian, log_importance_weight_matri
                                matrix_log_density_gaussian)
 
 
-LOSSES = ["VAE", "betaH", "betaB", "factor", "btcvae"]
+LOSSES = ["VAE", "betaH", "betaB", "factor", "btcvae","bdtcvae"]
 RECON_DIST = ["bernoulli", "laplace", "gaussian"]
 
 
@@ -43,6 +43,12 @@ def get_loss_f(loss_name, **kwargs_parse):
                           alpha=kwargs_parse["btcvae_A"],
                           beta=kwargs_parse["btcvae_B"],
                           gamma=kwargs_parse["btcvae_G"],
+                          **kwargs_all)
+    elif loss_name == "bdtcvae":
+        return BdtcvaeLoss(kwargs_parse["n_data"],
+                          alpha=kwargs_parse["bdtcvae_A"],
+                          beta=kwargs_parse["bdtcvae_B"],
+                          gamma=kwargs_parse["bdtcvae_G"],
                           **kwargs_all)
     else:
         assert loss_name not in LOSSES
@@ -359,10 +365,10 @@ class BtcvaeLoss(BaseLoss):
         rec_loss = _reconstruction_loss(data, recon_batch,
                                         storer=storer,
                                         distribution=self.rec_dist)
-        log_pz, log_qz, log_prod_qzi, log_q_zCx = _get_log_pz_qz_prodzi_qzCx(latent_sample,
-                                                                             latent_dist,
-                                                                             self.n_data,
-                                                                             is_mss=self.is_mss)
+        log_pz, log_qz, log_prod_qzi, log_q_zCx, _ = _get_log_pz_qz_prodzi_qzCx_qz_knc(latent_sample,
+                                                                                        latent_dist,
+                                                                                        self.n_data,
+                                                                                        is_mss=self.is_mss)
         # I[z;x] = KL[q(z,x)||q(x)q(z)] = E_x[KL[q(z|x)||q(z)]]
         mi_loss = (log_q_zCx - log_qz).mean()
         # TC[z] = KL[q(z)||\prod_i z_i]
@@ -382,6 +388,79 @@ class BtcvaeLoss(BaseLoss):
             storer['loss'].append(loss.item())
             storer['mi_loss'].append(mi_loss.item())
             storer['tc_loss'].append(tc_loss.item())
+            storer['dw_kl_loss'].append(dw_kl_loss.item())
+            # computing this for storing and comparaison purposes
+            _ = _kl_normal_loss(*latent_dist, storer)
+
+        return loss
+
+class BdtcvaeLoss(BaseLoss):
+    """
+    Test for dual total correlation
+
+    Parameters
+    ----------
+    n_data: int
+        Number of data in the training set
+
+    alpha : float
+        Weight of the mutual information term.
+
+    beta : float
+        Weight of the dual total correlation term.
+
+    gamma : float
+        Weight of the dimension-wise KL term.
+
+    is_mss : bool
+        Whether to use minibatch stratified sampling instead of minibatch
+        weighted sampling.
+
+    kwargs:
+        Additional arguments for `BaseLoss`, e.g. rec_dist`.
+
+    References
+    """
+
+    def __init__(self, n_data, alpha=1., beta=6., gamma=1., is_mss=True, **kwargs):
+        super().__init__(**kwargs)
+        self.n_data = n_data
+        self.beta = beta
+        self.alpha = alpha
+        self.gamma = gamma
+        self.is_mss = is_mss  # minibatch stratified sampling
+
+    def __call__(self, data, recon_batch, latent_dist, is_train, storer,
+                 latent_sample=None):
+        storer = self._pre_call(is_train, storer)
+        batch_size, latent_dim = latent_sample.shape
+
+        rec_loss = _reconstruction_loss(data, recon_batch,
+                                        storer=storer,
+                                        distribution=self.rec_dist)
+        log_pz, log_qz, log_prod_qzi, log_q_zCx, log_qz_knc = _get_log_pz_qz_prodzi_qzCx_qz_knc(latent_sample,
+                                                                                                 latent_dist,
+                                                                                                 self.n_data,
+                                                                                                 is_mss=self.is_mss)
+        # I[z;x] = KL[q(z,x)||q(x)q(z)] = E_x[KL[q(z|x)||q(z)]]
+        mi_loss = (log_q_zCx - log_qz).mean()
+        # DTC[z] = loq_qz_knc - (n -1) * log_qz = [Sum_i H(X_1,...,X_i-1,X_i+1,...,X_n)] - (n-1)* H(X_1,...X_n)
+        dual_tc_loss = (log_qz_knc - (latent_dim - 1) * log_qz).mean()
+        # dw_kl_loss is KL[q(z)||p(z)] instead of usual KL[q(z|x)||p(z))]
+        dw_kl_loss = (log_prod_qzi - log_pz).mean()
+
+        anneal_reg = (linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
+                      if is_train else 1)
+
+        # total loss
+        loss = rec_loss + (self.alpha * mi_loss +
+                           self.beta * (latent_dim - 1) * dual_tc_loss +
+                           anneal_reg * self.gamma * dw_kl_loss)
+
+        if storer is not None:
+            storer['loss'].append(loss.item())
+            storer['mi_loss'].append(mi_loss.item())
+            storer['dual_tc_loss'].append(dual_tc_loss.item())
             storer['dw_kl_loss'].append(dw_kl_loss.item())
             # computing this for storing and comparaison purposes
             _ = _kl_normal_loss(*latent_dist, storer)
@@ -518,7 +597,7 @@ def linear_annealing(init, fin, step, annealing_steps):
 
 # Batch TC specific
 # TO-DO: test if mss is better!
-def _get_log_pz_qz_prodzi_qzCx(latent_sample, latent_dist, n_data, is_mss=True):
+def _get_log_pz_qz_prodzi_qzCx_qz_knc(latent_sample, latent_dist, n_data, is_mss=True):
     batch_size, hidden_dim = latent_sample.shape
 
     # calculate log q(z|x)
@@ -537,6 +616,15 @@ def _get_log_pz_qz_prodzi_qzCx(latent_sample, latent_dist, n_data, is_mss=True):
         mat_log_qz = mat_log_qz + log_iw_mat.view(batch_size, batch_size, 1)
 
     log_qz = torch.logsumexp(mat_log_qz.sum(2), dim=1, keepdim=False)
-    log_prod_qzi = torch.logsumexp(mat_log_qz, dim=1, keepdim=False).sum(1)
+    log_prod_qzi = torch.logsumexp(mat_log_qz, dim=1, keepdim=False).sum(dim=1)
 
-    return log_pz, log_qz, log_prod_qzi, log_q_zCx
+    knc = _sum_along_dim_exclude_self(mat_log_qz, dim=2)
+    log_qz_knc = torch.logsumexp(knc, dim=1, keepdim=False).sum(dim=1)
+
+    return log_pz, log_qz, log_prod_qzi, log_q_zCx, log_qz_knc
+
+def _sum_along_dim_exclude_self(tensor_in, dim):
+    dims_list = list(tensor_in.shape)
+    new_dim_list = [1 if dim_idx == dim else dimension for dim_idx, dimension in enumerate(dims_list)]
+    sum_matrix = torch.sum(tensor_in, dim=dim).reshape(new_dim_list)
+    return sum_matrix - tensor_in
