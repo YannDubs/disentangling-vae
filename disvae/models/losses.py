@@ -11,7 +11,7 @@ from torch import optim
 
 from .discriminator import Discriminator
 from disvae.utils.math import (log_density_gaussian, log_importance_weight_matrix,
-                               matrix_log_density_gaussian)
+                               matrix_log_density_gaussian, sum_along_dim_exclude_self)
 
 
 LOSSES = ["VAE", "betaH", "betaB", "factor", "btcvae","bdtcvae"]
@@ -365,7 +365,7 @@ class BtcvaeLoss(BaseLoss):
         rec_loss = _reconstruction_loss(data, recon_batch,
                                         storer=storer,
                                         distribution=self.rec_dist)
-        log_pz, log_qz, log_prod_qzi, log_q_zCx, _ = _get_log_pz_qz_prodzi_qzCx_qz_knc(latent_sample,
+        log_pz, log_qz, log_prod_qzi, log_q_zCx, _ = _get_log_pz_qz_prodzi_qzCx_qzknc(latent_sample,
                                                                                         latent_dist,
                                                                                         self.n_data,
                                                                                         is_mss=self.is_mss)
@@ -438,10 +438,10 @@ class BdtcvaeLoss(BaseLoss):
         rec_loss = _reconstruction_loss(data, recon_batch,
                                         storer=storer,
                                         distribution=self.rec_dist)
-        log_pz, log_qz, log_prod_qzi, log_q_zCx, log_qz_knc = _get_log_pz_qz_prodzi_qzCx_qz_knc(latent_sample,
-                                                                                                 latent_dist,
-                                                                                                 self.n_data,
-                                                                                                 is_mss=self.is_mss)
+        log_pz, log_qz, log_prod_qzi, log_q_zCx, log_qz_knc = _get_log_pz_qz_prodzi_qzCx_qzknc(latent_sample,
+                                                                                                latent_dist,
+                                                                                                self.n_data,
+                                                                                                is_mss=self.is_mss)
         # I[z;x] = KL[q(z,x)||q(x)q(z)] = E_x[KL[q(z|x)||q(z)]]
         mi_loss = (log_q_zCx - log_qz).mean()
         # DTC[z] = loq_qz_knc - (n -1) * log_qz = [Sum_i H(X_1,...,X_i-1,X_i+1,...,X_n)] - (n-1)* H(X_1,...X_n)
@@ -597,7 +597,7 @@ def linear_annealing(init, fin, step, annealing_steps):
 
 # Batch TC specific
 # TO-DO: test if mss is better!
-def _get_log_pz_qz_prodzi_qzCx_qz_knc(latent_sample, latent_dist, n_data, is_mss=True):
+def _get_log_pz_qz_prodzi_qzCx_qzknc(latent_sample, latent_dist, n_data, is_mss=True):
     batch_size, hidden_dim = latent_sample.shape
 
     # calculate log q(z|x)
@@ -618,13 +618,7 @@ def _get_log_pz_qz_prodzi_qzCx_qz_knc(latent_sample, latent_dist, n_data, is_mss
     log_qz = torch.logsumexp(mat_log_qz.sum(2), dim=1, keepdim=False)
     log_prod_qzi = torch.logsumexp(mat_log_qz, dim=1, keepdim=False).sum(dim=1)
 
-    knc = _sum_along_dim_exclude_self(mat_log_qz, dim=2)
+    knc = sum_along_dim_exclude_self(mat_log_qz, dim=2)
     log_qz_knc = torch.logsumexp(knc, dim=1, keepdim=False).sum(dim=1)
 
     return log_pz, log_qz, log_prod_qzi, log_q_zCx, log_qz_knc
-
-def _sum_along_dim_exclude_self(tensor_in, dim):
-    dims_list = list(tensor_in.shape)
-    new_dim_list = [1 if dim_idx == dim else dimension for dim_idx, dimension in enumerate(dims_list)]
-    sum_matrix = torch.sum(tensor_in, dim=dim).reshape(new_dim_list)
-    return sum_matrix - tensor_in
