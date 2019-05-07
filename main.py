@@ -127,6 +127,17 @@ def parse_arguments(args_to_parse):
                         default=default_config['btcvae_B'],
                         help="Weight of the TC term (beta in the paper).")
 
+    bdtcvae = parser.add_argument_group('beta-tcvae specific parameters')
+    bdtcvae.add_argument('--bdtcvae-A', type=float,
+                        default=default_config['bdtcvae_A'],
+                        help="Weight of the MI term.")
+    bdtcvae.add_argument('--bdtcvae-G', type=float,
+                        default=default_config['bdtcvae_G'],
+                        help="Weight of the dim-wise KL term.")
+    bdtcvae.add_argument('--bdtcvae-B', type=float,
+                        default=default_config['bdtcvae_B'],
+                        help="Weight of the DTC term.")
+
     # Learning options
     evaluation = parser.add_argument_group('Evaluation specific options')
     evaluation.add_argument('--is-eval-only', action='store_true',
