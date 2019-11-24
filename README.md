@@ -263,7 +263,7 @@ All the previous losses are special cases of the following loss:
 
 ![Loss Overview](doc/imgs/loss.png)
 
-1. **Index-code mutual information**: the mutual information between the latent variables **z** and the data variable **x**. There is contention in the literature regarding the correct way to treat this term. From the [information bottleneck perspective](https://arxiv.org/abs/1706.01350) this should be penalized. [InfoGAN](https://arxiv.org/abs/1606.03657) get good results by increasing the mutual information (negative α). Finally, [Wassertein Auto-Encoders](https://arxiv.org/abs/1711.01558) drops this term. 
+1. **Index-code mutual information**: the mutual information between the latent variables **z** and the data variable **x**. There is contention in the literature regarding the correct way to treat this term. From the [information bottleneck perspective](https://arxiv.org/abs/1706.01350) this should be penalized. [InfoGAN](https://arxiv.org/abs/1606.03657) get good results by increasing the mutual information (negative α). Finally, [Wasserstein Auto-Encoders](https://arxiv.org/abs/1711.01558) drops this term. 
 
 2. **Total Correlation (TC)**: the KL divergence between the joint and the product of the marginals of the latent variable. *I.e.** a measure of dependence between the latent dimensions. Increasing β forces the model to find statistically independent factors of variation in the data distribution.
 
