@@ -4,7 +4,7 @@ import os
 from timeit import default_timer
 from collections import defaultdict
 
-from tqdm import trange
+from tqdm.auto import trange
 import torch
 from torch.nn import functional as F
 
