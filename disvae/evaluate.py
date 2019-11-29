@@ -6,7 +6,7 @@ from collections import defaultdict
 import json
 from timeit import default_timer
 
-from tqdm import trange, tqdm
+from tqdm.auto import trange, tqdm
 import numpy as np
 import torch
 
