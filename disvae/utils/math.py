@@ -1,7 +1,7 @@
 
 import math
 
-from tqdm import trange, tqdm
+from tqdm.auto import trange, tqdm
 import torch
 
 
