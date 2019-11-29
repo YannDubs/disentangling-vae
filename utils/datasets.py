@@ -8,7 +8,7 @@ import logging
 import tarfile
 from skimage.io import imread
 from PIL import Image
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import numpy as np
 
 import torch
