@@ -71,3 +71,18 @@ def log_importance_weight_matrix(batch_size, dataset_size):
     W.view(-1)[1::M + 1] = strat_weight
     W[M - 1, 0] = strat_weight
     return W.log()
+
+def sum_along_dim_exclude_self(tensor_in, dim):
+    """
+    Sums all elements along axis=dim except self and stores result in self
+
+    Parameters
+    ----------
+    tensor_in: torch.Tensor
+
+    dim: int
+        tensor axis over which to sum
+    """
+    new_dim_list = [1 if dim_idx == dim else dimension for dim_idx, dimension in enumerate(tensor_in.shape)]
+    sum_matrix = torch.sum(tensor_in, dim=dim).reshape(new_dim_list)
+    return sum_matrix - tensor_in
