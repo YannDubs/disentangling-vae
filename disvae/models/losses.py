@@ -277,10 +277,9 @@ class FactorKLoss(BaseLoss):
             # don't backprop if evaluating
             return vae_loss
 
-        # Run VAE optimizer
+        # Compute VAE gradients
         optimizer.zero_grad()
         vae_loss.backward(retain_graph=True)
-        optimizer.step()
 
         # Discriminator Loss
         # Get second sample of latent distribution
@@ -300,9 +299,12 @@ class FactorKLoss(BaseLoss):
         # TO-DO: check ifshould also anneals discriminator if not becomes too good ???
         #d_tc_loss = anneal_reg * d_tc_loss
 
-        # Run discriminator optimizer
+        # Compute discriminator gradients
         self.optimizer_d.zero_grad()
         d_tc_loss.backward()
+
+        # Update at the end (since pytorch 1.5. complains if update before)
+        optimizer.step()
         self.optimizer_d.step()
 
         if storer is not None:
