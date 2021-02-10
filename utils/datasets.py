@@ -370,6 +370,7 @@ class MNIST(datasets.MNIST):
 class FashionMNIST(datasets.FashionMNIST):
     """Fashion Mnist wrapper. Docs: `datasets.FashionMNIST.`"""
     img_size = (1, 32, 32)
+    background_color = COLOUR_BLACK
 
     def __init__(self, root=os.path.join(DIR, '../data/fashionMnist'), **kwargs):
         super().__init__(root,
