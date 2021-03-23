@@ -40,3 +40,6 @@ __pycache__/
 
 # placeholders to keep directories
 !.keep
+
+# results
+results/*
