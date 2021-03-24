@@ -23,7 +23,8 @@ DATASETS_DICT = {"mnist": "MNIST",
                  "dsprites": "DSprites",
                  "celeba": "CelebA",
                  "chairs": "Chairs",
-                 "cifar": "CIFAR10"}
+                 "cifar10": "CIFAR10",
+                 "cifar100": "CIFAR100"}
 DATASETS = list(DATASETS_DICT.keys())
 
 
@@ -381,6 +382,20 @@ class CIFAR10(datasets.CIFAR10):
     background_color = COLOUR_BLACK
     
     def __init__(self, root=os.path.join(DIR, '../data/cifar10'), **kwargs):
+        super().__init__(root,
+                         train=True,
+                         download=True,
+                         transform=transforms.Compose([
+                             transforms.Resize(32),
+                             transforms.ToTensor()
+                         ]))
+
+class CIFAR100(datasets.CIFAR100):
+    """CIFAR100 wrapper"""
+    img_size = (3, 32, 32)
+    background_color = COLOUR_BLACK
+    
+    def __init__(self, root=os.path.join(DIR, '../data/cifar100'), **kwargs):
         super().__init__(root,
                          train=True,
                          download=True,
