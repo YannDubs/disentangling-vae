@@ -209,7 +209,7 @@ class Evaluator:
         #log softmax with NLL loss 
         criterion = torch.nn.NLLLoss()
         optim = torch.optim.Adam(model.parameters(), lr=0.01)
-        print(data_test)
+       
         test_acc = {}
         for method in methods:
             print(f'Training the linear classifier for model {method}')
@@ -217,11 +217,11 @@ class Evaluator:
                 optim.zero_grad()
                 
                 X_train, Y_train = data_train[method]
-                X_train.to(self.device)
-                Y_train.to(self.device)
+                X_train = X_train.to(self.device)
+                Y_train = Y_train.to(self.device)
                 X_test , Y_test = data_test[method]
-                X_test.to(self.device)
-                Y_test.to(self.device)
+                X_test = X_test.to(self.device)
+                Y_test = Y_test.to(self.device)
 
                 
                 scores_train = model(X_train)   
