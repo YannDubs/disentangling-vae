@@ -13,3 +13,8 @@ class LinearModel(nn.Module):
 
     def forward(self, x):
         return self.log_softmax(self.lin2(self.lin1(x)))
+
+def weight_reset(m):
+    if isinstance(m, nn.Linear):
+        m.reset_parameters()
+        
