@@ -8,3 +8,5 @@ pandas
 seaborn
 Pillow
 tqdm
+sklearn
+

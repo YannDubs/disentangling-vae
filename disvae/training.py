@@ -78,6 +78,7 @@ class Trainer():
             Save a checkpoint of the trained model every n epoch.
         """
         start = default_timer()
+        storers = []
         self.model.train()
         for epoch in range(epochs):
             storer = defaultdict(list)
@@ -92,6 +93,7 @@ class Trainer():
             if epoch % checkpoint_every == 0:
                 save_model(self.model, self.save_dir,
                            filename="model-{}.pt".format(epoch))
+            
 
         if self.gif_visualizer is not None:
             self.gif_visualizer.save_reset()
@@ -100,6 +102,9 @@ class Trainer():
 
         delta_time = (default_timer() - start) / 60
         self.logger.info('Finished training after {:.1f} min.'.format(delta_time))
+
+    def evaluate_latents(self):
+        pass
 
     def _train_epoch(self, data_loader, storer, epoch):
         """

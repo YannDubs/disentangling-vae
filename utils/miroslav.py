@@ -1,5 +1,13 @@
 import wandb
 import os
+import itertools
+from sklearn.cluster import KMeans
+from sklearn import manifold
+import sklearn.metrics
+from tqdm import tqdm
+import torch
+import itertools
+import matplotlib.pyplot as plt
 
 def wandb_auth(fname: str = "nas_key.txt"):
   gdrive_path = "/content/drive/MyDrive/colab/wandb/nas_key.txt"
@@ -35,11 +43,6 @@ def wandb_auth(fname: str = "nas_key.txt"):
   wandb.login()
 
 def latent_viz(model, loader, dataset, steps=100, device='cpu'):
-    from sklearn import manifold
-    from tqdm import tqdm
-    import torch
-    import itertools
-    import matplotlib.pyplot as plt
 
     if dataset in ["mnist", "fashion", "cifar10"]:
         n_classes = 10
@@ -60,9 +63,9 @@ def latent_viz(model, loader, dataset, steps=100, device='cpu'):
             for idx in range(len(y)):
                 proper_slot = y[idx].item()
                 class_samples[proper_slot].append(x[idx])
-                post_means[proper_slot].append(post_mean[0, idx])
-                post_logvars[proper_slot].append(post_logvar[0, idx])
-                post_samples[proper_slot].append(samples[idx].numpy())
+                post_means[proper_slot].append(post_mean[idx])
+                post_logvars[proper_slot].append(post_logvar[idx])
+                post_samples[proper_slot].append(samples[idx].cpu().numpy())
 
     true_labels = [[x]*len(class_samples[x]) for x in range(len(class_samples))]
     tsne = manifold.TSNE(n_components=2, random_state=1)
@@ -71,9 +74,20 @@ def latent_viz(model, loader, dataset, steps=100, device='cpu'):
         c=list(itertools.chain.from_iterable(true_labels)),
         cmap=plt.cm.get_cmap('jet', 10))
     plt.colorbar()
-    plt.show()
     model.train()
 
     all_data = {"class_samples":class_samples, "post_means":post_means, 
-        "post_logvars":post_logvars, "post_samples":post_samples}
+        "post_logvars":post_logvars, "post_samples":post_samples, "labels":true_labels}
     return plt, all_data
+
+
+def cluster_metric(post_samples, labels, n_clusters):
+    labels = list(itertools.chain.from_iterable(labels))
+    post_samples = list(itertools.chain.from_iterable(post_samples))
+    kmeans = KMeans(n_clusters, random_state=1).fit(post_samples)
+    cluster_assignments = kmeans.predict(post_samples)
+    homogeneity = sklearn.metrics.homogeneity_score(labels, cluster_assignments)
+    return homogeneity
+
+
+

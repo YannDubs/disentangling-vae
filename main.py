@@ -1,8 +1,11 @@
+# python main.py betaH_fashion -d fashion -l betaH --lr 0.001 -b 32 -e 1 --betaH-B 15
+
 import argparse
 import logging
 import sys
 import os
 from configparser import ConfigParser
+import wandb
 
 from torch import optim
 
@@ -14,7 +17,7 @@ from utils.datasets import get_dataloaders, get_img_size, DATASETS
 from utils.helpers import (create_safe_directory, get_device, set_seed, get_n_param,
                            get_config_section, update_namespace_, FormatterNoDuplicate)
 from utils.visualize import GifTraversalsTraining
-
+from utils.miroslav import wandb_auth, latent_viz, cluster_metric
 
 CONFIG_FILE = "hyperparam.ini"
 RES_DIR = "results"
@@ -72,6 +75,8 @@ def parse_arguments(args_to_parse):
                           help='Batch size for training.')
     training.add_argument('--lr', type=float, default=default_config['lr'],
                           help='Learning rate.')
+    training.add_argument('--dry_run', type=lambda x: False if x in ["False", "false", "", "None"] else True, default=False,
+                        help='Whether to use WANDB in offline mode.')
 
     # Model Options
     model = parser.add_argument_group('Model specfic options')
@@ -170,6 +175,12 @@ def main(args):
     args: argparse.Namespace
         Arguments
     """
+    if args.dry_run:
+        os.environ['WANDB_MODE'] = 'dryrun'
+    wandb_auth()
+    wandb.init(project='ATML Beta-VAE', entity='atml', group="miroslav")
+    wandb.config.update(args)
+
     formatter = logging.Formatter('%(asctime)s %(levelname)s - %(funcName)s: %(message)s',
                                   "%H:%M:%S")
     logger = logging.getLogger(__name__)
@@ -222,11 +233,17 @@ def main(args):
         trainer(train_loader,
                 epochs=args.epochs,
                 checkpoint_every=args.checkpoint_every,)
+        plot, latent_data= latent_viz(model, train_loader, args.dataset, steps=100, device=device)
+        cluster_score = cluster_metric(latent_data["post_samples"], latent_data["labels"], 5)
+        print(f"Cluster metric score: {cluster_score}")
+        
+        wandb.log({"latents":plot, "cluster_metric":cluster_score})
 
         # SAVE MODEL AND EXPERIMENT INFORMATION
         save_model(trainer.model, exp_dir, metadata=vars(args))
 
     if args.is_metrics or not args.no_test:
+        print("Evaluation time.")
         model = load_model(exp_dir, is_gpu=not args.no_cuda)
         metadata = load_metadata(exp_dir)
         # TO-DO: currently uses train datatset
