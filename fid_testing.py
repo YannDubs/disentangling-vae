@@ -1,6 +1,9 @@
 import torch
-
+import random
 from disvae.utils.modelIO import load_model
+import argparse
+import logging
+import sys
 
 MODEL_PATH = "results/fid_testing"
 MODEL_NAME = "model.pt"
@@ -30,11 +33,13 @@ import torchvision.transforms as transforms
 from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data.sampler import SequentialSampler
 
+from utils.datasets import get_dataloaders, get_img_size, DATASETS
 
-def get_activations(dataloader, files, model, batch_size, dims):
+
+def get_activations(dataloader, length, model, batch_size, dims):
     # Calculates the activations of the last layer for all images.
     # Params:
-    # files       : List of image file indices
+    # length      : Number of samples
     # model       : Instance of model
     # batch_size  : Batch size of images for the model to process at once.
     #               Make sure that the number of samples is a multiple of
@@ -47,12 +52,12 @@ def get_activations(dataloader, files, model, batch_size, dims):
     # query tensor.
     
     model.eval()
-    if batch_size > len(files):
+    if batch_size > length:
         print(('Warning: batch size is bigger than the data size. '
                'Setting batch size to data size'))
-        batch_size = len(files)
+        batch_size = length
 
-    pred_arr = np.empty((len(files), dims))
+    pred_arr = np.empty((length, dims))
 
     for inputs, labels in (dataloader):
         count = 0
@@ -116,10 +121,10 @@ def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
             + np.trace(sigma2) - 2 * tr_covmean)
 
 
-def calculate_activation_statistics(dataloader, files, model, batch_size=32, dims=2048):
+def calculate_activation_statistics(dataloader, length, model, batch_size=32, dims=2048):
     # Calculation of the statistics used by the FID.
     # Params:
-    # files       : List of image files paths
+    # length      : Number of samples
     # model       : Instance of model
     # batch_size  : The images numpy array is split into batches with
     #               batch size batch_size. A reasonable batch size
@@ -132,38 +137,49 @@ def calculate_activation_statistics(dataloader, files, model, batch_size=32, dim
     # sigma : The covariance matrix of the activations of the pool_3 layer of
     #         the model.
         
-    act = get_activations(dataloader, files, model, batch_size, dims)
+    act = get_activations(dataloader, length, model, batch_size, dims)
     mu = np.mean(act, axis=0)
     sigma = np.cov(act, rowvar=False)
     return mu, sigma
 
-transform = transforms.Compose([transforms.Resize(size=(32, 32)), transforms.ToTensor()]) # apply the image transformations   
+while True:
+    mode = sys.argv[1] # get the name of the dataset you want to measure FID for
+    if mode == 'cifar'  or mode == 'cifar100' or mode == 'mnist':
+        # Get the dataset
+        dataloader1 = get_dataloaders(mode,
+                               batch_size=32)
+        break
+    else:
+        print("Entered wrong name for dataset") 
+        sys.exit()
 
-# Get the dataset
-dataset = datasets.CIFAR10(
-root="data",
-train=True,
-download=True,
-transform=transform)
+# # Get a random subset of the images from the dataset you want to compare FID scores for
+# subset_indices1 = []
+# for i in range(0,96):
+#     n = random.randint(1,1000)
+#     subset_indices1.append(n)
 
-# Get a subset of the images from the dataset you want to compare FID scores for
-subset_indices1 = list(range(96))
+# # Dataloader loading the first n images you wanted from the dataset
+# dataloader1 = torch.utils.data.DataLoader(dataset,
+#                                       batch_size=32,
+#                                       shuffle=False,
+#                                       sampler=SequentialSampler(subset_indices1), #SubsetRandomSampler(subset_indices1),
+#                                       drop_last=False,
+#                                       num_workers=0)
 
-# Dataloader loading the first n images you wanted from the dataset
-dataloader1 = torch.utils.data.DataLoader(dataset,
-                                      batch_size=32,
-                                      shuffle=False,
-                                      sampler=SequentialSampler(subset_indices1), #SubsetRandomSampler(subset_indices1),
-                                      drop_last=False,
-                                      num_workers=0)
+length = len(dataloader1.dataset)
 
-dims = 3072 # dimensionality of the feature vector
+if mode == 'cifar' or mode == 'cifar100':
+    dims = 3072 # dimensionality of the feature vector
+else:
+    dims = 1024
+
 batch_size = dims
 
-m1, s1 = calculate_activation_statistics(dataloader1, subset_indices1, model, batch_size, dims)
+m1, s1 = calculate_activation_statistics(dataloader1, length, model, batch_size, dims)
 
 # m2, s2 = preset from the dataset calculated below
-arr = np.empty((len(subset_indices1), dims))
+arr = np.empty((length, dims))
 
 for inputs, labels in (dataloader1):
     count = 0
@@ -180,4 +196,4 @@ s2 = np.cov(arr, rowvar=False)
 
 fid_value = calculate_frechet_distance(m1, s1, m2, s2)
 
-print('FID: ', fid_value)
+print("FID for ", mode, ": ", fid_value)
