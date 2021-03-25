@@ -13,6 +13,9 @@ import torch
 from disvae.models.losses import get_loss_f
 from disvae.utils.math import log_density_gaussian
 from disvae.utils.modelIO import save_metadata
+from disvae.models.linear_model import LinearModel
+
+
 
 TEST_LOSSES_FILE = "test_losses.log"
 METRICS_FILENAME = "metrics.log"
@@ -126,8 +129,13 @@ class Evaluator:
         try:
             lat_sizes = dataloader.dataset.lat_sizes
             lat_names = dataloader.dataset.lat_names
+            lat_imgs = dataloader.dataset.imgs
         except AttributeError:
             raise ValueError("Dataset needs to have known true factors of variations to compute the metric. This does not seem to be the case for {}".format(type(dataloader.__dict__["dataset"]).__name__))
+        
+        self.logger.info("Computing the disentanglement metric")
+        accuracy = self._disentanglement_metric(7, lat_sizes, lat_imgs, n_epochs=70, dataset_size=2000,)
+
 
         self.logger.info("Computing the empirical distribution q(z|x).")
         samples_zCx, params_zCx = self._compute_q_zCx(dataloader)
@@ -153,10 +161,116 @@ class Evaluator:
         mig = self._mutual_information_gap(sorted_mut_info, lat_sizes, storer=metric_helpers)
         aam = self._axis_aligned_metric(sorted_mut_info, storer=metric_helpers)
 
-        metrics = {'MIG': mig.item(), 'AAM': aam.item()}
+        metrics = {'DM': accuracy.item(), 'MIG': mig.item(), 'AAM': aam.item()}
         torch.save(metric_helpers, os.path.join(self.save_dir, METRIC_HELPERS_FILE))
 
         return metrics
+
+
+    def _disentanglement_metric(self, sample_size, lat_sizes, imgs, n_epochs=50, dataset_size = 2000, hidden_dim = 256):
+
+        #compute training- and test data for linear classifier
+        X_train, Y_train =  self._compute_z_b_diff_y(sample_size, lat_sizes, imgs)
+        X_train.unsqueeze_(0)
+
+        X_test, Y_test =  self._compute_z_b_diff_y(sample_size, lat_sizes, imgs)
+        X_test.unsqueeze_(0)
+
+        #latent dim = output dimension of linear classifier
+        latent_dim = X_train.shape[1]
+        
+        #generate dataset_size many training data points and 20% of that test data points
+        for i in range(dataset_size):
+            x,y = self._compute_z_b_diff_y(sample_size, lat_sizes, imgs)
+            X_train = torch.cat((X_train, x.unsqueeze_(0)), 0)
+            Y_train = torch.cat((Y_train, y), 0)
+            if i <= int(dataset_size*0.2):
+                x,y = self._compute_z_b_diff_y(sample_size, lat_sizes, imgs)
+                X_test = torch.cat((X_test, x.unsqueeze_(0)), 0)
+                Y_test = torch.cat((Y_test, y), 0)
+
+        model = LinearModel(latent_dim,hidden_dim,len(lat_sizes))
+        model.to(self.device)
+        model.train()
+
+        #log softmax with NLL loss 
+        criterion = torch.nn.NLLLoss()
+        optim = torch.optim.Adam(model.parameters(), lr=0.01)
+        
+        print("training the linear classifier...")
+        for e in range(n_epochs):
+            optim.zero_grad()
+            X_train = X_train.to(self.device)
+            Y_train = Y_train.to(self.device)
+            X_test = X_test.to(self.device)
+            Y_test = Y_test.to(self.device)
+
+            scores_train = model(X_train)   
+            loss = criterion(scores_train, Y_train)
+            loss.backward()
+            optim.step()
+            
+            if (e+1) % 10 == 0:
+                scores_test = model(X_test)   
+                test_loss = criterion(scores_test, Y_test)
+                print(f'In this epoch {e+1}/{n_epochs}, Training loss: {loss.item():.4f}, Test loss: {test_loss.item():.4f}')
+        
+        model.eval()
+        with torch.no_grad():
+            
+            scores_train = model(X_train)
+            scores_test = model(X_test)
+ 
+            _, prediction_train = scores_train.max(1)
+            _, prediction_test = scores_test.max(1)
+
+            train_acc = (prediction_train==Y_train).sum().float()/len(X_train)
+            test_acc = (prediction_test==Y_test).sum().float()/len(X_test)
+            
+
+        print("Training accuracy:", train_acc.item())
+        print("Test accuracy:", test_acc.item())
+        return test_acc
+
+    def _compute_z_b_diff_y(self, sample_size, lat_sizes, imgs):
+        """
+        Compute the disentanglement metric score as proposed in the original paper
+        reference: https://github.com/deepmind/dsprites-dataset/blob/master/dsprites_reloading_example.ipynb
+        """
+        
+        #sample random latent factor that is to be kept fixed
+        y = np.random.randint(lat_sizes.size, size=1)
+        y_lat = np.random.randint(lat_sizes[y], size=sample_size)
+
+        #sample to sets of data generative factors such that the yth value is the same accross the two sets
+        samples1 = np.zeros((sample_size, lat_sizes.size))
+        samples2 = np.zeros((sample_size, lat_sizes.size))
+
+        for i, lat_size in enumerate(lat_sizes):
+            samples1[:, i] = y_lat if i == y else np.random.randint(lat_size, size=sample_size) 
+            samples2[:, i] = y_lat if i == y else np.random.randint(lat_size, size=sample_size)
+
+        latents_bases = np.concatenate((lat_sizes[::-1].cumprod()[::-1][1:],
+                                np.array([1,])))
+
+        latent_indices1 = np.dot(samples1, latents_bases).astype(int)
+        latent_indices2 = np.dot(samples2, latents_bases).astype(int)
+
+        #use the data generative factors to simulate two sets of images from the dataset
+        imgs_sampled1 = torch.from_numpy(imgs[latent_indices1]).unsqueeze_(1).float()
+        imgs_sampled2 = torch.from_numpy(imgs[latent_indices2]).unsqueeze_(1).float()
+
+        #calculate the expectation values of the normal distributions in the latent representation for the given images
+        with torch.no_grad():
+            mu1, _ = self.model.encoder(imgs_sampled1.to(self.device))
+            mu2, _ = self.model.encoder(imgs_sampled2.to(self.device))    
+
+        z_diff = torch.abs(torch.sub(mu1, mu2))
+        z_diff_b = torch.mean(z_diff, 0)
+
+        return z_diff_b, torch.from_numpy(y)
+
+
 
     def _mutual_information_gap(self, sorted_mut_info, lat_sizes, storer=None):
         """Compute the mutual information gap as in [1].
