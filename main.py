@@ -1,4 +1,4 @@
-# python main.py betaH_fashion -d fashion -l betaH --lr 0.001 -b 32 -e 1 --betaH-B 15
+# python main.py --name betaH_fashion -d fashion -l betaH --lr 0.001 -b 32 -e 1 --betaH-B 15
 
 import argparse
 import logging
@@ -44,7 +44,7 @@ def parse_arguments(args_to_parse):
 
     # General options
     general = parser.add_argument_group('General options')
-    general.add_argument('name', type=str,
+    general.add_argument('-name', '--name', type=str,
                          help="Name of the model for storing and loading purposes.")
     general.add_argument('-L', '--log-level', help="Logging levels.",
                          default=default_config['log_level'], choices=LOG_LEVELS)
@@ -178,7 +178,7 @@ def main(args):
     if args.dry_run:
         os.environ['WANDB_MODE'] = 'dryrun'
     wandb_auth()
-    wandb.init(project='ATML Beta-VAE', entity='atml', group="miroslav")
+    wandb.init(project='atmlbetavae', entity='atml', group="miroslav")
     wandb.config.update(args)
 
     formatter = logging.Formatter('%(asctime)s %(levelname)s - %(funcName)s: %(message)s',
