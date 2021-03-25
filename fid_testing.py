@@ -144,7 +144,7 @@ def calculate_activation_statistics(dataloader, length, model, batch_size=32, di
 
 while True:
     mode = sys.argv[1] # get the name of the dataset you want to measure FID for
-    if mode == 'cifar'  or mode == 'cifar100' or mode == 'mnist':
+    if mode == 'cifar10'  or mode == 'cifar100' or mode == 'mnist':
         # Get the dataset
         dataloader1 = get_dataloaders(mode,
                                batch_size=32)
@@ -169,7 +169,7 @@ while True:
 
 length = len(dataloader1.dataset)
 
-if mode == 'cifar' or mode == 'cifar100':
+if mode == 'cifar10' or mode == 'cifar100':
     dims = 3072 # dimensionality of the feature vector
 else:
     dims = 1024
