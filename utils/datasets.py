@@ -70,7 +70,7 @@ def get_dataloaders(dataset, root=None, shuffle=True, pin_memory=True,
                       batch_size=batch_size,
                       shuffle=shuffle,
                       pin_memory=pin_memory,
-                      **kwargs)
+                      **kwargs), dataset
 
 
 class DisentangledDataset(Dataset, abc.ABC):

@@ -11,6 +11,7 @@ import itertools
 import matplotlib.pyplot as plt
 import umap
 import numpy as np
+from tqdm import tqdm
 
 def wandb_auth(fname: str = "nas_key.txt", dir_path=None):
   gdrive_path = "/content/drive/MyDrive/colab/wandb/nas_key.txt"
@@ -96,7 +97,7 @@ def latent_viz(model, loader, dataset, steps=100, device='cpu', method="all", se
     true_labels = [[x]*len(class_samples[x]) for x in range(len(class_samples))]
     plots = {}
     dim_reduction_models = {}
-    for viz in method:
+    for viz in tqdm(method, desc="Iterating over dim. reduction methos"):
         if viz == 'tsne':
             dim_reduction_model = manifold.TSNE(n_components=2, random_state=seed)
             dim_reduction_samples = dim_reduction_model.fit_transform(list(itertools.chain.from_iterable(post_samples)))

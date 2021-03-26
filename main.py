@@ -214,7 +214,7 @@ def main(args):
             args.epochs *= 2
 
         # PREPARES DATA
-        train_loader = get_dataloaders(args.dataset,
+        train_loader, raw_dataset = get_dataloaders(args.dataset,
                                        batch_size=args.batch_size,
                                        logger=logger,
                                        n_samples=args.num_samples)
