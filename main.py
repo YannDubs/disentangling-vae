@@ -83,6 +83,8 @@ def parse_arguments(args_to_parse):
                         help='Whether to use WANDB in offline mode.')
     training.add_argument('--wandb_log', type=lambda x: False if x in ["False", "false", "", "None"] else True, default=True,
                 help='Whether to use WANDB - this has implications for the training loop since if we want to log, we compute the metrics over training')                
+    training.add_argument('--wandb_key', type=str, default=None,
+                help='Path to WANDB key')                
 
     # Model Options
     model = parser.add_argument_group('Model specfic options')
@@ -171,54 +173,7 @@ def parse_arguments(args_to_parse):
                 raise e  # only reraise if didn't use common section
 
     return args
-def get_traversal_range(mean=0, std=1, max_traversal=0.475):
-    """Return the corresponding traversal range in absolute terms."""
-    if max_traversal < 0.5:
-        max_traversal = (1 - 2 * max_traversal) / 2  # from 0.45 to 0.05
-        max_traversal = stats.norm.ppf(max_traversal, loc=mean, scale=std)  # from 0.05 to -1.645
 
-    # symmetrical traversals
-    return (-1 * max_traversal, max_traversal)
-def traverse_line(idx, n_samples, model, device, latent_dim=None, data=None):
-    """Return a (size, latent_size) latent sample, corresponding to a traversal
-    of a latent variable indicated by idx.
-    Parameters
-    ----------
-    idx : int
-        Index of continuous dimension to traverse. If the continuous latent
-        vector is 10 dimensional and idx = 7, then the 7th dimension
-        will be traversed while all others are fixed.
-    n_samples : int
-        Number of samples to generate.
-    data : torch.Tensor or None, optional
-        Data to use for computing the posterior. Shape (N, C, H, W). If
-        `None` then use the mean of the prior (all zeros) for all other dimensions.
-    """
-    if data is None:
-        # mean of prior for other dimensions
-        samples = torch.zeros(n_samples, latent_dim)
-        traversals = torch.linspace(*get_traversal_range(), steps=n_samples)
-
-    else:
-        if data.size(0) > 1:
-            raise ValueError("Every value should be sampled from the same posterior, but {} datapoints given.".format(data.size(0)))
-
-        with torch.no_grad():
-            post_mean, post_logvar = model.encoder(data.to(device))
-            samples = model.reparameterize(post_mean, post_logvar)
-            samples = samples.cpu().repeat(n_samples, 1)
-            post_mean_idx = post_mean.cpu()[0, idx]
-            post_std_idx = torch.exp(post_logvar / 2).cpu()[0, idx]
-
-        # travers from the gaussian of the posterior in case quantile
-        traversals = torch.linspace(*get_traversal_range(mean=post_mean_idx,
-                                                                std=post_std_idx),
-                                    steps=n_samples)
-
-    for i in range(n_samples):
-        samples[i, idx] = traversals[i]
-
-    return samples
 def main(args):
     """Main train and evaluation function.
 
@@ -229,7 +184,7 @@ def main(args):
     """
     if args.dry_run:
         os.environ['WANDB_MODE'] = 'dryrun'
-    wandb_auth()
+    wandb_auth(dir_path=args.wandb_key)
     wandb.init(project='atmlbetavae', entity='atml', group="miroslav")
     wandb.config.update(args)
 
@@ -286,17 +241,11 @@ def main(args):
                 epochs=args.epochs,
                 checkpoint_every=args.checkpoint_every,
                 wandb_log = args.wandb_log)
-        latents_plots, latent_data, dim_reduction_model = latent_viz(model, train_loader, args.dataset, steps=100, device=device)
+        latents_plots, latent_data, dim_reduction_models = latent_viz(model, train_loader, args.dataset, steps=100, device=device)
         
-        def latent_metrics(true_data, labels, embedded_data):
-            results = {}
-            results["cluster"] = cluster_metric(true_data, labels, 5)
-
-            return results
 
         cluster_score = cluster_metric(latent_data["post_samples"], latent_data["labels"], 5)
         print(f"Cluster metric score: {cluster_score}")
-
 
         model_dir = os.path.join(RES_DIR, args.name)
         viz = Visualizer(model=model,
@@ -306,9 +255,13 @@ def main(args):
                     loss_of_interest='kl_loss_',
                     upsample_factor=1)
 
+        traversal_plots = {}
         base_datum = next(iter(train_loader))[0][0].unsqueeze(dim=0)
-        traversal_plot = viz.latents_traversal_plot(dim_reduction_model, data=base_datum, n_per_latent=50)
-        wandb.log({"latents":latents_plots, "latent_traversal":traversal_plot, "cluster_metric":cluster_score})
+        for model_name, model in dim_reduction_models.items():
+            traversal_plots[model_name] = viz.latents_traversal_plot(model, data=base_datum, n_per_latent=50)
+
+        if args.wandb_log:
+            wandb.log({"latents":latents_plots, "latent_traversal":traversal_plots, "cluster_metric":cluster_score})
 
         # SAVE MODEL AND EXPERIMENT INFORMATION
         save_model(trainer.model, exp_dir, metadata=vars(args))

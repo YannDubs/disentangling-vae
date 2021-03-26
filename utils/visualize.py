@@ -280,7 +280,7 @@ class Visualizer():
                                     is_force_return=is_force_return)
 
     def latents_traversal_plot(self,
-                    tsne_model,
+                    emb_model,
                    data=None,
                    n_per_latent=75,
                    n_latents=None):
@@ -289,7 +289,7 @@ class Visualizer():
         latent_samples = [self._traverse_line(dim, n_per_latent, data=data).detach().numpy()
                           for dim in range(self.latent_dim)]
         
-        tsne_latents = tsne_model.fit_transform(list(itertools.chain.from_iterable(latent_samples)))
+        tsne_latents = emb_model.fit_transform(list(itertools.chain.from_iterable(latent_samples)))
         true_labels = [[i]*n_per_latent for i in range(n_latents)]
         plot = graph_latent_samples(tsne_latents, true_labels)
         return plot

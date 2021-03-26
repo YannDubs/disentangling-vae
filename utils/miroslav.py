@@ -58,6 +58,12 @@ def graph_latent_samples(samples, labels):
     plt.colorbar()
     return fig
 
+def latent_metrics(true_data, labels, embedded_data):
+    results = {}
+    results["cluster"] = cluster_metric(true_data, labels, 5)
+
+    return results
+    
 def latent_viz(model, loader, dataset, steps=100, device='cpu', method="all", seed=1):
 
     if dataset in ["mnist", "fashion", "cifar10"]:
@@ -88,6 +94,7 @@ def latent_viz(model, loader, dataset, steps=100, device='cpu', method="all", se
 
     true_labels = [[x]*len(class_samples[x]) for x in range(len(class_samples))]
     plots = {}
+    dim_reduction_models = {}
     for viz in method:
         if viz == 'tsne':
             dim_reduction_model = manifold.TSNE(n_components=2, random_state=seed)
@@ -100,6 +107,7 @@ def latent_viz(model, loader, dataset, steps=100, device='cpu', method="all", se
             dim_reduction_samples = dim_reduction_model.embedding_
 
         plot = graph_latent_samples(dim_reduction_samples, true_labels)
+        dim_reduction_models[viz] = dim_reduction_model
         plots[viz] = plot
 
     model.train()
@@ -107,7 +115,7 @@ def latent_viz(model, loader, dataset, steps=100, device='cpu', method="all", se
     all_data = {"class_samples":class_samples, "post_means":post_means, 
         "post_logvars":post_logvars, "post_samples":post_samples, 
         "labels":true_labels, "dim_reduction_samples":dim_reduction_samples}
-    return plots, all_data, dim_reduction_model
+    return plots, all_data, dim_reduction_models
 
 
 def cluster_metric(post_samples, labels, n_clusters):
