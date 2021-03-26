@@ -1,4 +1,4 @@
-# python main.py --name betaH_fashion -d fashion -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --num_samples 500
+# python main.py --name betaH_fashion -d dsprites -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --num_samples 500
 
 import argparse
 import logging
@@ -244,7 +244,10 @@ def main(args):
                 epochs=args.epochs,
                 checkpoint_every=args.checkpoint_every,
                 wandb_log = args.wandb_log)
-        latents_plots, latent_data, dim_reduction_models = latent_viz(model, train_loader, args.dataset, steps=100, device=device)
+
+        latents_plots, latent_traversal, cluster_metric = {}, {}, {}
+        if args.dataset != "dsprites":
+            latents_plots, latent_data, dim_reduction_models = latent_viz(model, train_loader, args.dataset, steps=100, device=device)
         
         # TODO probably drop this, too hard and no time
         cluster_score = cluster_metric(latent_data["post_samples"], latent_data["labels"], 5)
