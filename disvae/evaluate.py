@@ -20,6 +20,7 @@ from disvae.models.linear_model import weight_reset
 from disvae.models.linear_model import Classifier
 
 from sklearn import decomposition
+from sklearn import manifold
 import wandb
 
 TEST_LOSSES_FILE = "test_losses.log"
@@ -217,6 +218,18 @@ class Evaluator:
                 ica.fit(imgs_ica)
                 methods["ICA"] = ica
                 self.logger.info("Done")
+            elif method_name == "T-SNE":
+                self.logger.info("Training ICA...")
+                ica = manifold.TSNE(n_components=self.model.latent_dim)
+                imgs_ica = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
+                size = 1000
+                if self.use_wandb:
+                    wandb.config["ICA_training_size"] = size
+                idx = np.random.randint(len(imgs_pca), size = size)
+                imgs_ica = imgs_ica[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
+                ica.fit(imgs_ica)
+                methods["ICA"] = ica
+                self.logger.info("Done")
 
             else: 
                 raise ValueError("Unknown method : {}".format(method_name))
@@ -294,7 +307,7 @@ class Evaluator:
             model.apply(weight_reset)
 
         return test_acc
-        
+
     def _compute_z_b_diff_y(self, methods, sample_size, lat_sizes, imgs):
         """
         Compute the disentanglement metric score as proposed in the original paper
@@ -319,6 +332,22 @@ class Evaluator:
                 mu2 = torch.from_numpy(pca.transform(imgs_sampled_pca2)).float()
 
             elif method == "ICA":
+                ica = methods[method]
+                #flatten images
+                imgs_sampled_ica1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
+                imgs_sampled_ica2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
+                
+                mu1 = torch.from_numpy(ica.transform(imgs_sampled_ica1)).float()
+                mu2 = torch.from_numpy(ica.transform(imgs_sampled_ica2)).float()
+            elif method == "T-SNE":
+                ica = methods[method]
+                #flatten images
+                imgs_sampled_ica1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
+                imgs_sampled_ica2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
+                
+                mu1 = torch.from_numpy(ica.transform(imgs_sampled_ica1)).float()
+                mu2 = torch.from_numpy(ica.transform(imgs_sampled_ica2)).float()
+            elif method == "UMAP":
                 ica = methods[method]
                 #flatten images
                 imgs_sampled_ica1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
