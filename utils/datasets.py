@@ -49,7 +49,7 @@ def get_background(dataset):
 
 
 def get_dataloaders(dataset, root=None, shuffle=True, pin_memory=True,
-                    batch_size=128, logger=logging.getLogger(__name__), **kwargs):
+                    batch_size=128, n_samples=None, logger=logging.getLogger(__name__), **kwargs):
     """A generic data loader
 
     Parameters
@@ -70,6 +70,7 @@ def get_dataloaders(dataset, root=None, shuffle=True, pin_memory=True,
                       batch_size=batch_size,
                       shuffle=shuffle,
                       pin_memory=pin_memory,
+                      n_samples=n_samples,
                       **kwargs)
 
 
@@ -180,12 +181,12 @@ class DSprites(DisentangledDataset):
                   'shape': np.array([1., 2., 3.]),
                   'color': np.array([1.])}
 
-    def __init__(self, root=os.path.join(DIR, '../data/dsprites/'), **kwargs):
+    def __init__(self, root=os.path.join(DIR, '../data/dsprites/'), n_samples=None, **kwargs):
         super().__init__(root, [transforms.ToTensor()], **kwargs)
 
         dataset_zip = np.load(self.train_data)
-        self.imgs = dataset_zip['imgs']
-        self.lat_values = dataset_zip['latents_values']
+        self.imgs = dataset_zip['imgs'] if n_samples is None else dataset_zip['imgs'][0:n_samples]
+        self.lat_values = dataset_zip['latents_values'] if n_samples is None else dataset_zip["latents_values"][0:n_samples]
 
     def download(self):
         """Download the dataset."""

@@ -1,4 +1,4 @@
-# python main.py --name betaH_fashion -d fashion -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15
+# python main.py --name betaH_fashion -d dsprites -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --num_samples 500
 
 import argparse
 import logging
@@ -84,7 +84,9 @@ def parse_arguments(args_to_parse):
     training.add_argument('--wandb_log', type=lambda x: False if x in ["False", "false", "", "None"] else True, default=True,
                 help='Whether to use WANDB - this has implications for the training loop since if we want to log, we compute the metrics over training')                
     training.add_argument('--wandb_key', type=str, default=None,
-                help='Path to WANDB key')                
+                help='Path to WANDB key')    
+    training.add_argument('--num_samples', type=int, default=None,
+            help='How many samples to use. Useful for debugging')              
 
     # Model Options
     model = parser.add_argument_group('Model specfic options')
@@ -214,7 +216,8 @@ def main(args):
         # PREPARES DATA
         train_loader = get_dataloaders(args.dataset,
                                        batch_size=args.batch_size,
-                                       logger=logger)
+                                       logger=logger,
+                                       num_samples=args.num_samples)
         logger.info("Train {} with {} samples".format(args.dataset, len(train_loader.dataset)))
 
         # PREPARES MODEL
@@ -283,7 +286,7 @@ def main(args):
                               device=device,
                               logger=logger,
                               save_dir=exp_dir,
-                              is_progress_bar=not args.no_progress_bar)
+                              is_progress_bar=not args.no_progress_bar, use_wandb=True)
 
         evaluator(test_loader, is_metrics=args.is_metrics, is_losses=not args.no_test)
 
