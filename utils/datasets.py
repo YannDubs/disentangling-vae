@@ -65,12 +65,11 @@ def get_dataloaders(dataset, root=None, shuffle=True, pin_memory=True,
     """
     pin_memory = pin_memory and torch.cuda.is_available  # only pin if GPU available
     Dataset = get_dataset(dataset)
-    dataset = Dataset(logger=logger) if root is None else Dataset(root=root, logger=logger)
+    dataset = Dataset(logger=logger, n_samples=n_samples) if root is None else Dataset(root=root, logger=logger, n_samples=n_samples)
     return DataLoader(dataset,
                       batch_size=batch_size,
                       shuffle=shuffle,
                       pin_memory=pin_memory,
-                      n_samples=n_samples,
                       **kwargs)
 
 
