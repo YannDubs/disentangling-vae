@@ -213,23 +213,33 @@ class Evaluator:
                 size = 1000
                 if self.use_wandb:
                     wandb.config["ICA_training_size"] = size
-                idx = np.random.randint(len(imgs_pca), size = size)
+                idx = np.random.randint(len(imgs_ica), size = size)
                 imgs_ica = imgs_ica[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
                 ica.fit(imgs_ica)
                 methods["ICA"] = ica
                 self.logger.info("Done")
             elif method_name == "T-SNE":
-                self.logger.info("Training ICA...")
-                ica = manifold.TSNE(n_components=self.model.latent_dim)
-                imgs_ica = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
-                size = 1000
-                if self.use_wandb:
-                    wandb.config["ICA_training_size"] = size
-                idx = np.random.randint(len(imgs_pca), size = size)
-                imgs_ica = imgs_ica[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
-                ica.fit(imgs_ica)
-                methods["ICA"] = ica
+                self.logger.info("Training T-SNE...")
+                tsne = manifold.TSNE(n_components=self.model.latent_dim)
+                imgs_tsne = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
+                size = 10000
+                idx = np.random.randint(len(imgs_tsne), size = size)
+                imgs_tsne = imgs_tsne[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
+                tsne.fit(imgs_tsne)
+                methods["T-SNE"] = tsne
                 self.logger.info("Done")
+            
+            elif method_name == "UMAP":
+                self.logger.info("Training ICA...")
+                tsne = manifold.TSNE(n_components=self.model.latent_dim)
+                imgs_tsne = np.reshape(imgs, -1)
+                size = 10000
+                idx = np.random.randint(len(imgs_tsne), size = size)
+                imgs_tsne = imgs_tsne[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
+                tsne.fit(imgs_tsne)
+                methods["T-SNE"] = tsne
+                self.logger.info("Done")
+            
 
             else: 
                 raise ValueError("Unknown method : {}".format(method_name))

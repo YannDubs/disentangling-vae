@@ -1,4 +1,4 @@
-# python main.py --name betaH_fashion -d dsprites -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --num_samples 500
+# python main.py --name betaH_fashion -d fashion -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --num_samples 500
 
 import argparse
 import logging
@@ -217,7 +217,7 @@ def main(args):
         train_loader = get_dataloaders(args.dataset,
                                        batch_size=args.batch_size,
                                        logger=logger,
-                                       num_samples=args.num_samples)
+                                       n_samples=args.num_samples)
         logger.info("Train {} with {} samples".format(args.dataset, len(train_loader.dataset)))
 
         # PREPARES MODEL
