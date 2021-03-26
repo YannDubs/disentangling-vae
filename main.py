@@ -245,13 +245,10 @@ def main(args):
                 checkpoint_every=args.checkpoint_every,
                 wandb_log = args.wandb_log)
 
-        latents_plots, latent_traversal, cluster_metric = {}, {}, {}
+        latents_plots, traversal_plots, cluster_score = {}, {}, {}
         if args.dataset != "dsprites":
             latents_plots, latent_data, dim_reduction_models = latent_viz(model, train_loader, args.dataset, steps=100, device=device)
         
-        # TODO probably drop this, too hard and no time
-        cluster_score = cluster_metric(latent_data["post_samples"], latent_data["labels"], 5)
-        print(f"Cluster metric score: {cluster_score}")
 
         model_dir = os.path.join(RES_DIR, args.name)
         viz = Visualizer(model=model,
