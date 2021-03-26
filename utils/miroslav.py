@@ -87,7 +87,7 @@ def latent_viz(model, loader, dataset, steps=100, device='cpu', method="all", se
             if step > steps:
                 break
             for idx in range(len(y)):
-                proper_slot = y[idx].item()
+                proper_slot = y[idx].item() if dataset != "dsprites" else 0
                 class_samples[proper_slot].append(x[idx])
                 post_means[proper_slot].append(post_mean[idx])
                 post_logvars[proper_slot].append(post_logvar[idx])
