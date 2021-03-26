@@ -5,6 +5,8 @@ from functools import reduce
 from collections import defaultdict
 import json
 from timeit import default_timer
+import sys
+from numpy.random import RandomState
 
 from tqdm import trange, tqdm
 import numpy as np
@@ -14,10 +16,11 @@ from torch import pca_lowrank
 from disvae.models.losses import get_loss_f
 from disvae.utils.math import log_density_gaussian
 from disvae.utils.modelIO import save_metadata
-from disvae.models.linear_model import LinearModel
 from disvae.models.linear_model import weight_reset
-from disvae.models.nonlinear_model import NonLinearModel
+from disvae.models.linear_model import Classifier
 
+from sklearn import decomposition
+import wandb
 
 TEST_LOSSES_FILE = "test_losses.log"
 METRICS_FILENAME = "metrics.log"
@@ -52,7 +55,7 @@ class Evaluator:
                  device=torch.device("cpu"),
                  logger=logging.getLogger(__name__),
                  save_dir="results",
-                 is_progress_bar=True):
+                 is_progress_bar=True, use_wandb=True):
 
         self.device = device
         self.loss_f = loss_f
@@ -61,6 +64,7 @@ class Evaluator:
         self.save_dir = save_dir
         self.is_progress_bar = is_progress_bar
         self.logger.info("Testing Device: {}".format(self.device))
+        self.use_wandb=use_wandb
 
     def __call__(self, data_loader, is_metrics=False, is_losses=True):
         """Compute all test losses.
@@ -128,6 +132,10 @@ class Evaluator:
         ----------
         data_loader: torch.utils.data.DataLoader
         """
+        if self.use_wandb:
+             wandb.config["latent_size"] = self.model.latent_dim
+             wandb.config["classifier_hidden_size"] = 512
+             wandb.config["sample_size"] = 300   
         try:
             lat_sizes = dataloader.dataset.lat_sizes
             lat_names = dataloader.dataset.lat_names
@@ -139,9 +147,12 @@ class Evaluator:
 
 
         self.logger.info("Computing the disentanglement metric")
-        accuracies = self._disentanglement_metric(["VAE", "PCA"], 50, lat_sizes, lat_imgs, n_epochs=200, dataset_size=200, hidden_dim=512, use_non_linear=False)
-        non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA"], 50, lat_sizes, lat_imgs, n_epochs=200, dataset_size=200, hidden_dim=512, use_non_linear=True)
-
+        accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 300, lat_sizes, lat_imgs, n_epochs=150, dataset_size=1500, hidden_dim=512, use_non_linear=False)
+        #sample size is key for VAE, for sample size 50 only 88% accuarcy, compared to 95 for 200 sample sze
+        #non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 50, lat_sizes, lat_imgs, n_epochs=150, dataset_size=5000, hidden_dim=128, use_non_linear=True) #if hidden dim too large -> no training possible
+        if self.use_wandb:
+            wandb.log({'VAE_accuracy': accuracies["VAE"], 'PCA_accuracy': accuracies["PCA"], 'ICA_accuracy': accuracies["ICA"]})
+            wandb.save("disentanglement_metrics.h5")
 
         self.logger.info("Computing the empirical distribution q(z|x).")
         samples_zCx, params_zCx = self._compute_q_zCx(dataloader)
@@ -173,20 +184,52 @@ class Evaluator:
         return metrics
 
 
-    def _disentanglement_metric(self, methods, sample_size, lat_sizes, imgs, n_epochs=50, dataset_size = 2000, hidden_dim = 256, use_non_linear = False):
+    def _disentanglement_metric(self, method_names, sample_size, lat_sizes, imgs, n_epochs=50, dataset_size = 1000, hidden_dim = 256, use_non_linear = False):
 
-        #compute training- and test data for linear classifier
-        
+        #train models for all concerned methods and stor them in a dict
+        methods = {}
+        for method_name in method_names:
+            if method_name == "VAE":
+                methods["VAE"] = self.model
+
+            elif method_name == "PCA":    
+                self.logger.info("Training PCA...")
+                pca = decomposition.PCA(n_components=self.model.latent_dim, whiten = True)
+                imgs_pca = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
+                size = 5000
+                if self.use_wandb:
+                    wandb.config["PCA_training_size"] = size
+                idx = np.random.randint(len(imgs_pca), size = size)
+                imgs_pca = imgs_pca[idx, :]       #not enough memory for full dataset -> repeat with random subsets               
+                pca.fit(imgs_pca)
+                methods["PCA"] = pca
+                self.logger.info("Done")
+
+            elif method_name == "ICA":
+                self.logger.info("Training ICA...")
+                ica = decomposition.FastICA(n_components=self.model.latent_dim)
+                imgs_ica = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
+                size = 1000
+                if self.use_wandb:
+                    wandb.config["ICA_training_size"] = size
+                idx = np.random.randint(len(imgs_pca), size = size)
+                imgs_ica = imgs_ica[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
+                ica.fit(imgs_ica)
+                methods["ICA"] = ica
+                self.logger.info("Done")
+
+            else: 
+                raise ValueError("Unknown method : {}".format(method_name))
+        #compute training- and test data for linear classifier      
         data_train =  self._compute_z_b_diff_y(methods, sample_size, lat_sizes, imgs)
         data_test =  self._compute_z_b_diff_y(methods, sample_size, lat_sizes, imgs)
-        for method in methods: 
+        for method in methods.keys(): 
             data_train[method][0].unsqueeze_(0)
             data_test[method][0].unsqueeze_(0)
        
         #latent dim = length of z_b_diff for arbitrary method = output dimension of linear classifier
         latent_dim = next(iter(data_test.values()))[0].shape[1]
 
-        
         #generate dataset_size many training data points and 20% of that test data points
         for i in range(dataset_size):
             data = self._compute_z_b_diff_y(methods, sample_size, lat_sizes, imgs)
@@ -203,9 +246,7 @@ class Evaluator:
                     Y_test = data_test[method][1]
                     data_test[method] = torch.cat((X_test, data[method][0].unsqueeze_(0)), 0), torch.cat((Y_test, data[method][1]), 0)
 
-        model = LinearModel(latent_dim,hidden_dim,len(lat_sizes))
-        if use_non_linear:
-            model = NonLinearModel(latent_dim,hidden_dim,len(lat_sizes))
+        model = Classifier(latent_dim,hidden_dim,len(lat_sizes), use_non_linear)
             
         model.to(self.device)
         model.train()
@@ -215,7 +256,7 @@ class Evaluator:
         optim = torch.optim.Adam(model.parameters(), lr=0.01)
        
         test_acc = {}
-        for method in methods:
+        for method in methods.keys():
             print(f'Training the classifier for model {method}')
             for e in range(n_epochs):
                 optim.zero_grad()
@@ -253,7 +294,7 @@ class Evaluator:
             model.apply(weight_reset)
 
         return test_acc
-
+        
     def _compute_z_b_diff_y(self, methods, sample_size, lat_sizes, imgs):
         """
         Compute the disentanglement metric score as proposed in the original paper
@@ -263,24 +304,35 @@ class Evaluator:
 
         res = {}
         #calculate the expectation values of the normal distributions in the latent representation for the given images
-        for method in methods:
+        for method in methods.keys():
             if method == "VAE":
                 with torch.no_grad():
                     mu1, _ = self.model.encoder(imgs_sampled1.to(self.device))
                     mu2, _ = self.model.encoder(imgs_sampled2.to(self.device))  
-                    z_diff = torch.abs(torch.sub(mu1, mu2))
-                    z_diff_b = torch.mean(z_diff, 0)  
-                    res[method] = z_diff_b, torch.from_numpy(y)
             elif method == "PCA":
-                imgs_sampled1_squeezed = imgs_sampled1.squeeze(1)
-                imgs_sampled2_squeezed = imgs_sampled2.squeeze(1)
-                _, mu1, _ = torch.pca_lowrank(imgs_sampled1_squeezed,10)     #TODO change 10 to hidden dim of model
-                _, mu2, _ = torch.pca_lowrank(imgs_sampled2_squeezed,10)
-                z_diff = torch.abs(torch.sub(mu1, mu2))
-                z_diff_b = torch.mean(z_diff, 0)
-                res[method] = z_diff_b, torch.from_numpy(y)
+                pca = methods[method]
+                #flatten images
+                imgs_sampled_pca1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
+                imgs_sampled_pca2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
+                
+                mu1 = torch.from_numpy(pca.transform(imgs_sampled_pca1)).float()
+                mu2 = torch.from_numpy(pca.transform(imgs_sampled_pca2)).float()
+
+            elif method == "ICA":
+                ica = methods[method]
+                #flatten images
+                imgs_sampled_ica1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
+                imgs_sampled_ica2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
+                
+                mu1 = torch.from_numpy(ica.transform(imgs_sampled_ica1)).float()
+                mu2 = torch.from_numpy(ica.transform(imgs_sampled_ica2)).float()
+                
             else: 
-                raise ValueError("Unknown method : {}".format(method))        
+                raise ValueError("Unknown method : {}".format(method)) 
+
+            z_diff = torch.abs(torch.sub(mu1, mu2))
+            z_diff_b = torch.mean(z_diff, 0)
+            res[method] = z_diff_b, torch.from_numpy(y)
 
         return res
 
@@ -309,7 +361,6 @@ class Evaluator:
         imgs_sampled2 = torch.from_numpy(imgs[latent_indices2]).unsqueeze_(1).float()
 
         return imgs_sampled1, imgs_sampled2, y
-
 
     def _mutual_information_gap(self, sorted_mut_info, lat_sizes, storer=None):
         """Compute the mutual information gap as in [1].
