@@ -16,7 +16,7 @@ from disvae.utils.math import log_density_gaussian
 from disvae.utils.modelIO import save_metadata
 from disvae.models.linear_model import LinearModel
 from disvae.models.linear_model import weight_reset
-
+from disvae.models.nonlinear_model import NonLinearModel
 
 
 TEST_LOSSES_FILE = "test_losses.log"
@@ -139,7 +139,8 @@ class Evaluator:
 
 
         self.logger.info("Computing the disentanglement metric")
-        accuracies = self._disentanglement_metric(["VAE", "PCA"], 50, lat_sizes, lat_imgs, n_epochs=200, dataset_size=200, hidden_dim=512)
+        accuracies = self._disentanglement_metric(["VAE", "PCA"], 50, lat_sizes, lat_imgs, n_epochs=200, dataset_size=200, hidden_dim=512, use_non_linear=False)
+        non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA"], 50, lat_sizes, lat_imgs, n_epochs=200, dataset_size=200, hidden_dim=512, use_non_linear=True)
 
 
         self.logger.info("Computing the empirical distribution q(z|x).")
@@ -166,13 +167,13 @@ class Evaluator:
         mig = self._mutual_information_gap(sorted_mut_info, lat_sizes, storer=metric_helpers)
         aam = self._axis_aligned_metric(sorted_mut_info, storer=metric_helpers)
 
-        metrics = {'DM': accuracies, 'MIG': mig.item(), 'AAM': aam.item()}
+        metrics = {'DM': accuracies, 'NLDM': non_linear_accuracies, 'MIG': mig.item(), 'AAM': aam.item()}
         torch.save(metric_helpers, os.path.join(self.save_dir, METRIC_HELPERS_FILE))
 
         return metrics
 
 
-    def _disentanglement_metric(self, methods, sample_size, lat_sizes, imgs, n_epochs=50, dataset_size = 2000, hidden_dim = 256):
+    def _disentanglement_metric(self, methods, sample_size, lat_sizes, imgs, n_epochs=50, dataset_size = 2000, hidden_dim = 256, use_non_linear = False):
 
         #compute training- and test data for linear classifier
         
@@ -203,6 +204,9 @@ class Evaluator:
                     data_test[method] = torch.cat((X_test, data[method][0].unsqueeze_(0)), 0), torch.cat((Y_test, data[method][1]), 0)
 
         model = LinearModel(latent_dim,hidden_dim,len(lat_sizes))
+        if use_non_linear:
+            model = NonLinearModel(latent_dim,hidden_dim,len(lat_sizes))
+            
         model.to(self.device)
         model.train()
 
@@ -212,7 +216,7 @@ class Evaluator:
        
         test_acc = {}
         for method in methods:
-            print(f'Training the linear classifier for model {method}')
+            print(f'Training the classifier for model {method}')
             for e in range(n_epochs):
                 optim.zero_grad()
                 
