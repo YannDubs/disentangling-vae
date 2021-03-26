@@ -3,6 +3,7 @@ import os
 import itertools
 from sklearn.cluster import KMeans
 from sklearn import manifold
+from sklearn import decomposition
 import sklearn.metrics
 from tqdm import tqdm
 import torch
@@ -66,10 +67,10 @@ def latent_metrics(true_data, labels, embedded_data):
     
 def latent_viz(model, loader, dataset, steps=100, device='cpu', method="all", seed=1):
 
-    if dataset in ["mnist", "fashion", "cifar10"]:
+    if dataset in ["mnist", "fashion", "cifar10", "dsprites"]:
         n_classes = 10
     if method == "all":
-        method = ["tsne", "densumap"]
+        method = ["tsne", "densumap", "pca"]
     if type(method) is str:
         method = [method] # For consistent iteration later
 
@@ -106,6 +107,9 @@ def latent_viz(model, loader, dataset, steps=100, device='cpu', method="all", se
             dim_reduction_model = umap.UMAP(random_state=seed, densmap=True).fit(flat_samples)
             dim_reduction_samples = dim_reduction_model.embedding_
 
+        elif viz == "pca":
+            dim_reduction_model = decomposition.PCA(n_components=2, random_state=seed)
+            dim_reduction_samples = dim_reduction_model.fit_transform(list(itertools.chain.from_iterable(post_samples)))
         plot = graph_latent_samples(dim_reduction_samples, true_labels)
         dim_reduction_models[viz] = dim_reduction_model
         plots[viz] = plot

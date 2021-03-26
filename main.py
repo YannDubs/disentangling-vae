@@ -246,8 +246,7 @@ def main(args):
                 wandb_log = args.wandb_log)
 
         latents_plots, traversal_plots, cluster_score = {}, {}, {}
-        if args.dataset != "dsprites":
-            latents_plots, latent_data, dim_reduction_models = latent_viz(model, train_loader, args.dataset, steps=100, device=device)
+        latents_plots, latent_data, dim_reduction_models = latent_viz(model, train_loader, args.dataset, steps=100, device=device)
         
 
         model_dir = os.path.join(RES_DIR, args.name)
