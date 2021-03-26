@@ -3,13 +3,14 @@ import logging
 import os
 from timeit import default_timer
 from collections import defaultdict
+import wandb
 
 from tqdm import trange
 import torch
 from torch.nn import functional as F
 
 from disvae.utils.modelIO import save_model
-
+from disvae.evaluate import Evaluator
 
 TRAIN_LOSSES_LOGFILE = "train_losses.log"
 
@@ -63,7 +64,8 @@ class Trainer():
 
     def __call__(self, data_loader,
                  epochs=10,
-                 checkpoint_every=10):
+                 checkpoint_every=10,
+                 wandb_log = False):
         """
         Trains the model.
 
@@ -80,6 +82,10 @@ class Trainer():
         start = default_timer()
         storers = []
         self.model.train()
+
+        if wandb_log:
+            train_evaluator = Evaluator(model=self.model, loss_f=self.loss_f, device=self.device)
+        
         for epoch in range(epochs):
             storer = defaultdict(list)
             mean_epoch_loss = self._train_epoch(data_loader, storer, epoch)
@@ -93,6 +99,20 @@ class Trainer():
             if epoch % checkpoint_every == 0:
                 save_model(self.model, self.save_dir,
                            filename="model-{}.pt".format(epoch))
+            
+            self.model.eval()
+
+            if wandb_log:
+                metrics, losses = {}, {}
+                try:
+                    metrics = train_evaluator.compute_metrics(data_loader)
+                except:
+                    print(f"Computing metrics failed! Most likely cause is that this dataset does not have known sources of variation")
+                losses = train_evaluator.compute_losses(data_loader)
+                wandb.log({"epoch":epoch,"metric":metrics, "loss":losses})
+
+            self.model.train()           
+
             
 
         if self.gif_visualizer is not None:

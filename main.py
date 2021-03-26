@@ -1,4 +1,4 @@
-# python main.py --name betaH_fashion -d fashion -l betaH --lr 0.001 -b 32 -e 1 --betaH-B 15
+# python main.py --name betaH_fashion -d fashion -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15
 
 import argparse
 import logging
@@ -6,6 +6,7 @@ import sys
 import os
 from configparser import ConfigParser
 import wandb
+import torch
 
 from torch import optim
 
@@ -18,6 +19,7 @@ from utils.helpers import (create_safe_directory, get_device, set_seed, get_n_pa
                            get_config_section, update_namespace_, FormatterNoDuplicate)
 from utils.visualize import GifTraversalsTraining
 from utils.miroslav import wandb_auth, latent_viz, cluster_metric
+from utils.visualize import Visualizer
 
 CONFIG_FILE = "hyperparam.ini"
 RES_DIR = "results"
@@ -56,6 +58,8 @@ def parse_arguments(args_to_parse):
                          help='Disables CUDA training, even when have one.')
     general.add_argument('-s', '--seed', type=int, default=default_config['seed'],
                          help='Random seed. Can be `None` for stochastic behavior.')
+    general.add_argument('-max_traversal', '--max_traversal', type=float, default=0.475,
+                         help='Random seed. Can be `None` for stochastic behavior.')
 
     # Learning options
     training = parser.add_argument_group('Training specific options')
@@ -77,6 +81,8 @@ def parse_arguments(args_to_parse):
                           help='Learning rate.')
     training.add_argument('--dry_run', type=lambda x: False if x in ["False", "false", "", "None"] else True, default=False,
                         help='Whether to use WANDB in offline mode.')
+    training.add_argument('--wandb_log', type=lambda x: False if x in ["False", "false", "", "None"] else True, default=True,
+                help='Whether to use WANDB - this has implications for the training loop since if we want to log, we compute the metrics over training')                
 
     # Model Options
     model = parser.add_argument_group('Model specfic options')
@@ -165,8 +171,54 @@ def parse_arguments(args_to_parse):
                 raise e  # only reraise if didn't use common section
 
     return args
+def get_traversal_range(mean=0, std=1, max_traversal=0.475):
+    """Return the corresponding traversal range in absolute terms."""
+    if max_traversal < 0.5:
+        max_traversal = (1 - 2 * max_traversal) / 2  # from 0.45 to 0.05
+        max_traversal = stats.norm.ppf(max_traversal, loc=mean, scale=std)  # from 0.05 to -1.645
 
+    # symmetrical traversals
+    return (-1 * max_traversal, max_traversal)
+def traverse_line(idx, n_samples, model, device, latent_dim=None, data=None):
+    """Return a (size, latent_size) latent sample, corresponding to a traversal
+    of a latent variable indicated by idx.
+    Parameters
+    ----------
+    idx : int
+        Index of continuous dimension to traverse. If the continuous latent
+        vector is 10 dimensional and idx = 7, then the 7th dimension
+        will be traversed while all others are fixed.
+    n_samples : int
+        Number of samples to generate.
+    data : torch.Tensor or None, optional
+        Data to use for computing the posterior. Shape (N, C, H, W). If
+        `None` then use the mean of the prior (all zeros) for all other dimensions.
+    """
+    if data is None:
+        # mean of prior for other dimensions
+        samples = torch.zeros(n_samples, latent_dim)
+        traversals = torch.linspace(*get_traversal_range(), steps=n_samples)
 
+    else:
+        if data.size(0) > 1:
+            raise ValueError("Every value should be sampled from the same posterior, but {} datapoints given.".format(data.size(0)))
+
+        with torch.no_grad():
+            post_mean, post_logvar = model.encoder(data.to(device))
+            samples = model.reparameterize(post_mean, post_logvar)
+            samples = samples.cpu().repeat(n_samples, 1)
+            post_mean_idx = post_mean.cpu()[0, idx]
+            post_std_idx = torch.exp(post_logvar / 2).cpu()[0, idx]
+
+        # travers from the gaussian of the posterior in case quantile
+        traversals = torch.linspace(*get_traversal_range(mean=post_mean_idx,
+                                                                std=post_std_idx),
+                                    steps=n_samples)
+
+    for i in range(n_samples):
+        samples[i, idx] = traversals[i]
+
+    return samples
 def main(args):
     """Main train and evaluation function.
 
@@ -232,12 +284,31 @@ def main(args):
                           gif_visualizer=gif_visualizer)
         trainer(train_loader,
                 epochs=args.epochs,
-                checkpoint_every=args.checkpoint_every,)
-        plot, latent_data= latent_viz(model, train_loader, args.dataset, steps=100, device=device)
+                checkpoint_every=args.checkpoint_every,
+                wandb_log = args.wandb_log)
+        latents_plot, latent_data, dim_reduction_model = latent_viz(model, train_loader, args.dataset, steps=100, device=device)
+        
+        def latent_metrics(true_data, labels, embedded_data):
+            results = {}
+            results["cluster"] = cluster_metric(true_data, labels, 5)
+
+            return results
+
         cluster_score = cluster_metric(latent_data["post_samples"], latent_data["labels"], 5)
         print(f"Cluster metric score: {cluster_score}")
-        
-        wandb.log({"latents":plot, "cluster_metric":cluster_score})
+
+        base_datum = next(iter(train_loader))[0][0].unsqueeze(dim=0)
+
+        model_dir = os.path.join(RES_DIR, args.name)
+        viz = Visualizer(model=model,
+                    model_dir=model_dir,
+                    dataset=args.dataset,
+                    max_traversal=args.max_traversal,
+                    loss_of_interest='kl_loss_',
+                    upsample_factor=1)
+
+        traversal_plot = viz.latents_traversal_plot(dim_reduction_model, data=base_datum, n_per_latent=50)
+        wandb.log({"latents":latents_plot, "latent_traversal":traversal_plot, "cluster_metric":cluster_score})
 
         # SAVE MODEL AND EXPERIMENT INFORMATION
         save_model(trainer.model, exp_dir, metadata=vars(args))

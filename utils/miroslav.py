@@ -9,7 +9,7 @@ import torch
 import itertools
 import matplotlib.pyplot as plt
 
-def wandb_auth(fname: str = "nas_key.txt"):
+def wandb_auth(fname: str = "nas_key.txt", dir_path=None):
   gdrive_path = "/content/drive/MyDrive/colab/wandb/nas_key.txt"
   if "WANDB_API_KEY" in os.environ:
       wandb_key = os.environ["WANDB_API_KEY"]
@@ -40,7 +40,21 @@ def wandb_auth(fname: str = "nas_key.txt"):
       f = open(gdrive_path, "r")
       key = f.read().strip()
       os.environ["WANDB_API_KEY"] = key
+  elif os.path.exists(os.path.join(dir_path, fname)):
+      print(f"Retrieving WANDB key from file at {os.path.join(dir_path, fname)}")
+      f = open(os.path.join(dir_path, fname), "r")
+      key = f.read().strip()
+      os.environ["WANDB_API_KEY"] = key
   wandb.login()
+
+def graph_latent_samples(samples, labels):
+    fig = plt.figure()
+    # fig, ax = plt.subplots()
+    plt.scatter(samples[:,0], samples[:,1],
+        c=list(itertools.chain.from_iterable(labels)),
+        cmap=plt.cm.get_cmap('jet', 10))
+    plt.colorbar()
+    return fig
 
 def latent_viz(model, loader, dataset, steps=100, device='cpu'):
 
@@ -51,7 +65,6 @@ def latent_viz(model, loader, dataset, steps=100, device='cpu'):
     post_means = [[] for _ in range(n_classes)]
     post_logvars = [[] for _ in range(n_classes)]
     post_samples = [[] for _ in range(n_classes)]
-
 
     with torch.no_grad():
         model.eval()
@@ -68,17 +81,16 @@ def latent_viz(model, loader, dataset, steps=100, device='cpu'):
                 post_samples[proper_slot].append(samples[idx].cpu().numpy())
 
     true_labels = [[x]*len(class_samples[x]) for x in range(len(class_samples))]
-    tsne = manifold.TSNE(n_components=2, random_state=1)
-    samples_tsne = tsne.fit_transform(list(itertools.chain.from_iterable(post_samples)))
-    plt.scatter(samples_tsne[:,0],samples_tsne[:,1],
-        c=list(itertools.chain.from_iterable(true_labels)),
-        cmap=plt.cm.get_cmap('jet', 10))
-    plt.colorbar()
+    dim_reduction_model = manifold.TSNE(n_components=2, random_state=1)
+    dim_reduction_samples = dim_reduction_model.fit_transform(list(itertools.chain.from_iterable(post_samples)))
+    plot = graph_latent_samples(dim_reduction_samples, true_labels)
+
     model.train()
 
     all_data = {"class_samples":class_samples, "post_means":post_means, 
-        "post_logvars":post_logvars, "post_samples":post_samples, "labels":true_labels}
-    return plt, all_data
+        "post_logvars":post_logvars, "post_samples":post_samples, 
+        "labels":true_labels, "dim_reduction_samples":dim_reduction_samples}
+    return plot, all_data, dim_reduction_model
 
 
 def cluster_metric(post_samples, labels, n_clusters):
