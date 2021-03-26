@@ -9,4 +9,5 @@ seaborn
 Pillow
 tqdm
 sklearn
+umap-learn
 

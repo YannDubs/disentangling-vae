@@ -286,7 +286,7 @@ def main(args):
                 epochs=args.epochs,
                 checkpoint_every=args.checkpoint_every,
                 wandb_log = args.wandb_log)
-        latents_plot, latent_data, dim_reduction_model = latent_viz(model, train_loader, args.dataset, steps=100, device=device)
+        latents_plots, latent_data, dim_reduction_model = latent_viz(model, train_loader, args.dataset, steps=100, device=device)
         
         def latent_metrics(true_data, labels, embedded_data):
             results = {}
@@ -297,7 +297,6 @@ def main(args):
         cluster_score = cluster_metric(latent_data["post_samples"], latent_data["labels"], 5)
         print(f"Cluster metric score: {cluster_score}")
 
-        base_datum = next(iter(train_loader))[0][0].unsqueeze(dim=0)
 
         model_dir = os.path.join(RES_DIR, args.name)
         viz = Visualizer(model=model,
@@ -307,8 +306,9 @@ def main(args):
                     loss_of_interest='kl_loss_',
                     upsample_factor=1)
 
+        base_datum = next(iter(train_loader))[0][0].unsqueeze(dim=0)
         traversal_plot = viz.latents_traversal_plot(dim_reduction_model, data=base_datum, n_per_latent=50)
-        wandb.log({"latents":latents_plot, "latent_traversal":traversal_plot, "cluster_metric":cluster_score})
+        wandb.log({"latents":latents_plots, "latent_traversal":traversal_plot, "cluster_metric":cluster_score})
 
         # SAVE MODEL AND EXPERIMENT INFORMATION
         save_model(trainer.model, exp_dir, metadata=vars(args))

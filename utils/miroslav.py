@@ -8,6 +8,8 @@ from tqdm import tqdm
 import torch
 import itertools
 import matplotlib.pyplot as plt
+import umap
+import numpy as np
 
 def wandb_auth(fname: str = "nas_key.txt", dir_path=None):
   gdrive_path = "/content/drive/MyDrive/colab/wandb/nas_key.txt"
@@ -56,10 +58,14 @@ def graph_latent_samples(samples, labels):
     plt.colorbar()
     return fig
 
-def latent_viz(model, loader, dataset, steps=100, device='cpu'):
+def latent_viz(model, loader, dataset, steps=100, device='cpu', method="all", seed=1):
 
     if dataset in ["mnist", "fashion", "cifar10"]:
         n_classes = 10
+    if method == "all":
+        method = ["tsne", "densumap"]
+    if type(method) is str:
+        method = [method] # For consistent iteration later
 
     class_samples = [[] for _ in range(n_classes)]
     post_means = [[] for _ in range(n_classes)]
@@ -81,16 +87,27 @@ def latent_viz(model, loader, dataset, steps=100, device='cpu'):
                 post_samples[proper_slot].append(samples[idx].cpu().numpy())
 
     true_labels = [[x]*len(class_samples[x]) for x in range(len(class_samples))]
-    dim_reduction_model = manifold.TSNE(n_components=2, random_state=1)
-    dim_reduction_samples = dim_reduction_model.fit_transform(list(itertools.chain.from_iterable(post_samples)))
-    plot = graph_latent_samples(dim_reduction_samples, true_labels)
+    plots = {}
+    for viz in method:
+        if viz == 'tsne':
+            dim_reduction_model = manifold.TSNE(n_components=2, random_state=seed)
+            dim_reduction_samples = dim_reduction_model.fit_transform(list(itertools.chain.from_iterable(post_samples)))
+        elif viz == "densumap":
+            flat_samples = [np.array(single_class)
+                for single_class in post_samples] # UMAP doesnt support CHW data shape but it must be flat
+            flat_samples = np.concatenate(flat_samples)
+            dim_reduction_model = umap.UMAP(random_state=seed, densmap=True).fit(flat_samples)
+            dim_reduction_samples = dim_reduction_model.embedding_
+
+        plot = graph_latent_samples(dim_reduction_samples, true_labels)
+        plots[viz] = plot
 
     model.train()
 
     all_data = {"class_samples":class_samples, "post_means":post_means, 
         "post_logvars":post_logvars, "post_samples":post_samples, 
         "labels":true_labels, "dim_reduction_samples":dim_reduction_samples}
-    return plot, all_data, dim_reduction_model
+    return plots, all_data, dim_reduction_model
 
 
 def cluster_metric(post_samples, labels, n_clusters):
