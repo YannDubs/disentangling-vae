@@ -9,10 +9,12 @@ import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
 from torchvision.utils import make_grid, save_image
+import itertools
 
 from utils.datasets import get_background
 from utils.viz_helpers import (read_loss_from_file, add_labels, make_grid_img,
                                sort_list_by_other, FPS_GIF, concatenate_pad)
+from utils.miroslav import graph_latent_samples
 
 TRAIN_FILE = "train_losses.log"
 DECIMAL_POINTS = 3
@@ -276,6 +278,21 @@ class Visualizer():
 
         return self._save_or_return(decoded_traversal.data, size, filename,
                                     is_force_return=is_force_return)
+
+    def latents_traversal_plot(self,
+                    emb_model,
+                   data=None,
+                   n_per_latent=75,
+                   n_latents=None):
+
+        n_latents = n_latents if n_latents is not None else self.model.latent_dim
+        latent_samples = [self._traverse_line(dim, n_per_latent, data=data).detach().numpy()
+                          for dim in range(self.latent_dim)]
+        
+        tsne_latents = emb_model.fit_transform(list(itertools.chain.from_iterable(latent_samples)))
+        true_labels = [[i]*n_per_latent for i in range(n_latents)]
+        plot = graph_latent_samples(tsne_latents, true_labels)
+        return plot
 
     def reconstruct_traverse(self, data,
                              is_posterior=True,

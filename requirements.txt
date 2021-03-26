@@ -8,3 +8,7 @@ pandas
 seaborn
 Pillow
 tqdm
+sklearn
+umap-learn
+umap
+
