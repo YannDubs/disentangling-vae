@@ -246,7 +246,7 @@ class Evaluator:
                 start = time.time() 
                 self.logger.info("Training UMAP...")
                 umap = umap.UMAP(random_state=self.seed, densmap=False, n_components=self.model.latent_dim)
-                imgs_umap = np.reshape(imgs, -1)
+                imgs_umap = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
                 size = 25000
                 idx = np.random.randint(len(imgs_umap), size = size)
                 imgs_umap = imgs_umap[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
@@ -258,7 +258,7 @@ class Evaluator:
                 start = time.time() 
                 self.logger.info("Training UMAP...")
                 umap = umap.UMAP(random_state=self.seed, densmap=True, n_components=self.model.latent_dim)
-                imgs_umap = np.reshape(imgs, -1)
+                imgs_umap = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
                 size = 25000
                 idx = np.random.randint(len(imgs_umap), size = size)
                 imgs_umap = imgs_umap[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
@@ -266,8 +266,6 @@ class Evaluator:
                 methods["DensUMAP"] = umap
                 self.logger.info("Done")
                 runtimes[method_name] = time.time()-start
-
-            
 
             else: 
                 raise ValueError("Unknown method : {}".format(method_name))
