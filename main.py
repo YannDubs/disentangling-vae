@@ -244,7 +244,8 @@ def main(args):
                           gif_visualizer=gif_visualizer,
                           metrics_freq=10 if args.dataset in ['dsprites'] else 50,
                           seed=args.seed,
-                          steps = args.train_steps)
+                          steps = args.train_steps,
+                          dset_name=args.dataset)
 
         trainer(train_loader,
                 epochs=args.epochs,

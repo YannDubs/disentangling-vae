@@ -52,7 +52,8 @@ class Trainer():
                  is_progress_bar=True,
                  metrics_freq=10,
                  seed=1,
-                 steps=None):
+                 steps=None,
+                 dset_name=None):
 
         self.device = device
         self.model = model.to(self.device)
@@ -67,6 +68,7 @@ class Trainer():
         self.metrics_freq = metrics_freq
         self.seed = seed
         self.steps=steps
+        self.dset_name=dset_name
 
     def __call__(self, data_loader,
                  epochs=10,
@@ -110,12 +112,12 @@ class Trainer():
 
             if wandb_log:
                 metrics, losses = {}, {}
-                if epoch % self.metrics_freq == 0:
-                    try:
-                        metrics = train_evaluator.compute_metrics(data_loader)
-                    except Exception as e:
-                        print(e)
-                        print(f"Computing metrics failed! Most likely cause is that this dataset does not have known sources of variation")
+                if epoch % self.metrics_freq == 0 and self.dset_name in ['dsprites']:
+                    # try:
+                    metrics = train_evaluator.compute_metrics(data_loader)
+                    # except Exception as e:
+                    #     print(e)
+                    #     print(f"Computing metrics failed! Most likely cause is that this dataset does not have known sources of variation")
                 losses = train_evaluator.compute_losses(data_loader)
                 wandb.log({"epoch":epoch,"metric":metrics, "loss":losses})
 
