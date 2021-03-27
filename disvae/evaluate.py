@@ -234,7 +234,7 @@ class Evaluator:
             elif method_name == "T-SNE":
                 start = time.time() 
                 self.logger.info("Training T-SNE...")
-                tsne = openTSNE.TSNE(n_components=self.model.latent_dim)
+                tsne = manifold.TSNE(n_components=self.model.latent_dim, method='exact')
                 # imgs_tsne = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
                 # size = min(5000, len(imgs_tsne))
                 # idx = np.random.randint(len(imgs_tsne), size = size)
@@ -383,17 +383,14 @@ class Evaluator:
                 mu1 = torch.from_numpy(ica.transform(imgs_sampled_ica1)).float()
                 mu2 = torch.from_numpy(ica.transform(imgs_sampled_ica2)).float()
             elif method == "T-SNE":
-                tsne1 = openTSNE.TSNE(n_components=self.model.latent_dim)
-                tsne2 = openTSNE.TSNE(n_components=self.model.latent_dim)
-
+                tsne = methods[method]
+                
                 #flatten images
                 imgs_sampled_tsne1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
                 imgs_sampled_tsne2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
                 
-                tsne1 = tsne1.fit(imgs_sampled_tsne1)
-                tsne2 = tsne2.fit(imgs_sampled_tsne2)
-                mu1 = torch.from_numpy(tsne1.transform(imgs_sampled_tsne1)).float()
-                mu2 = torch.from_numpy(tsne2.transform(imgs_sampled_tsne2)).float()
+                mu1 = torch.from_numpy(tsne.fit_transform(imgs_sampled_tsne1)).float()
+                mu2 = torch.from_numpy(tsne.fit_transform(imgs_sampled_tsne2)).float()
             elif method == "UMAP":
                 umap = methods[method]
                 #flatten images
