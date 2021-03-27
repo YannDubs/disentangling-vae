@@ -232,17 +232,18 @@ class Evaluator:
                 runtimes[method_name] = time.time()-start
 
             elif method_name == "T-SNE":
-                start = time.time() 
-                self.logger.info("Training T-SNE...")
-                tsne = manifold.TSNE(n_components=self.model.latent_dim, method='exact')
-                # imgs_tsne = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
-                # size = min(5000, len(imgs_tsne))
-                # idx = np.random.randint(len(imgs_tsne), size = size)
-                # imgs_tsne = imgs_tsne[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
-                # tsne = tsne.fit(imgs_tsne)
-                methods["T-SNE"] = tsne
-                self.logger.info("Done")
-                runtimes[method_name] = time.time()-start
+                continue
+                # start = time.time() 
+                # self.logger.info("Training T-SNE...")
+                # tsne = manifold.TSNE(n_components=self.model.latent_dim, method='exact')
+                # # imgs_tsne = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
+                # # size = min(5000, len(imgs_tsne))
+                # # idx = np.random.randint(len(imgs_tsne), size = size)
+                # # imgs_tsne = imgs_tsne[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
+                # # tsne = tsne.fit(imgs_tsne)
+                # methods["T-SNE"] = tsne
+                # self.logger.info("Done")
+                # runtimes[method_name] = time.time()-start
 
             elif method_name == "UMAP":
                 start = time.time() 
@@ -259,17 +260,18 @@ class Evaluator:
                 runtimes[method_name] = time.time()-start
 
             elif method_name == "DensUMAP":
-                start = time.time() 
-                self.logger.info("Training UMAP...")
-                umap_model = umap.UMAP(random_state=self.seed, densmap=True, n_components=self.model.latent_dim)
-                # imgs_umap = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
-                # size = min(25000, len(imgs_umap))
-                # idx = np.random.randint(len(imgs_umap), size = size)
-                # imgs_umap = imgs_umap[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
-                # umap_model.fit(imgs_umap)
-                methods["DensUMAP"] = umap_model
-                self.logger.info("Done")
-                runtimes[method_name] = time.time()-start
+                continue
+                # start = time.time() 
+                # self.logger.info("Training UMAP...")
+                # umap_model = umap.UMAP(random_state=self.seed, densmap=True, n_components=self.model.latent_dim)
+                # # imgs_umap = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
+                # # size = min(25000, len(imgs_umap))
+                # # idx = np.random.randint(len(imgs_umap), size = size)
+                # # imgs_umap = imgs_umap[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
+                # # umap_model.fit(imgs_umap)
+                # methods["DensUMAP"] = umap_model
+                # self.logger.info("Done")
+                # runtimes[method_name] = time.time()-start
 
             else: 
                 raise ValueError("Unknown method : {}".format(method_name))

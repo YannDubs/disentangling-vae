@@ -111,7 +111,7 @@ def latent_viz(model, loader, dataset_name, raw_dataset, steps=750, device='cuda
                 post_logvars[proper_slot].append(post_logvar[idx])
                 post_samples[proper_slot].append(samples[idx].cpu().numpy())
 
-        if dataset_name in ["mnist", "fashion", "cifar10"]:
+        if dataset_name in ["mnist", "fashion", "cifar10"] or (dataset_name == 'dsprites' and len(raw_dataset) < 150000):
             post_samples_viz = post_samples
         elif dataset_name in ["dsprites"]:
             special_idxs = star_shape('dsprites')
