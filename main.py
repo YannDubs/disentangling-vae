@@ -88,7 +88,9 @@ def parse_arguments(args_to_parse):
     training.add_argument('--num_samples', type=int, default=None,
             help='How many samples to use. Useful for debugging')      
     training.add_argument('--train_steps', type=int, default=None,
-            help='Number of training steps to use per epoch')               
+            help='Number of training steps to use per epoch')
+    training.add_argument('--higgins_drop_slow', type=int, default=None,
+        help='Whether to drop UMAP/TSNE etc. for computing Higgins metric (if we do not drop them, generating the data takes ~25 hours)')      
 
     # Model Options
     model = parser.add_argument_group('Model specfic options')
@@ -245,7 +247,8 @@ def main(args):
                           metrics_freq=10 if args.dataset in ['dsprites'] else 50,
                           seed=args.seed,
                           steps = args.train_steps,
-                          dset_name=args.dataset)
+                          dset_name=args.dataset,
+                          higgins_drop_slow=args.higgins_drop_slow)
 
         trainer(train_loader,
                 epochs=args.epochs,
@@ -294,7 +297,8 @@ def main(args):
                               save_dir=exp_dir,
                               is_progress_bar=not args.no_progress_bar, 
                               use_wandb=True,
-                              seed=args.seed)
+                              seed=args.seed,
+                              higgins_drop_slow=args.higgins_drop_slow)
 
         evaluator(test_loader, is_metrics=args.is_metrics, is_losses=not args.no_test)
 

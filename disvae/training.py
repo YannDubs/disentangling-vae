@@ -53,7 +53,8 @@ class Trainer():
                  metrics_freq=10,
                  seed=1,
                  steps=None,
-                 dset_name=None):
+                 dset_name=None,
+                 higgins_drop_slow=None):
 
         self.device = device
         self.model = model.to(self.device)
@@ -69,6 +70,7 @@ class Trainer():
         self.seed = seed
         self.steps=steps
         self.dset_name=dset_name
+        self.higgins_drop_slow = higgins_drop_slow
 
     def __call__(self, data_loader,
                  epochs=10,
@@ -92,7 +94,7 @@ class Trainer():
         self.model.train()
 
         if wandb_log:
-            train_evaluator = Evaluator(model=self.model, loss_f=self.loss_f, device=self.device, seed=self.seed)
+            train_evaluator = Evaluator(model=self.model, loss_f=self.loss_f, device=self.device, seed=self.seed, higgins_drop_slow=self.higgins_drop_slow)
         
         for epoch in range(epochs):
             storer = defaultdict(list)
