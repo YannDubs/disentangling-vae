@@ -397,8 +397,10 @@ class Evaluator:
             elif method == "UMAP":
                 umap = methods[method]
                 #flatten images
-                imgs_sampled_umap1 = torch.reshape(imgs_sampled1[0:30], (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
-                imgs_sampled_umap2 = torch.reshape(imgs_sampled2[0:30], (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
+                imgs_sampled1 = imgs_sampled1[0:30]
+                imgs_sampled2 = imgs_sampled2[0:30]
+                imgs_sampled_umap1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
+                imgs_sampled_umap2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
                 
                 mu1 = torch.from_numpy(umap.transform(imgs_sampled_umap1)).float()
                 mu2 = torch.from_numpy(umap.transform(imgs_sampled_umap2)).float()
