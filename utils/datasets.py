@@ -10,6 +10,7 @@ from skimage.io import imread
 from PIL import Image
 from tqdm import tqdm
 import numpy as np
+import random
 
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -184,8 +185,8 @@ class DSprites(DisentangledDataset):
         super().__init__(root, [transforms.ToTensor()], **kwargs)
 
         dataset_zip = np.load(self.train_data)
-        self.imgs = dataset_zip['imgs'] if n_samples is None else dataset_zip['imgs'][0:n_samples]
-        self.lat_values = dataset_zip['latents_values'] if n_samples is None else dataset_zip["latents_values"][0:n_samples]
+        self.imgs = dataset_zip['imgs'] if n_samples is None else random.sample(dataset_zip['imgs'], n_samples)
+        self.lat_values = dataset_zip['latents_values'] if n_samples is None else random.sample(dataset_zip["latents_values"], n_samples)
 
     def download(self):
         """Download the dataset."""

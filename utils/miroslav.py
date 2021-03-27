@@ -101,7 +101,7 @@ def latent_viz(model, loader, dataset_name, raw_dataset, steps=750, device='cuda
         for step, (x,y) in tqdm(enumerate(loader), desc = "Gathering data for training embeddings"):
             post_mean, post_logvar = model.encoder(x.to(device))
             samples = model.reparameterize(post_mean, post_logvar)
-            if step > steps:
+            if step >= steps:
                 break
             for idx in range(len(y)):
                 proper_slot = y[idx].item() if dataset_name != "dsprites" else 0
@@ -125,7 +125,7 @@ def latent_viz(model, loader, dataset_name, raw_dataset, steps=750, device='cuda
                         samples = model.reparameterize(post_mean, post_logvar)
                         post_means_viz[i].append(post_mean)
                         post_logvars_viz[i].append(post_logvar)
-                        post_samples_viz[i].append(samples.cpu().numpy())
+                        post_samples_viz[i].append(samples[0].cpu().numpy())
 
         true_labels = [[x]*len(post_samples_viz[x]) for x in range(len(post_samples_viz))]
         plots = {}

@@ -45,7 +45,7 @@ class Trainer():
     """
 
     def __init__(self, model, optimizer, loss_f,
-                 device=torch.device("cpu"),
+                 device='cuda' if torch.cuda.is_available() else 'cpu',
                  logger=logging.getLogger(__name__),
                  save_dir="results",
                  gif_visualizer=None,

@@ -202,7 +202,7 @@ class Evaluator:
                 self.logger.info("Training PCA...")
                 pca = decomposition.PCA(n_components=self.model.latent_dim, whiten = True)
                 imgs_pca = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
-                size = 25000
+                size = min(25000, len(imgs_pca))
 
                 idx = np.random.randint(len(imgs_pca), size = size)
                 imgs_pca = imgs_pca[idx, :]       #not enough memory for full dataset -> repeat with random subsets               
@@ -219,7 +219,7 @@ class Evaluator:
                 self.logger.info("Training ICA...")
                 ica = decomposition.FastICA(n_components=self.model.latent_dim)
                 imgs_ica = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
-                size = 2000
+                size = min(2000, len(imgs_ica))
                 if self.use_wandb:
                     wandb.config["ICA_training_size"] = size
                 idx = np.random.randint(len(imgs_ica), size = size)
@@ -234,7 +234,7 @@ class Evaluator:
                 self.logger.info("Training T-SNE...")
                 tsne = manifold.TSNE(n_components=self.model.latent_dim)
                 imgs_tsne = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
-                size = 2000
+                size = min(2000, len(imgs_tsne))
                 idx = np.random.randint(len(imgs_tsne), size = size)
                 imgs_tsne = imgs_tsne[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
                 tsne.fit(imgs_tsne)
@@ -247,20 +247,20 @@ class Evaluator:
                 self.logger.info("Training UMAP...")
                 umap = umap.UMAP(random_state=self.seed, densmap=False, n_components=self.model.latent_dim)
                 imgs_umap = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
-                size = 25000
+                size = min(25000, len(imgs_umap))
                 idx = np.random.randint(len(imgs_umap), size = size)
                 imgs_umap = imgs_umap[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
                 umap.fit(imgs_umap)
                 methods["UMAP"] = umap
                 self.logger.info("Done")
                 runtimes[method_name] = time.time()-start
-                
+
             elif method_name == "DensUMAP":
                 start = time.time() 
                 self.logger.info("Training UMAP...")
                 umap = umap.UMAP(random_state=self.seed, densmap=True, n_components=self.model.latent_dim)
                 imgs_umap = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
-                size = 25000
+                size = min(25000, len(imgs_umap))
                 idx = np.random.randint(len(imgs_umap), size = size)
                 imgs_umap = imgs_umap[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
                 umap.fit(imgs_umap)
@@ -270,6 +270,8 @@ class Evaluator:
 
             else: 
                 raise ValueError("Unknown method : {}".format(method_name))
+        if self.use_wandb:
+            wandb.log(runtimes)
         #compute training- and test data for linear classifier      
         data_train =  self._compute_z_b_diff_y(methods, sample_size, lat_sizes, imgs)
         data_test =  self._compute_z_b_diff_y(methods, sample_size, lat_sizes, imgs)
