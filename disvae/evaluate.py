@@ -254,6 +254,7 @@ class Evaluator:
                 methods["UMAP"] = umap
                 self.logger.info("Done")
                 runtimes[method_name] = time.time()-start
+                
             elif method_name == "DensUMAP":
                 start = time.time() 
                 self.logger.info("Training UMAP...")

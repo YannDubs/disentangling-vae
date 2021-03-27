@@ -124,7 +124,7 @@ def latent_viz(model, loader, dataset_name, raw_dataset, steps=100, device='cuda
                     samples = model.reparameterize(post_mean, post_logvar)
                     post_means_viz[i].append(post_mean)
                     post_logvars_viz[i].append(post_logvar)
-                    post_samples_viz.append(samples[0].cpu().numpy())
+                    post_samples_viz.append(samples.cpu().numpy())
 
         true_labels = [[x]*len(class_samples[x]) for x in range(len(class_samples))]
         plots = {}
