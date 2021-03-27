@@ -246,6 +246,7 @@ class Evaluator:
 
             elif method_name == "UMAP":
                 start = time.time() 
+                import umap
                 self.logger.info("Training UMAP...")
                 umap_model = umap.UMAP(random_state=self.seed, densmap=False, n_components=self.model.latent_dim)
                 imgs_umap = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
@@ -260,13 +261,13 @@ class Evaluator:
             elif method_name == "DensUMAP":
                 start = time.time() 
                 self.logger.info("Training UMAP...")
-                umap = umap.UMAP(random_state=self.seed, densmap=True, n_components=self.model.latent_dim)
+                umap_model = umap.UMAP(random_state=self.seed, densmap=True, n_components=self.model.latent_dim)
                 imgs_umap = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
                 size = min(25000, len(imgs_umap))
                 idx = np.random.randint(len(imgs_umap), size = size)
                 imgs_umap = imgs_umap[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
-                umap.fit(imgs_umap)
-                methods["DensUMAP"] = umap
+                umap_model.fit(imgs_umap)
+                methods["DensUMAP"] = umap_model
                 self.logger.info("Done")
                 runtimes[method_name] = time.time()-start
 
