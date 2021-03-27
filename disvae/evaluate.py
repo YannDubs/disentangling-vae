@@ -232,6 +232,8 @@ class Evaluator:
             elif method_name == "T-SNE":
                 start = time.time() 
                 self.logger.info("Training T-SNE...")
+                print("Trying init")
+
                 tsne = manifold.TSNE(n_components=self.model.latent_dim)
                 print("inited")
                 print(imgs.shape)
