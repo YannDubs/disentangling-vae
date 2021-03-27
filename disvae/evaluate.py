@@ -57,7 +57,7 @@ class Evaluator:
                  device=torch.device("cpu"),
                  logger=logging.getLogger(__name__),
                  save_dir="results",
-                 is_progress_bar=True, use_wandb=True):
+                 is_progress_bar=True, use_wandb=True, seed=1):
 
         self.device = device
         self.loss_f = loss_f
@@ -67,6 +67,7 @@ class Evaluator:
         self.is_progress_bar = is_progress_bar
         self.logger.info("Testing Device: {}".format(self.device))
         self.use_wandb=use_wandb
+        self.seed = seed
 
     def __call__(self, data_loader, is_metrics=False, is_losses=True):
         """Compute all test losses.
@@ -243,13 +244,25 @@ class Evaluator:
             elif method_name == "UMAP":
                 start = time.time() 
                 self.logger.info("Training UMAP...")
-                umap = manifold.TSNE(n_components=self.model.latent_dim)
+                umap = umap.UMAP(random_state=self.seed, densmap=False, n_components=self.model.latent_dim)
                 imgs_umap = np.reshape(imgs, -1)
                 size = 25000
                 idx = np.random.randint(len(imgs_umap), size = size)
                 imgs_umap = imgs_umap[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
-                tsne.fit(imgs_umap)
+                umap.fit(imgs_umap)
                 methods["UMAP"] = umap
+                self.logger.info("Done")
+                runtimes[method_name] = time.time()-start
+            elif method_name == "DensUMAP":
+                start = time.time() 
+                self.logger.info("Training UMAP...")
+                umap = umap.UMAP(random_state=self.seed, densmap=True, n_components=self.model.latent_dim)
+                imgs_umap = np.reshape(imgs, -1)
+                size = 25000
+                idx = np.random.randint(len(imgs_umap), size = size)
+                imgs_umap = imgs_umap[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
+                umap.fit(imgs_umap)
+                methods["DensUMAP"] = umap
                 self.logger.info("Done")
                 runtimes[method_name] = time.time()-start
 
@@ -379,6 +392,14 @@ class Evaluator:
                 
                 mu1 = torch.from_numpy(umap.transform(imgs_sampled_umap1)).float()
                 mu2 = torch.from_numpy(umap.transform(imgs_sampled_umap2)).float()
+            elif method == "DensUMAP":
+                densumap = methods[method]
+                #flatten images
+                imgs_sampled_densumap1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
+                imgs_sampled_densumap2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
+                
+                mu1 = torch.from_numpy(densumap.transform(imgs_sampled_densumap1)).float()
+                mu2 = torch.from_numpy(densumap.transform(imgs_sampled_densumap2)).float()
                 
             else: 
                 raise ValueError("Unknown method : {}".format(method)) 

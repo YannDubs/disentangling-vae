@@ -114,7 +114,7 @@ def latent_viz(model, loader, dataset_name, raw_dataset, steps=100, device='cuda
             post_samples_viz = post_samples
         elif dataset_name in ["dsprites"]:
             special_idxs = star_shape('dsprites')
-            class_samples_viz = [[raw_dataset[j] for j in special_idxs[i]] for i in range(5)]
+            class_samples_viz = [[raw_dataset[j][0] for j in special_idxs[i]] for i in range(5)]
             post_means_viz = [[] for _ in range(n_classes)]
             post_logvars_viz = [[] for _ in range(n_classes)]
             post_samples_viz = [[] for _ in range(n_classes)]
@@ -137,7 +137,7 @@ def latent_viz(model, loader, dataset_name, raw_dataset, steps=100, device='cuda
                 flat_samples = [np.array(single_class)
                     for single_class in post_samples_viz] # UMAP doesnt support CHW data shape but it must be flat
                 flat_samples = np.concatenate(flat_samples)
-                dim_reduction_model = umap.UMAP(random_state=seed, densmap=True).fit(flat_samples)
+                dim_reduction_model = umap.UMAP(random_state=seed, densmap=True, n_components=2).fit(flat_samples)
                 dim_reduction_samples = dim_reduction_model.embedding_
 
             elif viz == "pca":
