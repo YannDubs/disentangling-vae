@@ -7,6 +7,7 @@ import json
 from timeit import default_timer
 import sys
 from numpy.random import RandomState
+import time
 
 from tqdm import trange, tqdm
 import numpy as np
@@ -189,28 +190,34 @@ class Evaluator:
 
         #train models for all concerned methods and stor them in a dict
         methods = {}
-        for method_name in method_names:
+        runtimes = {}
+        for method_name in tqdm(method_names, desc="Iterating over methods for the Higgins disentanglement metric"):
             if method_name == "VAE":
                 methods["VAE"] = self.model
 
-            elif method_name == "PCA":    
+            elif method_name == "PCA":   
+                start = time.time() 
                 self.logger.info("Training PCA...")
                 pca = decomposition.PCA(n_components=self.model.latent_dim, whiten = True)
                 imgs_pca = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
-                size = 5000
-                if self.use_wandb:
-                    wandb.config["PCA_training_size"] = size
+                size = 25000
+
                 idx = np.random.randint(len(imgs_pca), size = size)
                 imgs_pca = imgs_pca[idx, :]       #not enough memory for full dataset -> repeat with random subsets               
                 pca.fit(imgs_pca)
                 methods["PCA"] = pca
                 self.logger.info("Done")
+                if self.use_wandb:
+                    wandb.config["PCA_training_size"] = size
+                runtimes[method_name] = time.time()-start
+                    
 
             elif method_name == "ICA":
+                start = time.time() 
                 self.logger.info("Training ICA...")
                 ica = decomposition.FastICA(n_components=self.model.latent_dim)
                 imgs_ica = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
-                size = 1000
+                size = 2000
                 if self.use_wandb:
                     wandb.config["ICA_training_size"] = size
                 idx = np.random.randint(len(imgs_ica), size = size)
@@ -218,27 +225,34 @@ class Evaluator:
                 ica.fit(imgs_ica)
                 methods["ICA"] = ica
                 self.logger.info("Done")
+                runtimes[method_name] = time.time()-start
+
             elif method_name == "T-SNE":
+                start = time.time() 
                 self.logger.info("Training T-SNE...")
                 tsne = manifold.TSNE(n_components=self.model.latent_dim)
                 imgs_tsne = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
-                size = 10000
+                size = 2000
                 idx = np.random.randint(len(imgs_tsne), size = size)
                 imgs_tsne = imgs_tsne[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
                 tsne.fit(imgs_tsne)
                 methods["T-SNE"] = tsne
                 self.logger.info("Done")
-            
+                runtimes[method_name] = time.time()-start
+
             elif method_name == "UMAP":
-                self.logger.info("Training ICA...")
-                tsne = manifold.TSNE(n_components=self.model.latent_dim)
-                imgs_tsne = np.reshape(imgs, -1)
-                size = 10000
-                idx = np.random.randint(len(imgs_tsne), size = size)
-                imgs_tsne = imgs_tsne[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
-                tsne.fit(imgs_tsne)
-                methods["T-SNE"] = tsne
+                start = time.time() 
+                self.logger.info("Training UMAP...")
+                umap = manifold.TSNE(n_components=self.model.latent_dim)
+                imgs_umap = np.reshape(imgs, -1)
+                size = 25000
+                idx = np.random.randint(len(imgs_umap), size = size)
+                imgs_umap = imgs_umap[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
+                tsne.fit(imgs_umap)
+                methods["UMAP"] = umap
                 self.logger.info("Done")
+                runtimes[method_name] = time.time()-start
+
             
 
             else: 
@@ -350,21 +364,21 @@ class Evaluator:
                 mu1 = torch.from_numpy(ica.transform(imgs_sampled_ica1)).float()
                 mu2 = torch.from_numpy(ica.transform(imgs_sampled_ica2)).float()
             elif method == "T-SNE":
-                ica = methods[method]
+                tsne = methods[method]
                 #flatten images
-                imgs_sampled_ica1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
-                imgs_sampled_ica2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
+                imgs_sampled_tsne1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
+                imgs_sampled_tsne2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
                 
-                mu1 = torch.from_numpy(ica.transform(imgs_sampled_ica1)).float()
-                mu2 = torch.from_numpy(ica.transform(imgs_sampled_ica2)).float()
+                mu1 = torch.from_numpy(tsne.transform(imgs_sampled_tsne1)).float()
+                mu2 = torch.from_numpy(tsne.transform(imgs_sampled_tsne2)).float()
             elif method == "UMAP":
-                ica = methods[method]
+                umap = methods[method]
                 #flatten images
-                imgs_sampled_ica1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
-                imgs_sampled_ica2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
+                imgs_sampled_umap1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
+                imgs_sampled_umap2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
                 
-                mu1 = torch.from_numpy(ica.transform(imgs_sampled_ica1)).float()
-                mu2 = torch.from_numpy(ica.transform(imgs_sampled_ica2)).float()
+                mu1 = torch.from_numpy(umap.transform(imgs_sampled_umap1)).float()
+                mu2 = torch.from_numpy(umap.transform(imgs_sampled_umap2)).float()
                 
             else: 
                 raise ValueError("Unknown method : {}".format(method)) 

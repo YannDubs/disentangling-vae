@@ -1,4 +1,4 @@
-# python main.py --name betaH_fashion -d dsprites -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --num_samples 500
+# python main.py --name betaH_fashion -d dsprites -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15
 
 import argparse
 import logging

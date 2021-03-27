@@ -98,7 +98,7 @@ def latent_viz(model, loader, dataset_name, raw_dataset, steps=100, device='cuda
     # Data for training embeddings
     with torch.no_grad():
         model.eval()
-        for step, (x,y) in enumerate(loader):
+        for step, (x,y) in tqdm(enumerate(loader), desc = "Gathering data for training embeddings"):
             post_mean, post_logvar = model.encoder(x.to(device))
             samples = model.reparameterize(post_mean, post_logvar)
             if step > steps:
@@ -110,42 +110,42 @@ def latent_viz(model, loader, dataset_name, raw_dataset, steps=100, device='cuda
                 post_logvars[proper_slot].append(post_logvar[idx])
                 post_samples[proper_slot].append(samples[idx].cpu().numpy())
 
-    if dataset_name in ["mnist", "fashion", "cifar10"]:
-        post_samples_viz = post_samples
-    elif dataset_name in ["dsprites"]:
-        special_idxs = star_shape('dsprites')
-        class_samples_viz = [[raw_dataset[j] for j in special_idxs[i]] for i in range(5)]
-        post_means_viz = [[] for _ in range(n_classes)]
-        post_logvars_viz = [[] for _ in range(n_classes)]
-        post_samples_viz = [[] for _ in range(n_classes)]
-        for i, latent_traversals in enumerate(class_samples_viz):
-            for x in latent_traversals:
-                post_mean, post_logvar = model.encoder(x.unsqueeze(dim=0).to(device))
-                samples = model.reparameterize(post_mean, post_logvar)
-                post_means_viz[i].append(post_mean)
-                post_logvars_viz[i].append(post_logvar)
-                post_samples_viz.append(samples[0].cpu().numpy())
+        if dataset_name in ["mnist", "fashion", "cifar10"]:
+            post_samples_viz = post_samples
+        elif dataset_name in ["dsprites"]:
+            special_idxs = star_shape('dsprites')
+            class_samples_viz = [[raw_dataset[j] for j in special_idxs[i]] for i in range(5)]
+            post_means_viz = [[] for _ in range(n_classes)]
+            post_logvars_viz = [[] for _ in range(n_classes)]
+            post_samples_viz = [[] for _ in range(n_classes)]
+            for i, latent_traversals in tqdm(enumerate(class_samples_viz), desc="Gathering special dsprites data"):
+                for x in latent_traversals:
+                    post_mean, post_logvar = model.encoder(x.unsqueeze(dim=0).to(device))
+                    samples = model.reparameterize(post_mean, post_logvar)
+                    post_means_viz[i].append(post_mean)
+                    post_logvars_viz[i].append(post_logvar)
+                    post_samples_viz.append(samples[0].cpu().numpy())
 
-    true_labels = [[x]*len(class_samples[x]) for x in range(len(class_samples))]
-    plots = {}
-    dim_reduction_models = {}
-    for viz in tqdm(method, desc="Iterating over dim. reduction methods"):
-        if viz == 'tsne':
-            dim_reduction_model = manifold.TSNE(n_components=2, random_state=seed)
-            dim_reduction_samples = dim_reduction_model.fit_transform(list(itertools.chain.from_iterable(post_samples_viz)))
-        elif viz == "densumap":
-            flat_samples = [np.array(single_class)
-                for single_class in post_samples_viz] # UMAP doesnt support CHW data shape but it must be flat
-            flat_samples = np.concatenate(flat_samples)
-            dim_reduction_model = umap.UMAP(random_state=seed, densmap=True).fit(flat_samples)
-            dim_reduction_samples = dim_reduction_model.embedding_
+        true_labels = [[x]*len(class_samples[x]) for x in range(len(class_samples))]
+        plots = {}
+        dim_reduction_models = {}
+        for viz in tqdm(method, desc="Iterating over dim. reduction methods"):
+            if viz == 'tsne':
+                dim_reduction_model = manifold.TSNE(n_components=2, random_state=seed)
+                dim_reduction_samples = dim_reduction_model.fit_transform(list(itertools.chain.from_iterable(post_samples_viz)))
+            elif viz == "densumap":
+                flat_samples = [np.array(single_class)
+                    for single_class in post_samples_viz] # UMAP doesnt support CHW data shape but it must be flat
+                flat_samples = np.concatenate(flat_samples)
+                dim_reduction_model = umap.UMAP(random_state=seed, densmap=True).fit(flat_samples)
+                dim_reduction_samples = dim_reduction_model.embedding_
 
-        elif viz == "pca":
-            dim_reduction_model = decomposition.PCA(n_components=2, random_state=seed)
-            dim_reduction_samples = dim_reduction_model.fit_transform(list(itertools.chain.from_iterable(post_samples_viz)))
-        plot = graph_latent_samples(dim_reduction_samples, true_labels)
-        dim_reduction_models[viz] = dim_reduction_model
-        plots[viz] = plot
+            elif viz == "pca":
+                dim_reduction_model = decomposition.PCA(n_components=2, random_state=seed)
+                dim_reduction_samples = dim_reduction_model.fit_transform(list(itertools.chain.from_iterable(post_samples_viz)))
+            plot = graph_latent_samples(dim_reduction_samples, true_labels)
+            dim_reduction_models[viz] = dim_reduction_model
+            plots[viz] = plot
 
     model.train()
 
