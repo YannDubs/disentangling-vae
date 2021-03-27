@@ -354,7 +354,7 @@ class Evaluator:
 
                     train_acc = (prediction_train==Y_train).sum().float()/len(X_train)
                     test_acc[model_class][method] = (prediction_test==Y_test).sum().float()/len(X_test)
-                    print(f'Accuracy of {method} on training set: {train_acc.item():.4f}, test set: {test_acc[method].item():.4f}')
+                    print(f'Accuracy of {method} on training set: {train_acc.item():.4f}, test set: {test_acc[model_class][method].item():.4f}')
                     
                 model.apply(weight_reset)
 
