@@ -161,7 +161,7 @@ class Evaluator:
         #sample size is key for VAE, for sample size 50 only 88% accuarcy, compared to 95 for 200 sample sze
         #non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 50, lat_sizes, lat_imgs, n_epochs=150, dataset_size=5000, hidden_dim=128, use_non_linear=True) #if hidden dim too large -> no training possible
         if self.use_wandb:
-            wandb.log({k+"_accuracy":accuracies[k] for k in method_names})
+            wandb.log(accuracies)
             wandb.save("disentanglement_metrics.h5")
 
         self.logger.info("Computing the empirical distribution q(z|x).")
@@ -339,7 +339,7 @@ class Evaluator:
                     loss.backward()
                     optim.step()
                     
-                    if (e+1) % 10 == 0:
+                    if (e+1) % 35 == 0:
                         scores_test = model(X_test)   
                         test_loss = criterion(scores_test, Y_test)
                         print(f'In this epoch {e+1}/{n_epochs}, Training loss: {loss.item():.4f}, Test loss: {test_loss.item():.4f}')
