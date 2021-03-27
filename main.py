@@ -89,7 +89,7 @@ def parse_arguments(args_to_parse):
             help='How many samples to use. Useful for debugging')      
     training.add_argument('--train_steps', type=int, default=None,
             help='Number of training steps to use per epoch')
-    training.add_argument('--higgins_drop_slow', type=bool, default=False,
+    training.add_argument('--higgins_drop_slow', type=bool, default=True,
         help='Whether to drop UMAP/TSNE etc. for computing Higgins metric (if we do not drop them, generating the data takes ~25 hours)')      
 
     # Model Options
