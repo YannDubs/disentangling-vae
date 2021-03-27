@@ -151,7 +151,7 @@ class Evaluator:
 
         self.logger.info("Computing the disentanglement metric")
         method_names = ["VAE", "PCA", "ICA", "T-SNE","UMAP", "DensUMAP"]
-        accuracies = self._disentanglement_metric(method_names, 300, lat_sizes, lat_imgs, n_epochs=150, dataset_size=1500, hidden_dim=512, use_non_linear=False)
+        accuracies = self._disentanglement_metric(method_names, sample_size=300, lat_sizes=lat_sizes, lat_imgs, n_epochs=150, dataset_size=1500, hidden_dim=512, use_non_linear=False)
         #sample size is key for VAE, for sample size 50 only 88% accuarcy, compared to 95 for 200 sample sze
         #non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 50, lat_sizes, lat_imgs, n_epochs=150, dataset_size=5000, hidden_dim=128, use_non_linear=True) #if hidden dim too large -> no training possible
         if self.use_wandb:
@@ -233,10 +233,13 @@ class Evaluator:
                 start = time.time() 
                 self.logger.info("Training T-SNE...")
                 tsne = manifold.TSNE(n_components=self.model.latent_dim)
+                print("inited")
+                print(imgs.shape)
                 imgs_tsne = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
                 size = min(2000, len(imgs_tsne))
                 idx = np.random.randint(len(imgs_tsne), size = size)
                 imgs_tsne = imgs_tsne[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
+                print("got this far")
                 tsne.fit(imgs_tsne)
                 methods["T-SNE"] = tsne
                 self.logger.info("Done")
