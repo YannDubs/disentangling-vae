@@ -13,6 +13,7 @@ from tqdm import trange, tqdm
 import numpy as np
 import torch
 from torch import pca_lowrank
+from openTSNE import TSNE
 
 from disvae.models.losses import get_loss_f
 from disvae.utils.math import log_density_gaussian
@@ -234,15 +235,16 @@ class Evaluator:
                 self.logger.info("Training T-SNE...")
                 print("Trying init")
 
-                tsne = manifold.TSNE(n_components=self.model.latent_dim)
+                tsne = TSNE(n_components=self.model.latent_dim)
                 print("inited")
                 print(imgs.shape)
                 imgs_tsne = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
-                size = min(2000, len(imgs_tsne))
+                size = min(25000, len(imgs_tsne))
                 idx = np.random.randint(len(imgs_tsne), size = size)
                 imgs_tsne = imgs_tsne[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
                 print("got this far")
-                tsne.fit(imgs_tsne)
+                tsne = tsne.fit(imgs_tsne)
+                print("Kek nice")
                 methods["T-SNE"] = tsne
                 self.logger.info("Done")
                 runtimes[method_name] = time.time()-start
