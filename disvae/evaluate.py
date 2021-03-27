@@ -233,18 +233,12 @@ class Evaluator:
             elif method_name == "T-SNE":
                 start = time.time() 
                 self.logger.info("Training T-SNE...")
-                print("Trying init")
-
-                tsne = TSNE(n_components=self.model.latent_dim)
-                print("inited")
-                print(imgs.shape)
-                imgs_tsne = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
-                size = min(25000, len(imgs_tsne))
-                idx = np.random.randint(len(imgs_tsne), size = size)
-                imgs_tsne = imgs_tsne[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
-                print("got this far")
-                tsne = tsne.fit(imgs_tsne)
-                print("Kek nice")
+                tsne = manifold.TSNE(n_components=self.model.latent_dim)
+                # imgs_tsne = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
+                # size = min(5000, len(imgs_tsne))
+                # idx = np.random.randint(len(imgs_tsne), size = size)
+                # imgs_tsne = imgs_tsne[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
+                # tsne = tsne.fit(imgs_tsne)
                 methods["T-SNE"] = tsne
                 self.logger.info("Done")
                 runtimes[method_name] = time.time()-start
@@ -392,8 +386,8 @@ class Evaluator:
                 imgs_sampled_tsne1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
                 imgs_sampled_tsne2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
                 
-                mu1 = torch.from_numpy(tsne.transform(imgs_sampled_tsne1)).float()
-                mu2 = torch.from_numpy(tsne.transform(imgs_sampled_tsne2)).float()
+                mu1 = torch.from_numpy(tsne.fit_transform(imgs_sampled_tsne1)).float()
+                mu2 = torch.from_numpy(tsne.fit_transform(imgs_sampled_tsne2)).float()
             elif method == "UMAP":
                 umap = methods[method]
                 #flatten images
