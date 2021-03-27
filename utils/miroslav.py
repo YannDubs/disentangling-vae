@@ -104,7 +104,7 @@ def latent_viz(model, loader, dataset_name, raw_dataset, steps=100, device='cuda
             if step > steps:
                 break
             for idx in range(len(y)):
-                proper_slot = y[idx].item()
+                proper_slot = y[idx].item() if dataset_name != "dsprites" else 0
                 class_samples[proper_slot].append(x[idx])
                 post_means[proper_slot].append(post_mean[idx])
                 post_logvars[proper_slot].append(post_logvar[idx])
