@@ -86,7 +86,9 @@ def parse_arguments(args_to_parse):
     training.add_argument('--wandb_key', type=str, default=None,
                 help='Path to WANDB key')    
     training.add_argument('--num_samples', type=int, default=None,
-            help='How many samples to use. Useful for debugging')              
+            help='How many samples to use. Useful for debugging')      
+    training.add_argument('--train_steps', type=int, default=None,
+            help='Number of training steps to use per epoch')               
 
     # Model Options
     model = parser.add_argument_group('Model specfic options')
@@ -241,7 +243,8 @@ def main(args):
                           is_progress_bar=not args.no_progress_bar,
                           gif_visualizer=gif_visualizer,
                           metrics_freq=10 if args.dataset in ['dsprites'] else 50,
-                          seed=args.seed)
+                          seed=args.seed,
+                          steps = args.train_steps)
 
         trainer(train_loader,
                 epochs=args.epochs,
