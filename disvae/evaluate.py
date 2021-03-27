@@ -54,7 +54,7 @@ class Evaluator:
     """
 
     def __init__(self, model, loss_f,
-                 device=torch.device("cpu"),
+                 device='cuda' if torch.cuda.is_available() else 'cpu',
                  logger=logging.getLogger(__name__),
                  save_dir="results",
                  is_progress_bar=True, use_wandb=True, seed=1):
@@ -150,11 +150,12 @@ class Evaluator:
 
 
         self.logger.info("Computing the disentanglement metric")
-        accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 300, lat_sizes, lat_imgs, n_epochs=150, dataset_size=1500, hidden_dim=512, use_non_linear=False)
+        method_names = ["VAE", "PCA", "ICA", "T-SNE","UMAP", "DensUMAP"]
+        accuracies = self._disentanglement_metric(method_names, 300, lat_sizes, lat_imgs, n_epochs=150, dataset_size=1500, hidden_dim=512, use_non_linear=False)
         #sample size is key for VAE, for sample size 50 only 88% accuarcy, compared to 95 for 200 sample sze
         #non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 50, lat_sizes, lat_imgs, n_epochs=150, dataset_size=5000, hidden_dim=128, use_non_linear=True) #if hidden dim too large -> no training possible
         if self.use_wandb:
-            wandb.log({'VAE_accuracy': accuracies["VAE"], 'PCA_accuracy': accuracies["PCA"], 'ICA_accuracy': accuracies["ICA"]})
+            wandb.log({k+"_accuracy":accuracies[k] for k in method_names})
             wandb.save("disentanglement_metrics.h5")
 
         self.logger.info("Computing the empirical distribution q(z|x).")
@@ -181,7 +182,7 @@ class Evaluator:
         mig = self._mutual_information_gap(sorted_mut_info, lat_sizes, storer=metric_helpers)
         aam = self._axis_aligned_metric(sorted_mut_info, storer=metric_helpers)
 
-        metrics = {'DM': accuracies, 'NLDM': non_linear_accuracies, 'MIG': mig.item(), 'AAM': aam.item()}
+        metrics = {'DM': accuracies, 'MIG': mig.item(), 'AAM': aam.item()}
         torch.save(metric_helpers, os.path.join(self.save_dir, METRIC_HELPERS_FILE))
 
         return metrics
@@ -281,7 +282,7 @@ class Evaluator:
         latent_dim = next(iter(data_test.values()))[0].shape[1]
 
         #generate dataset_size many training data points and 20% of that test data points
-        for i in range(dataset_size):
+        for i in tqdm(range(dataset_size), desc="Generating datasets for Higgins metric"):
             data = self._compute_z_b_diff_y(methods, sample_size, lat_sizes, imgs)
             for method in methods:
                 X_train = data_train[method][0]
@@ -296,52 +297,53 @@ class Evaluator:
                     Y_test = data_test[method][1]
                     data_test[method] = torch.cat((X_test, data[method][0].unsqueeze_(0)), 0), torch.cat((Y_test, data[method][1]), 0)
 
-        model = Classifier(latent_dim,hidden_dim,len(lat_sizes), use_non_linear)
-            
-        model.to(self.device)
-        model.train()
+        test_acc = {"linear":{}, "nonlinear":{}}
+        for model_class in ["linear", "nonlinear"]:
+            model = Classifier(latent_dim,hidden_dim,len(lat_sizes), use_non_linear= True if model_class =="nonlinear" else False)
+                
+            model.to(self.device)
+            model.train()
 
-        #log softmax with NLL loss 
-        criterion = torch.nn.NLLLoss()
-        optim = torch.optim.Adam(model.parameters(), lr=0.01)
-       
-        test_acc = {}
-        for method in methods.keys():
-            print(f'Training the classifier for model {method}')
-            for e in range(n_epochs):
-                optim.zero_grad()
-                
-                X_train, Y_train = data_train[method]
-                X_train = X_train.to(self.device)
-                Y_train = Y_train.to(self.device)
-                X_test , Y_test = data_test[method]
-                X_test = X_test.to(self.device)
-                Y_test = Y_test.to(self.device)
+            #log softmax with NLL loss 
+            criterion = torch.nn.NLLLoss()
+            optim = torch.optim.Adam(model.parameters(), lr=0.01)
+        
+            for method in tqdm(methods.keys(), desc = "Training classifiers for the Higgins metric"):
+                print(f'Training the classifier for model {method}')
+                for e in tqdm(range(n_epochs), desc="Iterating over epochs while training the Higgins classifier"):
+                    optim.zero_grad()
+                    
+                    X_train, Y_train = data_train[method]
+                    X_train = X_train.to(self.device)
+                    Y_train = Y_train.to(self.device)
+                    X_test , Y_test = data_test[method]
+                    X_test = X_test.to(self.device)
+                    Y_test = Y_test.to(self.device)
 
+                    
+                    scores_train = model(X_train)   
+                    loss = criterion(scores_train, Y_train)
+                    loss.backward()
+                    optim.step()
+                    
+                    if (e+1) % 10 == 0:
+                        scores_test = model(X_test)   
+                        test_loss = criterion(scores_test, Y_test)
+                        print(f'In this epoch {e+1}/{n_epochs}, Training loss: {loss.item():.4f}, Test loss: {test_loss.item():.4f}')
                 
-                scores_train = model(X_train)   
-                loss = criterion(scores_train, Y_train)
-                loss.backward()
-                optim.step()
-                
-                if (e+1) % 10 == 0:
-                    scores_test = model(X_test)   
-                    test_loss = criterion(scores_test, Y_test)
-                    print(f'In this epoch {e+1}/{n_epochs}, Training loss: {loss.item():.4f}, Test loss: {test_loss.item():.4f}')
-            
-            model.eval()
-            with torch.no_grad():
-                
-                scores_train = model(X_train)
-                scores_test = model(X_test)
-                _, prediction_train = scores_train.max(1)
-                _, prediction_test = scores_test.max(1)
+                model.eval()
+                with torch.no_grad():
+                    
+                    scores_train = model(X_train)
+                    scores_test = model(X_test)
+                    _, prediction_train = scores_train.max(1)
+                    _, prediction_test = scores_test.max(1)
 
-                train_acc = (prediction_train==Y_train).sum().float()/len(X_train)
-                test_acc[method] = (prediction_test==Y_test).sum().float()/len(X_test)
-                print(f'Accuracy of {method} on training set: {train_acc.item():.4f}, test set: {test_acc[method].item():.4f}')
-                
-            model.apply(weight_reset)
+                    train_acc = (prediction_train==Y_train).sum().float()/len(X_train)
+                    test_acc[model_class][method] = (prediction_test==Y_test).sum().float()/len(X_test)
+                    print(f'Accuracy of {method} on training set: {train_acc.item():.4f}, test set: {test_acc[method].item():.4f}')
+                    
+                model.apply(weight_reset)
 
         return test_acc
 

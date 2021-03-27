@@ -239,7 +239,10 @@ def main(args):
                           logger=logger,
                           save_dir=exp_dir,
                           is_progress_bar=not args.no_progress_bar,
-                          gif_visualizer=gif_visualizer)
+                          gif_visualizer=gif_visualizer,
+                          metrics_freq=10 if args.dataset in ['dsprites'] else 50,
+                          seed=args.seed)
+
         trainer(train_loader,
                 epochs=args.epochs,
                 checkpoint_every=args.checkpoint_every,
@@ -285,7 +288,9 @@ def main(args):
                               device=device,
                               logger=logger,
                               save_dir=exp_dir,
-                              is_progress_bar=not args.no_progress_bar, use_wandb=True)
+                              is_progress_bar=not args.no_progress_bar, 
+                              use_wandb=True,
+                              seed=args.seed)
 
         evaluator(test_loader, is_metrics=args.is_metrics, is_losses=not args.no_test)
 

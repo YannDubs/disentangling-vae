@@ -49,7 +49,8 @@ class Trainer():
                  logger=logging.getLogger(__name__),
                  save_dir="results",
                  gif_visualizer=None,
-                 is_progress_bar=True):
+                 is_progress_bar=True,
+                 metrics_freq, seed=1):
 
         self.device = device
         self.model = model.to(self.device)
@@ -61,6 +62,8 @@ class Trainer():
         self.losses_logger = LossesLogger(os.path.join(self.save_dir, TRAIN_LOSSES_LOGFILE))
         self.gif_visualizer = gif_visualizer
         self.logger.info("Training Device: {}".format(self.device))
+        self.metrics_freq = metrics_freq
+        self.seed = seed
 
     def __call__(self, data_loader,
                  epochs=10,
@@ -84,7 +87,7 @@ class Trainer():
         self.model.train()
 
         if wandb_log:
-            train_evaluator = Evaluator(model=self.model, loss_f=self.loss_f, device=self.device)
+            train_evaluator = Evaluator(model=self.model, loss_f=self.loss_f, device=self.device, seed=self.seed)
         
         for epoch in range(epochs):
             storer = defaultdict(list)
@@ -104,16 +107,16 @@ class Trainer():
 
             if wandb_log:
                 metrics, losses = {}, {}
-                try:
-                    metrics = train_evaluator.compute_metrics(data_loader)
-                except:
-                    print(f"Computing metrics failed! Most likely cause is that this dataset does not have known sources of variation")
+                if epoch % self.metrics_freq == 0:
+                    try:
+                        metrics = train_evaluator.compute_metrics(data_loader)
+                    except Exception as e:
+                        print(e)
+                        print(f"Computing metrics failed! Most likely cause is that this dataset does not have known sources of variation")
                 losses = train_evaluator.compute_losses(data_loader)
                 wandb.log({"epoch":epoch,"metric":metrics, "loss":losses})
 
             self.model.train()           
-
-            
 
         if self.gif_visualizer is not None:
             self.gif_visualizer.save_reset()
