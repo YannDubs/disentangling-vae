@@ -1,4 +1,4 @@
-# python main.py --name betaH_fashion -d dsprites -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --num_samples 500
+# python main.py --name betaH_fashion -d fashion -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --num_samples 500
 
 import argparse
 import logging
@@ -246,7 +246,7 @@ def main(args):
                 wandb_log = args.wandb_log)
 
         latents_plots, traversal_plots, cluster_score = {}, {}, {}
-        latents_plots, latent_data, dim_reduction_models = latent_viz(model, train_loader, args.dataset, steps=100, device=device)
+        latents_plots, latent_data, dim_reduction_models = latent_viz(model, train_loader, args.dataset, raw_dataset=raw_dataset, steps=100, device=device)
         
 
         model_dir = os.path.join(RES_DIR, args.name)
@@ -273,7 +273,7 @@ def main(args):
         model = load_model(exp_dir, is_gpu=not args.no_cuda)
         metadata = load_metadata(exp_dir)
         # TO-DO: currently uses train datatset
-        test_loader = get_dataloaders(metadata["dataset"],
+        test_loader, raw_dataset = get_dataloaders(metadata["dataset"],
                                       batch_size=args.eval_batchsize,
                                       shuffle=False,
                                       logger=logger)
