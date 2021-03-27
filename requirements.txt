@@ -10,5 +10,4 @@ Pillow
 tqdm
 sklearn
 umap-learn
-umap
 
