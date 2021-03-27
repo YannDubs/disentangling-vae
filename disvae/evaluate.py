@@ -153,7 +153,7 @@ class Evaluator:
 
         self.logger.info("Computing the disentanglement metric")
         method_names = ["VAE", "PCA", "ICA", "T-SNE","UMAP", "DensUMAP"]
-        accuracies = self._disentanglement_metric(method_names, sample_size=1000, lat_sizes=lat_sizes, imgs=lat_imgs, n_epochs=150, dataset_size=1500, hidden_dim=512, use_non_linear=False)
+        accuracies = self._disentanglement_metric(method_names, sample_size=300, lat_sizes=lat_sizes, imgs=lat_imgs, n_epochs=150, dataset_size=1500, hidden_dim=512, use_non_linear=False)
         #sample size is key for VAE, for sample size 50 only 88% accuarcy, compared to 95 for 200 sample sze
         #non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 50, lat_sizes, lat_imgs, n_epochs=150, dataset_size=5000, hidden_dim=128, use_non_linear=True) #if hidden dim too large -> no training possible
         if self.use_wandb:
@@ -383,14 +383,15 @@ class Evaluator:
                 mu1 = torch.from_numpy(ica.transform(imgs_sampled_ica1)).float()
                 mu2 = torch.from_numpy(ica.transform(imgs_sampled_ica2)).float()
             elif method == "T-SNE":
-                tsne = methods[method]
+                continue
+                # tsne = methods[method]
                 
-                #flatten images
-                imgs_sampled_tsne1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
-                imgs_sampled_tsne2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
+                # #flatten images
+                # imgs_sampled_tsne1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
+                # imgs_sampled_tsne2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
                 
-                mu1 = torch.from_numpy(tsne.fit_transform(imgs_sampled_tsne1)).float()
-                mu2 = torch.from_numpy(tsne.fit_transform(imgs_sampled_tsne2)).float()
+                # mu1 = torch.from_numpy(tsne.fit_transform(imgs_sampled_tsne1)).float()
+                # mu2 = torch.from_numpy(tsne.fit_transform(imgs_sampled_tsne2)).float()
             elif method == "UMAP":
                 umap = methods[method]
                 #flatten images
@@ -400,13 +401,14 @@ class Evaluator:
                 mu1 = torch.from_numpy(umap.transform(imgs_sampled_umap1)).float()
                 mu2 = torch.from_numpy(umap.transform(imgs_sampled_umap2)).float()
             elif method == "DensUMAP":
-                densumap = methods[method]
-                #flatten images
-                imgs_sampled_densumap1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
-                imgs_sampled_densumap2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
+                continue
+                # densumap = methods[method]
+                # #flatten images
+                # imgs_sampled_densumap1 = torch.reshape(imgs_sampled1, (imgs_sampled1.shape[0], imgs_sampled1.shape[2]**2))
+                # imgs_sampled_densumap2 = torch.reshape(imgs_sampled2, (imgs_sampled2.shape[0], imgs_sampled2.shape[2]**2))
                 
-                mu1 = torch.from_numpy(densumap.fit_transform(imgs_sampled_densumap1)).float()
-                mu2 = torch.from_numpy(densumap.fit_transform(imgs_sampled_densumap2)).float()
+                # mu1 = torch.from_numpy(densumap.fit_transform(imgs_sampled_densumap1)).float()
+                # mu2 = torch.from_numpy(densumap.fit_transform(imgs_sampled_densumap2)).float()
                 
             else: 
                 raise ValueError("Unknown method : {}".format(method)) 
