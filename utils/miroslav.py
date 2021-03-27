@@ -78,7 +78,7 @@ def star_shape(dset):
     return traversals
 
 
-def latent_viz(model, loader, dataset_name, raw_dataset, steps=100, device='cuda' if torch.cuda.is_available() else 'cpu', method="all", seed=1):
+def latent_viz(model, loader, dataset_name, raw_dataset, steps=750, device='cuda' if torch.cuda.is_available() else 'cpu', method="all", seed=1):
 
     if dataset_name in ["mnist", "fashion", "cifar10", "celeba"]:
         n_classes = 10
@@ -118,15 +118,16 @@ def latent_viz(model, loader, dataset_name, raw_dataset, steps=100, device='cuda
             post_means_viz = [[] for _ in range(n_classes)]
             post_logvars_viz = [[] for _ in range(n_classes)]
             post_samples_viz = [[] for _ in range(n_classes)]
-            for i, latent_traversals in tqdm(enumerate(class_samples_viz), desc="Gathering special dsprites data"):
-                for x in latent_traversals:
-                    post_mean, post_logvar = model.encoder(x.unsqueeze(dim=0).to(device))
-                    samples = model.reparameterize(post_mean, post_logvar)
-                    post_means_viz[i].append(post_mean)
-                    post_logvars_viz[i].append(post_logvar)
-                    post_samples_viz.append(samples.cpu().numpy())
+            with torch.no_grad():
+                for i, latent_traversals in tqdm(enumerate(class_samples_viz), desc="Gathering special dsprites data"):
+                    for x in latent_traversals:
+                        post_mean, post_logvar = model.encoder(x.unsqueeze(dim=0).to(device))
+                        samples = model.reparameterize(post_mean, post_logvar)
+                        post_means_viz[i].append(post_mean)
+                        post_logvars_viz[i].append(post_logvar)
+                        post_samples_viz[i].append(samples.cpu().numpy())
 
-        true_labels = [[x]*len(class_samples[x]) for x in range(len(class_samples))]
+        true_labels = [[x]*len(post_samples_viz[x]) for x in range(len(post_samples_viz))]
         plots = {}
         dim_reduction_models = {}
         for viz in tqdm(method, desc="Iterating over dim. reduction methods"):
