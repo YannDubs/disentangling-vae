@@ -157,11 +157,11 @@ class Evaluator:
 
         self.logger.info("Computing the disentanglement metric")
         method_names = ["VAE", "PCA", "ICA", "T-SNE","UMAP", "DensUMAP"]
-        accuracies = self._disentanglement_metric(method_names, sample_size=300, lat_sizes=lat_sizes, imgs=lat_imgs, n_epochs=150, dataset_size=1500, hidden_dim=512, use_non_linear=False)
+        accuracies = self._disentanglement_metric(method_names, sample_size=300, lat_sizes=lat_sizes, imgs=lat_imgs, n_epochs=225, dataset_size=1500, hidden_dim=512, use_non_linear=False)
         #sample size is key for VAE, for sample size 50 only 88% accuarcy, compared to 95 for 200 sample sze
         #non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 50, lat_sizes, lat_imgs, n_epochs=150, dataset_size=5000, hidden_dim=128, use_non_linear=True) #if hidden dim too large -> no training possible
         if self.use_wandb:
-            wandb.log(accuracies)
+            # wandb.log(accuracies)
             wandb.save("disentanglement_metrics.h5")
 
         self.logger.info("Computing the empirical distribution q(z|x).")
@@ -194,7 +194,7 @@ class Evaluator:
         return metrics
 
 
-    def _disentanglement_metric(self, method_names, sample_size, lat_sizes, imgs, n_epochs=50, dataset_size = 1000, hidden_dim = 256, use_non_linear = False):
+    def _disentanglement_metric(self, method_names, sample_size, lat_sizes, imgs, n_epochs=75, dataset_size = 1000, hidden_dim = 256, use_non_linear = False):
 
         #train models for all concerned methods and stor them in a dict
         methods = {}
