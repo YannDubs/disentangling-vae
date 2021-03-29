@@ -1,19 +1,3 @@
-import torch
-import random
-from disvae.utils.modelIO import load_model
-import argparse
-import logging
-import sys
-
-MODEL_PATH = "results/fid_testing"
-MODEL_NAME = "model.pt"
-GPU_AVAILABLE = True
-
-model = load_model(directory=MODEL_PATH, is_gpu=GPU_AVAILABLE, filename=MODEL_NAME)
-device = torch.device("cpu")
-model = model.to(device)
-model.eval()
-
 # libraries needed for FID
 import torchvision.datasets as datasets
 import torch.utils.data as data
@@ -35,22 +19,7 @@ from torch.utils.data.sampler import SequentialSampler
 
 from utils.datasets import get_dataloaders, get_img_size, DATASETS
 
-
-def get_activations(dataloader, length, model, batch_size, dims):
-    # Calculates the activations of the last layer for all images.
-    # Params:
-    # length      : Number of samples
-    # model       : Instance of model
-    # batch_size  : Batch size of images for the model to process at once.
-    #               Make sure that the number of samples is a multiple of
-    #               the batch size, otherwise some samples are ignored. This
-    #               behavior matches the original FID score implementation.
-    # dims        : Dimensionality of features returned by model
-    # Returns:
-    # A numpy array of dimension (num images, dims) that contains the
-    # activations of the given tensor when feeding the model with the
-    # query tensor.
-    
+def _get_activations(dataloader, length, model, batch_size, dims):
     model.eval()
     if batch_size > length:
         print(('Warning: batch size is bigger than the data size. '
@@ -75,7 +44,7 @@ def get_activations(dataloader, length, model, batch_size, dims):
     
     return pred_arr
 
-def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
+def _calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     # Calculation of Frechet Distance.
     # Params:
     # mu1   : Numpy array containing the activations of a layer of the
@@ -120,8 +89,7 @@ def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     return (diff.dot(diff) + np.trace(sigma1)
             + np.trace(sigma2) - 2 * tr_covmean)
 
-
-def calculate_activation_statistics(dataloader, length, model, batch_size=32, dims=2048):
+def _calculate_activation_statistics(dataloader, length, model, batch_size=32, dims=2048):
     # Calculation of the statistics used by the FID.
     # Params:
     # length      : Number of samples
@@ -137,63 +105,75 @@ def calculate_activation_statistics(dataloader, length, model, batch_size=32, di
     # sigma : The covariance matrix of the activations of the pool_3 layer of
     #         the model.
         
-    act = get_activations(dataloader, length, model, batch_size, dims)
+    act = _get_activations(dataloader, length, model, batch_size, dims)
     mu = np.mean(act, axis=0)
     sigma = np.cov(act, rowvar=False)
     return mu, sigma
 
-while True:
+def get_fid_value(dataloader, model, batch_size = 128):
+    # Calculate FID value
+    # Params:
+    # dataloader : data to test on
+    # model : model to evaluate
+    # batch_size : batch size when evaluating model
+
+    length = len(dataloader.dataset)
+
+    # get the model dimensions
+    for inputs, labels in dataloader:
+        pred = inputs
+        size = pred.size()[1:] # discard batch size
+        dims = 1
+        for dim in size:
+            dims *= dim
+        break
+    
+    m1, s1 = _calculate_activation_statistics(dataloader, length, model, batch_size, dims)
+
+    # m2, s2 = preset from the dataset calculated below
+    arr = np.empty((length, dims))
+
+    for inputs, labels in (dataloader):
+        count = 0
+        pred = inputs
+        pred = torch.flatten(pred, start_dim=1)
+        if count != 0:
+            arr = np.concatenate((arr, pred), axis=0)
+        else:
+            arr[:pred.shape[0]] = pred
+        count = count + 1
+
+    m2 = np.mean(arr, axis=0)
+    s2 = np.cov(arr, rowvar=False)
+
+    fid_value = _calculate_frechet_distance(m1, s1, m2, s2)
+    return fid_value
+
+if __name__ == "__main__":
+    import torch
+    import random
+    from disvae.utils.modelIO import load_model
+    import argparse
+    import logging
+    import sys
+
+    MODEL_PATH = "results/fid_testing"
+    MODEL_NAME = "model.pt"
+    GPU_AVAILABLE = True
+
+    model = load_model(directory=MODEL_PATH, is_gpu=GPU_AVAILABLE, filename=MODEL_NAME)
+    device = torch.device("cpu")
+    model = model.to(device)
+    model.eval()
+
     mode = sys.argv[1] # get the name of the dataset you want to measure FID for
     if mode == 'cifar10'  or mode == 'cifar100' or mode == 'mnist':
         # Get the dataset
-        dataloader1 = get_dataloaders(mode,
-                               batch_size=32)[0]
-        break
+        dataloader1 = get_dataloaders(mode, batch_size=32)[0]
     else:
         print("Entered wrong name for dataset") 
         sys.exit()
 
-# # Get a random subset of the images from the dataset you want to compare FID scores for
-# subset_indices1 = []
-# for i in range(0,96):
-#     n = random.randint(1,1000)
-#     subset_indices1.append(n)
+    fid_value = get_fid_value(dataloader1, model)
 
-# # Dataloader loading the first n images you wanted from the dataset
-# dataloader1 = torch.utils.data.DataLoader(dataset,
-#                                       batch_size=32,
-#                                       shuffle=False,
-#                                       sampler=SequentialSampler(subset_indices1), #SubsetRandomSampler(subset_indices1),
-#                                       drop_last=False,
-#                                       num_workers=0)
-
-length = len(dataloader1.dataset)
-
-if mode == 'cifar10' or mode == 'cifar100':
-    dims = 3072 # dimensionality of the feature vector
-else:
-    dims = 1024
-
-batch_size = dims
-
-m1, s1 = calculate_activation_statistics(dataloader1, length, model, batch_size, dims)
-
-# m2, s2 = preset from the dataset calculated below
-arr = np.empty((length, dims))
-
-for inputs, labels in (dataloader1):
-    count = 0
-    pred = inputs
-    pred = torch.flatten(pred, start_dim=1)
-    if count != 0:
-        arr = np.concatenate((arr, pred), axis=0)
-    else:
-        arr[:pred.shape[0]] = pred
-    count = count + 1
-
-m2 = np.mean(arr, axis=0)
-s2 = np.cov(arr, rowvar=False)
-
-fid_value = calculate_frechet_distance(m1, s1, m2, s2)
-
-print("FID for ", mode, ": ", fid_value)
+    print("FID for ", mode, ": ", fid_value)
