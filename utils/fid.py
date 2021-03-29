@@ -110,7 +110,7 @@ def _calculate_activation_statistics(dataloader, length, model, batch_size=32, d
     sigma = np.cov(act, rowvar=False)
     return mu, sigma
 
-def get_fid_value(dataloader, model, batch_size = 128):
+def get_fid_value(dataloader, model, batch_size = 32):
     # Calculate FID value
     # Params:
     # dataloader : data to test on
