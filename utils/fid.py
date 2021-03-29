@@ -89,7 +89,7 @@ def _calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     return (diff.dot(diff) + np.trace(sigma1)
             + np.trace(sigma2) - 2 * tr_covmean)
 
-def _calculate_activation_statistics(dataloader, length, model, batch_size=32, dims=2048):
+def _calculate_activation_statistics(dataloader, length, model, batch_size=128, dims=2048):
     # Calculation of the statistics used by the FID.
     # Params:
     # length      : Number of samples
@@ -110,7 +110,7 @@ def _calculate_activation_statistics(dataloader, length, model, batch_size=32, d
     sigma = np.cov(act, rowvar=False)
     return mu, sigma
 
-def get_fid_value(dataloader, model, batch_size = 32):
+def get_fid_value(dataloader, model, batch_size = 128):
     # Calculate FID value
     # Params:
     # dataloader : data to test on
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     mode = sys.argv[1] # get the name of the dataset you want to measure FID for
     if mode == 'cifar10'  or mode == 'cifar100' or mode == 'mnist':
         # Get the dataset
-        dataloader1 = get_dataloaders(mode, batch_size=32)[0]
+        dataloader1 = get_dataloaders(mode, batch_size=128)[0]
     else:
         print("Entered wrong name for dataset") 
         sys.exit()
