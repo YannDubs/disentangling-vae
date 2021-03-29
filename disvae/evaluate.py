@@ -21,6 +21,7 @@ from disvae.utils.math import log_density_gaussian
 from disvae.utils.modelIO import save_metadata
 from disvae.models.linear_model import weight_reset
 from disvae.models.linear_model import Classifier
+from utils.fid import get_fid_value
 
 from sklearn import decomposition
 from sklearn import manifold
@@ -164,6 +165,8 @@ class Evaluator:
             # wandb.log(accuracies)
             wandb.save("disentanglement_metrics.h5")
 
+        fid = get_fid_value(dataloader, self.model)
+
         self.logger.info("Computing the empirical distribution q(z|x).")
         samples_zCx, params_zCx = self._compute_q_zCx(dataloader)
         len_dataset, latent_dim = samples_zCx.shape
@@ -188,7 +191,7 @@ class Evaluator:
         mig = self._mutual_information_gap(sorted_mut_info, lat_sizes, storer=metric_helpers)
         aam = self._axis_aligned_metric(sorted_mut_info, storer=metric_helpers)
 
-        metrics = {'DM': accuracies, 'MIG': mig.item(), 'AAM': aam.item()}
+        metrics = {'DM': accuracies, 'MIG': mig.item(), 'AAM': aam.item(), 'FID': fid}
         torch.save(metric_helpers, os.path.join(self.save_dir, METRIC_HELPERS_FILE))
 
         return metrics
