@@ -302,7 +302,8 @@ def main(args):
                               is_progress_bar=not args.no_progress_bar, 
                               use_wandb=True,
                               seed=args.seed,
-                              higgins_drop_slow=args.higgins_drop_slow)
+                              higgins_drop_slow=args.higgins_drop_slow,
+                              dset_name=args.dataset)
 
         evaluator(test_loader, is_metrics=args.is_metrics, is_losses=not args.no_test)
 

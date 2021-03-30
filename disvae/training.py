@@ -114,9 +114,9 @@ class Trainer():
 
             if wandb_log:
                 metrics, losses = {}, {}
-                if epoch % self.metrics_freq == 0 and self.dset_name in ['dsprites']:
+                if epoch % self.metrics_freq == 0:
                     # try:
-                    metrics = train_evaluator.compute_metrics(data_loader)
+                    metrics = train_evaluator.compute_metrics(data_loader, dataset=self.dset_name)
                     # except Exception as e:
                     #     print(e)
                     #     print(f"Computing metrics failed! Most likely cause is that this dataset does not have known sources of variation")

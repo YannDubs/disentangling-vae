@@ -63,7 +63,8 @@ class Evaluator:
                  is_progress_bar=True, 
                  use_wandb=True, 
                  higgins_drop_slow=True,
-                 seed=1):
+                 seed=1,
+                 dset_name):
 
         self.device = device
         self.loss_f = loss_f
@@ -75,6 +76,7 @@ class Evaluator:
         self.use_wandb=use_wandb
         self.seed = seed
         self.higgins_drop_slow = higgins_drop_slow
+        self.dset_name=dset_name
 
     def __call__(self, data_loader, is_metrics=False, is_losses=True):
         """Compute all test losses.
@@ -96,7 +98,7 @@ class Evaluator:
         metric, losses = None, None
         if is_metrics:
             self.logger.info('Computing metrics...')
-            metrics = self.compute_metrics(data_loader)
+            metrics = self.compute_metrics(data_loader, dataset=self.dset_name)
             self.logger.info('Losses: {}'.format(metrics))
             save_metadata(metrics, self.save_dir, filename=METRICS_FILENAME)
 
@@ -154,7 +156,7 @@ class Evaluator:
             raise ValueError("Dataset needs to have known true factors of variations to compute the metric. This does not seem to be the case for {}".format(type(dataloader.__dict__["dataset"]).__name__))
         
         accuracies, fid, mig, aam = None, None, None, None # Default values. Not all metrics can be computed for all datasets
-        
+
         fid = get_fid_value(dataloader, self.model)
 
         if dataset in ['dsprites']: # Most metrics are only applicable for datasets with ground truth variation factors
