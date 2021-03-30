@@ -148,18 +148,18 @@ class Evaluator:
              wandb.config["latent_size"] = self.model.latent_dim
              wandb.config["classifier_hidden_size"] = 512
              wandb.config["sample_size"] = 300   
-        try:
-            lat_sizes = dataloader.dataset.lat_sizes
-            lat_names = dataloader.dataset.lat_names
-            lat_imgs = dataloader.dataset.imgs
-        except AttributeError:
-            raise ValueError("Dataset needs to have known true factors of variations to compute the metric. This does not seem to be the case for {}".format(type(dataloader.__dict__["dataset"]).__name__))
-        
         accuracies, fid, mig, aam = None, None, None, None # Default values. Not all metrics can be computed for all datasets
 
         fid = get_fid_value(dataloader, self.model)
 
         if dataset in ['dsprites']: # Most metrics are only applicable for datasets with ground truth variation factors
+            try:
+                lat_sizes = dataloader.dataset.lat_sizes
+                lat_names = dataloader.dataset.lat_names
+                lat_imgs = dataloader.dataset.imgs
+            except AttributeError:
+                raise ValueError("Dataset needs to have known true factors of variations to compute the metric. This does not seem to be the case for {}".format(type(dataloader.__dict__["dataset"]).__name__))
+            
             self.logger.info("Computing the disentanglement metric")
             method_names = ["VAE", "PCA", "ICA", "T-SNE","UMAP", "DensUMAP"]
             accuracies = self._disentanglement_metric(method_names, sample_size=300, lat_sizes=lat_sizes, imgs=lat_imgs, n_epochs=225, dataset_size=1500, hidden_dim=512, use_non_linear=False)
