@@ -135,7 +135,7 @@ class Evaluator:
             losses = {k: sum(v) / len(dataloader) for k, v in storer.items()}
             return losses
 
-    def compute_metrics(self, dataloader):
+    def compute_metrics(self, dataloader, dataset=None):
         """Compute all the metrics.
 
         Parameters
@@ -153,45 +153,46 @@ class Evaluator:
         except AttributeError:
             raise ValueError("Dataset needs to have known true factors of variations to compute the metric. This does not seem to be the case for {}".format(type(dataloader.__dict__["dataset"]).__name__))
         
-        #self.PCA(7, lat_sizes, lat_imgs)
-
-
-        self.logger.info("Computing the disentanglement metric")
-        method_names = ["VAE", "PCA", "ICA", "T-SNE","UMAP", "DensUMAP"]
-        accuracies = self._disentanglement_metric(method_names, sample_size=300, lat_sizes=lat_sizes, imgs=lat_imgs, n_epochs=225, dataset_size=1500, hidden_dim=512, use_non_linear=False)
-        #sample size is key for VAE, for sample size 50 only 88% accuarcy, compared to 95 for 200 sample sze
-        #non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 50, lat_sizes, lat_imgs, n_epochs=150, dataset_size=5000, hidden_dim=128, use_non_linear=True) #if hidden dim too large -> no training possible
-        if self.use_wandb:
-            # wandb.log(accuracies)
-            wandb.save("disentanglement_metrics.h5")
-
+        accuracies, fid, mig, aam = None, None, None, None # Default values. Not all metrics can be computed for all datasets
+        
         fid = get_fid_value(dataloader, self.model)
 
-        self.logger.info("Computing the empirical distribution q(z|x).")
-        samples_zCx, params_zCx = self._compute_q_zCx(dataloader)
-        len_dataset, latent_dim = samples_zCx.shape
+        if dataset in ['dsprites']: # Most metrics are only applicable for datasets with ground truth variation factors
+            self.logger.info("Computing the disentanglement metric")
+            method_names = ["VAE", "PCA", "ICA", "T-SNE","UMAP", "DensUMAP"]
+            accuracies = self._disentanglement_metric(method_names, sample_size=300, lat_sizes=lat_sizes, imgs=lat_imgs, n_epochs=225, dataset_size=1500, hidden_dim=512, use_non_linear=False)
+            #sample size is key for VAE, for sample size 50 only 88% accuarcy, compared to 95 for 200 sample sze
+            #non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 50, lat_sizes, lat_imgs, n_epochs=150, dataset_size=5000, hidden_dim=128, use_non_linear=True) #if hidden dim too large -> no training possible
+            if self.use_wandb:
+                # wandb.log(accuracies)
+                wandb.save("disentanglement_metrics.h5")
 
-        self.logger.info("Estimating the marginal entropy.")
-        # marginal entropy H(z_j)
-        H_z = self._estimate_latent_entropies(samples_zCx, params_zCx)
+            self.logger.info("Computing the empirical distribution q(z|x).")
+            samples_zCx, params_zCx = self._compute_q_zCx(dataloader)
+            len_dataset, latent_dim = samples_zCx.shape
 
-        # conditional entropy H(z|v)
-        samples_zCx = samples_zCx.view(*lat_sizes, latent_dim)
-        params_zCx = tuple(p.view(*lat_sizes, latent_dim) for p in params_zCx)
-        H_zCv = self._estimate_H_zCv(samples_zCx, params_zCx, lat_sizes, lat_names)
+            self.logger.info("Estimating the marginal entropy.")
+            # marginal entropy H(z_j)
+            H_z = self._estimate_latent_entropies(samples_zCx, params_zCx)
 
-        H_z = H_z.cpu()
-        H_zCv = H_zCv.cpu()
+            # conditional entropy H(z|v)
+            samples_zCx = samples_zCx.view(*lat_sizes, latent_dim)
+            params_zCx = tuple(p.view(*lat_sizes, latent_dim) for p in params_zCx)
+            H_zCv = self._estimate_H_zCv(samples_zCx, params_zCx, lat_sizes, lat_names)
 
-        # I[z_j;v_k] = E[log \sum_x q(z_j|x)p(x|v_k)] + H[z_j] = - H[z_j|v_k] + H[z_j]
-        mut_info = - H_zCv + H_z
-        sorted_mut_info = torch.sort(mut_info, dim=1, descending=True)[0].clamp(min=0)
+            H_z = H_z.cpu()
+            H_zCv = H_zCv.cpu()
 
-        metric_helpers = {'marginal_entropies': H_z, 'cond_entropies': H_zCv}
-        mig = self._mutual_information_gap(sorted_mut_info, lat_sizes, storer=metric_helpers)
-        aam = self._axis_aligned_metric(sorted_mut_info, storer=metric_helpers)
+            # I[z_j;v_k] = E[log \sum_x q(z_j|x)p(x|v_k)] + H[z_j] = - H[z_j|v_k] + H[z_j]
+            mut_info = - H_zCv + H_z
+            sorted_mut_info = torch.sort(mut_info, dim=1, descending=True)[0].clamp(min=0)
 
-        metrics = {'DM': accuracies, 'MIG': mig.item(), 'AAM': aam.item(), 'FID': fid}
+            metric_helpers = {'marginal_entropies': H_z, 'cond_entropies': H_zCv}
+            mig = self._mutual_information_gap(sorted_mut_info, lat_sizes, storer=metric_helpers).item()
+            aam = self._axis_aligned_metric(sorted_mut_info, storer=metric_helpers).item()
+            
+
+        metrics = {'DM': accuracies, 'MIG': mig, 'AAM': aam, 'FID': fid}
         torch.save(metric_helpers, os.path.join(self.save_dir, METRIC_HELPERS_FILE))
 
         return metrics
