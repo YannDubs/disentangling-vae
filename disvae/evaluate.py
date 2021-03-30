@@ -197,6 +197,7 @@ class Evaluator:
             
 
         metrics = {'DM': accuracies, 'MIG': mig, 'AAM': aam, 'FID': fid}
+        print(f"Evaluated metrics for {dataset} as: {metrics}")
 
         return metrics
 
