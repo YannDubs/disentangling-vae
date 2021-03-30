@@ -192,10 +192,11 @@ class Evaluator:
             metric_helpers = {'marginal_entropies': H_z, 'cond_entropies': H_zCv}
             mig = self._mutual_information_gap(sorted_mut_info, lat_sizes, storer=metric_helpers).item()
             aam = self._axis_aligned_metric(sorted_mut_info, storer=metric_helpers).item()
+            torch.save(metric_helpers, os.path.join(self.save_dir, METRIC_HELPERS_FILE))
+
             
 
         metrics = {'DM': accuracies, 'MIG': mig, 'AAM': aam, 'FID': fid}
-        torch.save(metric_helpers, os.path.join(self.save_dir, METRIC_HELPERS_FILE))
 
         return metrics
 
