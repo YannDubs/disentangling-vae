@@ -19,7 +19,7 @@ from torch.utils.data.sampler import SequentialSampler
 
 from utils.datasets import get_dataloaders, get_img_size, DATASETS
 
-def _get_activations(dataloader, length, model, batch_size, dims):
+def _get_activations(dataloader, length, model, batch_size, dims, device='cuda' if torch.cuda.is_available() else 'cpu'):
     model.eval()
     if batch_size > length:
         print(('Warning: batch size is bigger than the data size. '
@@ -30,7 +30,7 @@ def _get_activations(dataloader, length, model, batch_size, dims):
 
     for inputs, labels in (dataloader):
         count = 0
-        batch = inputs
+        batch = inputs.to(device)
         with torch.no_grad():
             pred = model(batch)[0]
 
