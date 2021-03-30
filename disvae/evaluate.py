@@ -64,7 +64,7 @@ class Evaluator:
                  use_wandb=True, 
                  higgins_drop_slow=True,
                  seed=1,
-                 dset_name):
+                 dset_name=None):
 
         self.device = device
         self.loss_f = loss_f
