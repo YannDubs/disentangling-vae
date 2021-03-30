@@ -50,7 +50,7 @@ class Trainer():
                  save_dir="results",
                  gif_visualizer=None,
                  is_progress_bar=True,
-                 metrics_freq=10,
+                 metrics_freq=5,
                  seed=1,
                  steps=None,
                  dset_name=None,
@@ -114,7 +114,7 @@ class Trainer():
 
             if wandb_log:
                 metrics, losses = {}, {}
-                if epoch % self.metrics_freq == 0:
+                if epoch % max(round(epochs/self.metrics_freq), 10) == 0:
                     # try:
                     metrics = train_evaluator.compute_metrics(data_loader, dataset=self.dset_name)
                     # except Exception as e:
@@ -133,8 +133,6 @@ class Trainer():
         delta_time = (default_timer() - start) / 60
         self.logger.info('Finished training after {:.1f} min.'.format(delta_time))
 
-    def evaluate_latents(self):
-        pass
 
     def _train_epoch(self, data_loader, storer, epoch):
         """
