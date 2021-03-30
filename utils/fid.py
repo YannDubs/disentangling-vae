@@ -128,7 +128,10 @@ def get_fid_value(dataloader, model, batch_size = 128):
             dims *= dim
         break
     
-    m1, s1 = _calculate_activation_statistics(dataloader, length, model, batch_size, dims)
+    try:
+        m1, s1 = _calculate_activation_statistics(dataloader, length, model, batch_size, dims)
+    except Exception as e:
+        print(f"Failed ude to {e}")
 
     # m2, s2 = preset from the dataset calculated below
     arr = np.empty((length, dims))
