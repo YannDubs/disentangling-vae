@@ -234,7 +234,13 @@ def main(args):
         logger.info('Num parameters in model: {}'.format(get_n_param(model)))
 
         # TRAINS
-        optimizer = optim.Adam(model.parameters(), lr=args.lr)
+        if args.model_type == "Burgess":
+            optimizer = optim.Adam(model.parameters(), lr=args.lr)
+        elif args.model_type == "HigginsDsprites":
+            optimizer = optim.Adagrad(model.parameters(), lr=args.lr)
+        elif args.model_type == "HigginsConv":
+            optimizer = optim.Adam(model.parameters(), lr=args.lr)
+
 
         model = model.to(device)  # make sure trainer and viz on same device
         gif_visualizer = GifTraversalsTraining(model, args.dataset, exp_dir)
