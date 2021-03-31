@@ -150,7 +150,14 @@ class Evaluator:
              wandb.config["sample_size"] = 300   
         accuracies, fid, mig, aam = None, None, None, None # Default values. Not all metrics can be computed for all datasets
 
-        fid = get_fid_value(dataloader, self.model)
+        total_len, max_len = 0, 50000
+        small_dset = []
+        for batch in dataloader:
+            small_dset.append(batch)
+            total_len += len(batch[0])
+            if total_len > max_len:
+                break
+        fid = get_fid_value(torch.utils.data.DataLoader(small_dset, batch_size=dataloader.batch_size), self.model)
 
         if dataset in ['dsprites']: # Most metrics are only applicable for datasets with ground truth variation factors
             try:
