@@ -320,7 +320,7 @@ def main(args):
                 builtin_plots["data-samples"] = plot
             elif plot_type == "reconstruct":
                 fname, plot = viz.reconstruct(samples, size=size)
-                builtin_plots["reconstruct"] = builtin_plots
+                builtin_plots["reconstruct"] = plot
             elif plot_type == 'traversals':
                 fname, plot =viz.traversals(data=samples[0:1, ...] if args.is_posterior else None,
                             n_per_latent=args.n_cols,
