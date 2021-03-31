@@ -23,9 +23,12 @@ def create_safe_directory(directory, logger=None):
 def set_seed(seed):
     """Set all random seeds."""
     if seed is not None:
-        np.random.seed(seed)
         random.seed(seed)
+        np.random.seed(seed)
         torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
         # if want pure determinism could uncomment below: but slower
         # torch.backends.cudnn.deterministic = True
 

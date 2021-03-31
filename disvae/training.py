@@ -50,7 +50,7 @@ class Trainer():
                  save_dir="results",
                  gif_visualizer=None,
                  is_progress_bar=True,
-                 metrics_freq=5,
+                 metrics_freq=4,
                  seed=1,
                  steps=None,
                  dset_name=None,
