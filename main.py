@@ -236,9 +236,9 @@ def main(args):
         # TRAINS
         if args.model_type == "Burgess":
             optimizer = optim.Adam(model.parameters(), lr=args.lr)
-        elif args.model_type == "HigginsDsprites":
+        elif args.model_type == "Higginsdsprites":
             optimizer = optim.Adagrad(model.parameters(), lr=args.lr)
-        elif args.model_type == "HigginsConv":
+        elif args.model_type == "Higginsconv":
             optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
 
