@@ -1,4 +1,4 @@
-# python main.py --name betaH_fashion2 -d dsprites -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --train_steps 15
+# python main.py --name betaH_fashion2 -d dsprites -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --train_steps 15 --model-type=HigginsDsprites
 
 import argparse
 import logging
@@ -281,6 +281,38 @@ def main(args):
         base_datum = next(iter(train_loader))[0][0].unsqueeze(dim=0)
         for model_name, model in dim_reduction_models.items():
             traversal_plots[model_name] = viz.latents_traversal_plot(model, data=base_datum, n_per_latent=50)
+
+        # Original plots from the repo
+        size = (args.n_rows, args.n_cols)
+        # same samples for all plots: sample max then take first `x`data  for all plots
+        num_samples = args.n_cols * args.n_rows
+        samples = get_samples(dataset, num_samples, idcs=args.idcs)
+
+        if "all" in args.plots:
+            args.plots = [p for p in PLOT_TYPES if p != "all"]
+
+        for plot_type in args.plots:
+            if plot_type == 'generate-samples':
+                viz.generate_samples(size=size)
+            elif plot_type == 'data-samples':
+                viz.data_samples(samples, size=size)
+            elif plot_type == "reconstruct":
+                viz.reconstruct(samples, size=size)
+            elif plot_type == 'traversals':
+                viz.traversals(data=samples[0:1, ...] if args.is_posterior else None,
+                            n_per_latent=args.n_cols,
+                            n_latents=args.n_rows,
+                            is_reorder_latents=True)
+            elif plot_type == "reconstruct-traverse":
+                viz.reconstruct_traverse(samples,
+                                        is_posterior=args.is_posterior,
+                                        n_latents=args.n_rows,
+                                        n_per_latent=args.n_cols,
+                                        is_show_text=args.is_show_loss)
+            elif plot_type == "gif-traversals":
+                viz.gif_traversals(samples[:args.n_cols, ...], n_latents=args.n_rows)
+            else:
+                raise ValueError("Unkown plot_type={}".format(plot_type))
 
         if args.wandb_log:
             wandb.log({"latents":latents_plots, "latent_traversal":traversal_plots, "cluster_metric":cluster_score})

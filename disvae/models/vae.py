@@ -10,11 +10,11 @@ from .encoders import get_encoder
 from .decoders import get_decoder
 
 MODELS = ["Burgess", "HigginsConv", "HigginsDsprites"]        #can build own model and enter iut here
-
+MODELS = [x.lower() for x in MODELS] + MODELS
 
 def init_specific_model(model_type, img_size, latent_dim):
     """Return an instance of a VAE with encoder and decoder from `model_type`."""
-    model_type = model_type.lower().capitalize()
+    model_type = model_type.lower()
     if model_type not in MODELS:
         err = "Unkown model_type={}. Possible values: {}"
         raise ValueError(err.format(model_type, MODELS))
