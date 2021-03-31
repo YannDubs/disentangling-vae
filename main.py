@@ -1,4 +1,4 @@
-# python main.py --name betaH_fashion2 -d dsprites -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --train_steps 15 --model-type=Higginsdsprites --plots=all
+# python main.py --name betaH_fashion2 -d dsprites -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --train_steps 15 --model-type=Burgess --plots=all
 
 import argparse
 import logging

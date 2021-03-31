@@ -341,10 +341,10 @@ class Visualizer():
         """
         n_latents = n_latents if n_latents is not None else self.model.latent_dim
 
-        reconstructions = self.reconstruct(data[:2 * n_per_latent, ...],
+        fname, reconstructions = self.reconstruct(data[:2 * n_per_latent, ...],
                                            size=(2, n_per_latent),
                                            is_force_return=True)
-        traversals = self.traversals(data=data[0:1, ...] if is_posterior else None,
+        fname, traversals = self.traversals(data=data[0:1, ...] if is_posterior else None,
                                      is_reorder_latents=True,
                                      n_per_latent=n_per_latent,
                                      n_latents=n_latents,
@@ -383,7 +383,7 @@ class Visualizer():
         width_col = int(width_col * self.upsample_factor)
         all_cols = [[] for c in range(n_per_gif)]
         for i in range(n_images):
-            grid = self.traversals(data=data[i:i + 1, ...], is_reorder_latents=True,
+            fname, grid = self.traversals(data=data[i:i + 1, ...], is_reorder_latents=True,
                                    n_per_latent=n_per_gif, n_latents=n_latents,
                                    is_force_return=True)
 
