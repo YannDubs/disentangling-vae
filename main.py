@@ -69,7 +69,7 @@ def parse_arguments(args_to_parse):
                         help='Traverses the posterior instead of the prior.')
     general.add_argument('-i', '--idcs', type=int, nargs='+', default=[],
                         help='List of indices to of images to put at the begining of the samples.')
-    general.add_argument("plots", type=str, nargs='+', choices=PLOT_TYPES,
+    general.add_argument("plots", type=str, nargs='+', choices=PLOT_TYPES, default="all",
                         help="List of all plots to generate. `generate-samples`: random decoded samples. `data-samples` samples from the dataset. `reconstruct` first rnows//2 will be the original and rest will be the corresponding reconstructions. `traversals` traverses the most important rnows dimensions with ncols different samples from the prior or posterior. `reconstruct-traverse` first row for original, second are reconstructions, rest are traversals. `gif-traversals` grid of gifs where rows are latent dimensions, columns are examples, each gif shows posterior traversals. `all` runs every plot.")
 
     # Learning options
