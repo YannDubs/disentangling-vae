@@ -232,6 +232,7 @@ def main(args):
         args.img_size = get_img_size(args.dataset)  # stores for metadata
         model = init_specific_model(args.model_type, args.img_size, args.latent_dim)
         logger.info('Num parameters in model: {}'.format(get_n_param(model)))
+        model = model.to(device)  # make sure trainer and viz on same device
 
         # TRAINS
         if args.model_type == "Burgess":
@@ -242,7 +243,6 @@ def main(args):
             optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
 
-        model = model.to(device)  # make sure trainer and viz on same device
         gif_visualizer = GifTraversalsTraining(model, args.dataset, exp_dir)
         loss_f = get_loss_f(args.loss,
                             n_data=len(train_loader.dataset),
