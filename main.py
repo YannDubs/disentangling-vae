@@ -1,4 +1,4 @@
-# python main.py --name betaH_fashion2 -d dsprites -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --train_steps 15 --model-type=Burgess --plots=all
+# python main.py --name betaH_fashion2 -d dsprites -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --train_steps 15 --model-type=Higginsdsprites --plots=all
 
 import argparse
 import logging
@@ -252,6 +252,7 @@ def main(args):
         model = init_specific_model(args.model_type, args.img_size, args.latent_dim)
         logger.info('Num parameters in model: {}'.format(get_n_param(model)))
         model = model.to(device)  # make sure trainer and viz on same device
+        print(model)
 
         # TRAINS
         if args.model_type == "Burgess":
