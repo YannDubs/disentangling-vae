@@ -343,7 +343,7 @@ def main(args):
 
 
         if args.wandb_log:
-            wandb.log({"latents":latents_plots, "latent_traversal":traversal_plots, "cluster_metric":cluster_score, "builtin_plots":builtin_plots})
+            wandb.log({"latents":latents_plots, "latent_traversal":traversal_plots, "cluster_metric":cluster_score, "builtin_plots":[wandb.Image(img) for img in builtin_plots]})
             for fname in plot_fnames:
                 try:
                     wandb.save(fname)
