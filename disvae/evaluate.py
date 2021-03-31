@@ -154,8 +154,10 @@ class Evaluator:
         small_dset_x = []
         small_dset_y = []
         for x,y in dataloader:
-            small_dset_x.append(x)
-            small_dset_y.append(y)
+            for single_x in x:
+                small_dset_x.append(single_x)
+            for single_y in y:
+                small_dset_y.append(single_y)
             total_len += len(x)
             if total_len > max_len:
                 break
