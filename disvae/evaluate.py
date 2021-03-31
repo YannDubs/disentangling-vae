@@ -150,6 +150,7 @@ class Evaluator:
              wandb.config["sample_size"] = 300   
         accuracies, fid, mig, aam = None, None, None, None # Default values. Not all metrics can be computed for all datasets
 
+        # Need to create a new small dataset for FID. The default dataloaders we get in would typically be shuffled as well, so we need to remove that
         total_len, max_len = 0, 50000
         small_dset_x = []
         small_dset_y = []
@@ -160,7 +161,7 @@ class Evaluator:
             if total_len > max_len:
                 break
 
-        fid = get_fid_value(torch.utils.data.DataLoader(torch.utils.data.TensorDataset(torch.cat(small_dset_x), torch.cat(small_dset_y)), batch_size=dataloader.batch_size), self.model)
+        fid = get_fid_value(torch.utils.data.DataLoader(torch.utils.data.TensorDataset(torch.cat(small_dset_x), torch.cat(small_dset_y)), batch_size=dataloader.batch_size, shuffle=False), self.model)
 
         if dataset in ['dsprites']: # Most metrics are only applicable for datasets with ground truth variation factors
             try:

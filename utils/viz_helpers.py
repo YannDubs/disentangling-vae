@@ -27,7 +27,7 @@ def get_samples(dataset, num_samples, idcs=[]):
     idcs : list of ints, optional
         List of indices to of images to put at the begning of the samples.
     """
-    data_loader = get_dataloaders(dataset,
+    data_loader, raw_dataset = get_dataloaders(dataset,
                                   batch_size=1,
                                   shuffle=idcs is None)
 
