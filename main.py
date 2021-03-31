@@ -341,9 +341,16 @@ def main(args):
                 raise ValueError("Unkown plot_type={}".format(plot_type))
             plot_fnames.append(fname)
 
+        converted_imgs = {}
+        for k, img in builtin_plots.items():
+            print(f"Converting {k}")
+            try:
+                converted_imgs[k] = wandb.Image(img)
+            except:
+                print(f"Failed to convert {k}")
 
         if args.wandb_log:
-            wandb.log({"latents":latents_plots, "latent_traversal":traversal_plots, "cluster_metric":cluster_score, "builtin_plots":{k:wandb.Image(img) for k, img in builtin_plots.items()}})
+            wandb.log({"latents":latents_plots, "latent_traversal":traversal_plots, "cluster_metric":cluster_score, "builtin_plots":converted_imgs})
             for fname in plot_fnames:
                 try:
                     wandb.save(fname)
