@@ -209,8 +209,11 @@ def main(args):
     try:
         wandb_auth(dir_path=args.wandb_key)
     except:
-        print(f"Authentication for WANDB failed! Trying to disable it")
-        os.environ["WANDB_MODE"] = "disabled"
+        try:
+            wandb.login()
+        except:
+            print(f"Authentication for WANDB failed! Trying to disable it")
+            os.environ["WANDB_MODE"] = "disabled"
     wandb.init(project='atmlbetavae', entity='atml', group="miroslav")
     wandb.config.update(args)
 
