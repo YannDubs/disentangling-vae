@@ -10,7 +10,6 @@ from .encoders import get_encoder
 from .decoders import get_decoder
 
 MODELS = ["Burgess", "Higginsconv", "Higginsdsprites"]        #can build own model and enter iut here
-MODELS = [x.lower() for x in MODELS] + MODELS
 
 def init_specific_model(model_type, img_size, latent_dim):
     """Return an instance of a VAE with encoder and decoder from `model_type`."""

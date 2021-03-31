@@ -13,7 +13,7 @@ def get_decoder(model_type):
     return eval("Decoder{}".format(model_type))
 
 
-class DecoderHiggingsdsprites(nn.Module):
+class DecoderHigginsdsprites(nn.Module):
     def __init__(self, img_size,
                  latent_dim=10):
         r"""Higgins Conv decoder from Appendix A.2
@@ -42,7 +42,7 @@ class DecoderHiggingsdsprites(nn.Module):
         return x
 
 
-class DecoderHiggingsconv(nn.Module):
+class DecoderHigginsconv(nn.Module):
     def __init__(self, img_size,
                  latent_dim=10):
         r"""Higgins Conv decodfer from Appendix A.2
