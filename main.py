@@ -7,7 +7,7 @@ import os
 from configparser import ConfigParser
 import wandb
 import torch
-
+import time
 from torch import optim
 
 from disvae import init_specific_model, Trainer, Evaluator
@@ -209,7 +209,7 @@ def main(args):
 
     set_seed(args.seed)
     device = get_device(is_gpu=not args.no_cuda)
-    exp_dir = os.path.join(RES_DIR, args.name)
+    exp_dir = os.path.join(RES_DIR, args.name+f"{time.time()}")
     logger.info("Root directory for saving and loading experiments: {}".format(exp_dir))
 
     if not args.is_eval_only:
