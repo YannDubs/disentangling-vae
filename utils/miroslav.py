@@ -79,7 +79,7 @@ def star_shape(dset):
     return traversals
 
 
-def latent_viz(model, loader, dataset_name, raw_dataset, steps=150, device='cuda' if torch.cuda.is_available() else 'cpu', method="all", seed=1):
+def latent_viz(model, loader, dataset_name, raw_dataset, steps=100, device='cuda' if torch.cuda.is_available() else 'cpu', method="all", seed=1):
 
     if dataset_name in ["mnist", "fashion", "cifar10", "celeba"]:
         n_classes = 10
