@@ -301,32 +301,47 @@ def main(args):
 
         if "all" in args.plots:
             args.plots = [p for p in PLOT_TYPES if p != "all"]
-
+        builtin_plots = {}
+        plot_fnames = []
         for plot_type in args.plots:
             if plot_type == 'generate-samples':
                 fname, plot = viz.generate_samples(size=size)
+                builtin_plots["generate-samples"] = plot
             elif plot_type == 'data-samples':
                 fname, plot = viz.data_samples(samples, size=size)
+                builtin_plots["data-samples"] = plot
             elif plot_type == "reconstruct":
                 fname, plot = viz.reconstruct(samples, size=size)
+                builtin_plots["reconstruct"] = builtin_plots
             elif plot_type == 'traversals':
                 fname, plot =viz.traversals(data=samples[0:1, ...] if args.is_posterior else None,
                             n_per_latent=args.n_cols,
                             n_latents=args.n_rows,
                             is_reorder_latents=True)
+                builtin_plots["traversals"] = plot
             elif plot_type == "reconstruct-traverse":
                 fname, plot = viz.reconstruct_traverse(samples,
                                         is_posterior=args.is_posterior,
                                         n_latents=args.n_rows,
                                         n_per_latent=args.n_cols,
                                         is_show_text=args.is_show_loss)
+                builtin_plots["reconstruct-traverse"] = plot
             elif plot_type == "gif-traversals":
                 fname, plot = viz.gif_traversals(samples[:args.n_cols, ...], n_latents=args.n_rows)
+                builtin_plots["gif-traversals"] = plot
             else:
                 raise ValueError("Unkown plot_type={}".format(plot_type))
+            plot_fnames.append(fname)
+
 
         if args.wandb_log:
-            wandb.log({"latents":latents_plots, "latent_traversal":traversal_plots, "cluster_metric":cluster_score})
+            wandb.log({"latents":latents_plots, "latent_traversal":traversal_plots, "cluster_metric":cluster_score, "builtin_plots":builtin_plots})
+            for fname in plot_fnames:
+                try:
+                    wandb.save(fname)
+                except Exception as e:
+                    print(f"Failed to save {fname} to WANDB")
+
 
         # SAVE MODEL AND EXPERIMENT INFORMATION
         save_model(trainer.model, exp_dir, metadata=vars(args))
