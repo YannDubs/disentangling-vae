@@ -162,9 +162,8 @@ class Evaluator:
             if total_len > max_len:
                 break
 
-        print(small_dset_x)
-        fid = get_fid_value(torch.utils.data.DataLoader(torch.utils.data.TensorDataset(torch.tensor(small_dset_x), torch.tensor(small_dset_y)), batch_size=dataloader.batch_size), self.model)
-
+        fid = get_fid_value(torch.utils.data.DataLoader(torch.utils.data.TensorDataset(torch.cat(small_dset_x), torch.cat(small_dset_y)), batch_size=dataloader.batch_size), self.model)
+        
         if dataset in ['dsprites']: # Most metrics are only applicable for datasets with ground truth variation factors
             try:
                 lat_sizes = dataloader.dataset.lat_sizes
@@ -360,7 +359,7 @@ class Evaluator:
                     loss.backward()
                     optim.step()
                     
-                    if (e+1) % 35 == 0:
+                    if (e+1) % 70 == 0:
                         scores_test = model(X_test)   
                         test_loss = criterion(scores_test, Y_test)
                         print(f'In this epoch {e+1}/{n_epochs}, Training loss: {loss.item():.4f}, Test loss: {test_loss.item():.4f}')
