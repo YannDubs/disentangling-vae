@@ -151,13 +151,15 @@ class Evaluator:
         accuracies, fid, mig, aam = None, None, None, None # Default values. Not all metrics can be computed for all datasets
 
         total_len, max_len = 0, 50000
-        small_dset = []
-        for batch in dataloader:
-            small_dset.append(batch)
-            total_len += len(batch[0])
+        small_dset_x = []
+        small_dset_y = []
+        for x,y in dataloader:
+            small_dset_x.append(x)
+            small_dset_y.append(y)
+            total_len += len(x)
             if total_len > max_len:
                 break
-        fid = get_fid_value(torch.utils.data.DataLoader(torch.utils.data.TensorDataset(small_dset), batch_size=dataloader.batch_size), self.model)
+        fid = get_fid_value(torch.utils.data.DataLoader(torch.utils.data.TensorDataset(small_dset_x, small_dset_y), batch_size=dataloader.batch_size), self.model)
 
         if dataset in ['dsprites']: # Most metrics are only applicable for datasets with ground truth variation factors
             try:
