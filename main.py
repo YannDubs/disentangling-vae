@@ -1,4 +1,4 @@
-# python main.py --name betaH_fashion2 -d dsprites -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --train_steps 15 --model-type=Higginsdsprites
+# python main.py --name betaH_fashion2 -d dsprites -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15 --train_steps 15 --model-type=Higginsdsprites --plots=all
 
 import argparse
 import logging
@@ -71,7 +71,7 @@ def parse_arguments(args_to_parse):
                         help='Traverses the posterior instead of the prior.')
     general.add_argument('-i', '--idcs', type=int, nargs='+', default=[],
                         help='List of indices to of images to put at the begining of the samples.')
-    general.add_argument("plots", type=str, nargs='+', choices=PLOT_TYPES, default="all",
+    general.add_argument("--plots", type=str, nargs='+', choices=PLOT_TYPES, default="all",
                         help="List of all plots to generate. `generate-samples`: random decoded samples. `data-samples` samples from the dataset. `reconstruct` first rnows//2 will be the original and rest will be the corresponding reconstructions. `traversals` traverses the most important rnows dimensions with ncols different samples from the prior or posterior. `reconstruct-traverse` first row for original, second are reconstructions, rest are traversals. `gif-traversals` grid of gifs where rows are latent dimensions, columns are examples, each gif shows posterior traversals. `all` runs every plot.")
     general.add_argument('--n-rows', type=int, default=6,
                         help='The number of rows to visualize (if applicable).')
