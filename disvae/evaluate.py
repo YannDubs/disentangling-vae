@@ -161,7 +161,7 @@ class Evaluator:
             total_len += len(x)
             if total_len > max_len:
                 break
-        fid = get_fid_value(torch.utils.data.DataLoader(torch.utils.data.TensorDataset(small_dset_x, small_dset_y), batch_size=dataloader.batch_size), self.model)
+        fid = get_fid_value(torch.utils.data.DataLoader(torch.utils.data.TensorDataset(torch.tensor(small_dset_x), torch.tensor(small_dset_y)), batch_size=dataloader.batch_size), self.model)
 
         if dataset in ['dsprites']: # Most metrics are only applicable for datasets with ground truth variation factors
             try:
