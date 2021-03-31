@@ -38,7 +38,7 @@ class DecoderHigginsdsprites(nn.Module):
         x = torch.tanh(self.lin1(z))
         x = torch.tanh(self.lin2(x))
         x = torch.tanh(self.lin3(x))
-        x = self.sigmoid(self.lin4(x)) # Sigmoid because the distribution over pixels is supposed to be Bernoulli
+        x = torch.sigmoid(self.lin4(x)) # Sigmoid because the distribution over pixels is supposed to be Bernoulli
         return x
 
 
