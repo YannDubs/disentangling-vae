@@ -340,7 +340,7 @@ def main(args):
                 try:
                     wandb.save(fname)
                 except Exception as e:
-                    print(f"Failed to save {fname} to WANDB")
+                    print(f"Failed to save {fname} to WANDB. Exception: {e}")
 
 
         # SAVE MODEL AND EXPERIMENT INFORMATION
