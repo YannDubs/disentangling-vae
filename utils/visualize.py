@@ -451,7 +451,7 @@ class GifTraversalsTraining:
         """Generate the next gif image. Should be called after each epoch."""
         cached_training = self.visualizer.model.training
         self.visualizer.model.eval()
-        img_grid = self.visualizer.traversals(data=None,  # GIF from prior
+        fname, img_grid = self.visualizer.traversals(data=None,  # GIF from prior
                                               is_reorder_latents=self.is_reorder_latents,
                                               n_per_latent=self.n_per_latent,
                                               n_latents=self.n_latents)
