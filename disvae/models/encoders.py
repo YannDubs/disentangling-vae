@@ -11,12 +11,12 @@ def get_encoder(model_type):
     model_type = model_type.lower().capitalize()
     return eval("Encoder{}".format(model_type))
 
-class EncoderHigginsDsprites(nn.Module):
+class EncoderHigginsdsprites(nn.Module):
     def __init__(self, img_size,
                  latent_dim=10):
         r"""Dsprites model from Higgins et al. 2018 (described in Appendix A.2)
         """
-        super(EncoderHigginsDsprites, self).__init__()
+        super(EncoderHigginsdsprites, self).__init__()
 
         self.latent_dim = latent_dim
         self.img_size = img_size
@@ -44,7 +44,7 @@ class EncoderHigginsDsprites(nn.Module):
 
         return mu, logvar
 
-class EncoderHigginsConv(nn.Module):
+class EncoderHigginsconv(nn.Module):
     def __init__(self, img_size,
                  latent_dim=10):
         r"""Encoder of the model proposed in [1].
@@ -68,7 +68,7 @@ class EncoderHigginsConv(nn.Module):
             [1] Burgess, Christopher P., et al. "Understanding disentangling in
             $\beta$-VAE." arXiv preprint arXiv:1804.03599 (2018).
         """
-        super(EncoderHigginsConv, self).__init__()
+        super(EncoderHigginsconv, self).__init__()
 
         # Layer parameters
         hid_channels = 32

@@ -13,12 +13,12 @@ def get_decoder(model_type):
     return eval("Decoder{}".format(model_type))
 
 
-class DecoderHiggingsDsprites(nn.Module):
+class DecoderHiggingsdsprites(nn.Module):
     def __init__(self, img_size,
                  latent_dim=10):
         r"""Higgins Conv decoder from Appendix A.2
         """
-        super(DecoderHigginsDsprites, self).__init__()
+        super(DecoderHigginsdsprites, self).__init__()
 
         # Layer parameters
 
@@ -42,12 +42,12 @@ class DecoderHiggingsDsprites(nn.Module):
         return x
 
 
-class DecoderHiggingsConv(nn.Module):
+class DecoderHiggingsconv(nn.Module):
     def __init__(self, img_size,
                  latent_dim=10):
         r"""Higgins Conv decodfer from Appendix A.2
         """
-        super(DecoderHigginsConv, self).__init__()
+        super(DecoderHigginsconv, self).__init__()
 
         # Layer parameters
         hid_channels = 32
