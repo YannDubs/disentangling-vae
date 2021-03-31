@@ -29,7 +29,9 @@ EXPERIMENTS = ADDITIONAL_EXP + ["{}_{}".format(loss, data)
                                 for loss in LOSSES
                                 for data in DATASETS]
 
-
+PLOT_TYPES = ['generate-samples', 'data-samples', 'reconstruct', "traversals",
+              'reconstruct-traverse', "gif-traversals", "all"]
+              
 def parse_arguments(args_to_parse):
     """Parse the command line arguments.
 
@@ -60,6 +62,15 @@ def parse_arguments(args_to_parse):
                          help='Random seed. Can be `None` for stochastic behavior.')
     general.add_argument('-max_traversal', '--max_traversal', type=float, default=0.475,
                          help='Random seed. Can be `None` for stochastic behavior.')
+
+    general.add_argument('--is-show-loss', action='store_true',
+                        help='Displays the loss on the figures (if applicable).')
+    general.add_argument('--is-posterior', action='store_true',
+                        help='Traverses the posterior instead of the prior.')
+    general.add_argument('-i', '--idcs', type=int, nargs='+', default=[],
+                        help='List of indices to of images to put at the begining of the samples.')
+    general.add_argument("plots", type=str, nargs='+', choices=PLOT_TYPES,
+                        help="List of all plots to generate. `generate-samples`: random decoded samples. `data-samples` samples from the dataset. `reconstruct` first rnows//2 will be the original and rest will be the corresponding reconstructions. `traversals` traverses the most important rnows dimensions with ncols different samples from the prior or posterior. `reconstruct-traverse` first row for original, second are reconstructions, rest are traversals. `gif-traversals` grid of gifs where rows are latent dimensions, columns are examples, each gif shows posterior traversals. `all` runs every plot.")
 
     # Learning options
     training = parser.add_argument_group('Training specific options')
@@ -293,24 +304,24 @@ def main(args):
 
         for plot_type in args.plots:
             if plot_type == 'generate-samples':
-                viz.generate_samples(size=size)
+                fname, plot = viz.generate_samples(size=size)
             elif plot_type == 'data-samples':
-                viz.data_samples(samples, size=size)
+                fname, plot = viz.data_samples(samples, size=size)
             elif plot_type == "reconstruct":
-                viz.reconstruct(samples, size=size)
+                fname, plot = viz.reconstruct(samples, size=size)
             elif plot_type == 'traversals':
-                viz.traversals(data=samples[0:1, ...] if args.is_posterior else None,
+                fname, plot =viz.traversals(data=samples[0:1, ...] if args.is_posterior else None,
                             n_per_latent=args.n_cols,
                             n_latents=args.n_rows,
                             is_reorder_latents=True)
             elif plot_type == "reconstruct-traverse":
-                viz.reconstruct_traverse(samples,
+                fname, plot = viz.reconstruct_traverse(samples,
                                         is_posterior=args.is_posterior,
                                         n_latents=args.n_rows,
                                         n_per_latent=args.n_cols,
                                         is_show_text=args.is_show_loss)
             elif plot_type == "gif-traversals":
-                viz.gif_traversals(samples[:args.n_cols, ...], n_latents=args.n_rows)
+                fname, plot = viz.gif_traversals(samples[:args.n_cols, ...], n_latents=args.n_rows)
             else:
                 raise ValueError("Unkown plot_type={}".format(plot_type))
 

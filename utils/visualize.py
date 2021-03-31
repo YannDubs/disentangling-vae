@@ -174,7 +174,10 @@ class Visualizer():
         """
         prior_samples = torch.randn(size[0] * size[1], self.latent_dim)
         generated = self._decode_latents(prior_samples)
-        return self._save_or_return(generated.data, size, PLOT_NAMES["generate_samples"])
+        self._save_or_return(generated.data, size, PLOT_NAMES["generate_samples"])
+
+
+        return os.path.join(self.model_dir, PLOT_NAMES["generate_samples"]), self._save_or_return(generated.data, size, PLOT_NAMES["generate_samples"], is_force_return=True)
 
     def data_samples(self, data, size=(8, 8)):
         """Plot samples from the dataset
@@ -188,7 +191,10 @@ class Visualizer():
             Size of the final grid.
         """
         data = data[:size[0] * size[1], ...]
-        return self._save_or_return(data, size, PLOT_NAMES["data_samples"])
+
+        self._save_or_return(data, size, PLOT_NAMES["data_samples"])
+
+        return os.path.join(self.model_dir, PLOT_NAMES["data_samples"]), self._save_or_return(data, size, PLOT_NAMES["data_samples"], is_force_return=True)
 
     def reconstruct(self, data, size=(8, 8), is_original=True, is_force_return=False):
         """Generate reconstructions of data through the model.
@@ -224,8 +230,12 @@ class Visualizer():
         recs = recs.view(-1, *self.model.img_size).cpu()
 
         to_plot = torch.cat([originals, recs]) if is_original else recs
-        return self._save_or_return(to_plot, size, PLOT_NAMES["reconstruct"],
-                                    is_force_return=is_force_return)
+        self._save_or_return(to_plot, size, PLOT_NAMES["reconstruct"],
+                                            is_force_return=is_force_return)
+
+
+        return os.path.join(self.model_dir, PLOT_NAMES["reconstruct"]), self._save_or_return(to_plot, size, PLOT_NAMES["reconstruct"],
+                                    is_force_return=True)
 
     def traversals(self,
                    data=None,
@@ -275,9 +285,10 @@ class Visualizer():
         size = (n_latents, n_per_latent)
         sampling_type = "prior" if data is None else "posterior"
         filename = "{}_{}".format(sampling_type, PLOT_NAMES["traversals"])
-
-        return self._save_or_return(decoded_traversal.data, size, filename,
-                                    is_force_return=is_force_return)
+        self._save_or_return(decoded_traversal.data, size, filename,
+                                            is_force_return=is_force_return)
+        return os.path.join(self.model_dir, filename), self._save_or_return(decoded_traversal.data, size, filename,
+                                    is_force_return=True)
 
     def latents_traversal_plot(self,
                     emb_model,
@@ -349,6 +360,7 @@ class Visualizer():
 
         filename = os.path.join(self.model_dir, PLOT_NAMES["reconstruct_traverse"])
         concatenated.save(filename)
+        return filename, concatenated
 
     def gif_traversals(self, data, n_latents=None, n_per_gif=15):
         """Generates a grid of gifs of latent posterior traversals where the rows
@@ -389,6 +401,7 @@ class Visualizer():
 
         filename = os.path.join(self.model_dir, PLOT_NAMES["gif_traversals"])
         imageio.mimsave(filename, all_cols, fps=FPS_GIF)
+        return filename, all_cols
 
 
 class GifTraversalsTraining:
