@@ -50,7 +50,7 @@ class Trainer():
                  save_dir="results",
                  gif_visualizer=None,
                  is_progress_bar=True,
-                 metrics_freq=2,
+                 metrics_freq=3,
                  seed=1,
                  steps=None,
                  dset_name=None,
@@ -114,7 +114,7 @@ class Trainer():
 
             if wandb_log:
                 metrics, losses = {}, {}
-                if epoch % max(round(epochs/self.metrics_freq), 10) == 0 and epoch != 0:
+                if epoch % max(round(epochs/self.metrics_freq), 10) == 0 and (epoch != 0 ):
                     metrics = train_evaluator.compute_metrics(data_loader, dataset=self.dset_name)
 
                 losses = train_evaluator.compute_losses(data_loader)
