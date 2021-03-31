@@ -23,6 +23,7 @@ class DecoderHigginsdsprites(nn.Module):
         # Layer parameters
 
         self.img_size = img_size
+        self.reshape = (64, 4, 4)
 
         # Fully connected layers
         self.lin1 = nn.Linear(latent_dim, 1200)
@@ -38,7 +39,7 @@ class DecoderHigginsdsprites(nn.Module):
         x = torch.tanh(self.lin1(z))
         x = torch.tanh(self.lin2(x))
         x = torch.tanh(self.lin3(x))
-        x = torch.sigmoid(self.lin4(x)) # Sigmoid because the distribution over pixels is supposed to be Bernoulli
+        x = torch.sigmoid(self.lin4(x)).reshape((batch_size, 1, 64, 64)) # Sigmoid because the distribution over pixels is supposed to be Bernoulli
         return x
 
 
