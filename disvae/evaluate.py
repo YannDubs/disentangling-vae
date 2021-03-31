@@ -154,16 +154,14 @@ class Evaluator:
         small_dset_x = []
         small_dset_y = []
         for x,y in dataloader:
-            for single_x in x:
-                small_dset_x.append(single_x)
-            for single_y in y:
-                small_dset_y.append(single_y)
+            small_dset_x.append(x)
+            small_dset_y.append(y)
             total_len += len(x)
             if total_len > max_len:
                 break
 
         fid = get_fid_value(torch.utils.data.DataLoader(torch.utils.data.TensorDataset(torch.cat(small_dset_x), torch.cat(small_dset_y)), batch_size=dataloader.batch_size), self.model)
-        
+
         if dataset in ['dsprites']: # Most metrics are only applicable for datasets with ground truth variation factors
             try:
                 lat_sizes = dataloader.dataset.lat_sizes
