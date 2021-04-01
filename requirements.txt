@@ -11,4 +11,4 @@ tqdm
 sklearn
 umap-learn
 opentsne
-
+wandb
