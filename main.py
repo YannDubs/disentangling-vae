@@ -330,10 +330,10 @@ def main(args):
                 builtin_plots["traversals"] = plot
             elif plot_type == "reconstruct-traverse":
                 fname, plot = viz.reconstruct_traverse(samples,
-                                        is_posterior=args.is_posterior,
+                                        is_posterior=True,
                                         n_latents=args.n_rows,
                                         n_per_latent=args.n_cols,
-                                        is_show_text=args.is_show_loss)
+                                        is_show_text=True)
                 builtin_plots["reconstruct-traverse"] = plot
             elif plot_type == "gif-traversals":
                 fname, plot = viz.gif_traversals(samples[:args.n_cols, ...], n_latents=args.n_rows)
