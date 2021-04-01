@@ -244,7 +244,7 @@ class Evaluator:
                 self.logger.info("Training ICA...")
                 ica = decomposition.FastICA(n_components=self.model.latent_dim, max_iter=400)
                 imgs_ica = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
-                size = min(1000, len(imgs_ica))
+                size = min(2000, len(imgs_ica))
                 # if self.use_wandb:
                 #     wandb.config["ICA_training_size"] = size
                 idx = np.random.randint(len(imgs_ica), size = size)
