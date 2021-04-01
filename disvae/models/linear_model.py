@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 
-class LinearModel(nn.Module):
+class Classifier(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, use_non_linear):
         super(LinearModel, self).__init__()
         self.use_non_linear = use_non_linear
