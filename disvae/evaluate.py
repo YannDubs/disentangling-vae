@@ -332,15 +332,17 @@ class Evaluator:
         test_acc = {"linear":{}, "nonlinear":{}}
         for model_class in ["linear", "nonlinear"]:
             model = Classifier(latent_dim,hidden_dim,len(lat_sizes), use_non_linear= True if model_class =="nonlinear" else False)
-                
+            
             model.to(self.device)
             model.train()
 
             #log softmax with NLL loss 
             criterion = torch.nn.NLLLoss()
-            optim = torch.optim.Adam(model.parameters(), lr=0.01)
+            optim = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
         
             for method in tqdm(methods.keys(), desc = "Training classifiers for the Higgins metric"):
+                if method == "VAE":
+                    n_epochs = 1200
                 print(f'Training the classifier for model {method}')
                 for e in tqdm(range(n_epochs), desc="Iterating over epochs while training the Higgins classifier"):
                     optim.zero_grad()
@@ -353,7 +355,6 @@ class Evaluator:
                     X_test = X_test.to(self.device)
                     Y_test = Y_test.to(self.device)
 
-                    
                     scores_train = model(X_train)   
                     loss = criterion(scores_train, Y_train)
                     loss.backward()
