@@ -242,7 +242,7 @@ class Evaluator:
             elif method_name == "ICA":
                 start = time.time() 
                 self.logger.info("Training ICA...")
-                ica = decomposition.FastICA(n_components=self.model.latent_dim)
+                ica = decomposition.FastICA(n_components=self.model.latent_dim, max_iter=400)
                 imgs_ica = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
                 size = min(1000, len(imgs_ica))
                 # if self.use_wandb:
