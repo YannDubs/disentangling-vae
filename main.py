@@ -231,6 +231,9 @@ def main(args):
     exp_dir = os.path.join(RES_DIR, args.name+f"{time.time()}")
     logger.info("Root directory for saving and loading experiments: {}".format(exp_dir))
 
+    print("Config:")
+    print(vars(args))
+
     if not args.is_eval_only:
 
         create_safe_directory(exp_dir, logger=logger)

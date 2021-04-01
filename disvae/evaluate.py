@@ -144,10 +144,10 @@ class Evaluator:
         ----------
         data_loader: torch.utils.data.DataLoader
         """
-        if self.use_wandb:
-             wandb.config["latent_size"] = self.model.latent_dim
-             wandb.config["classifier_hidden_size"] = 512
-             wandb.config["sample_size"] = 300   
+        # if self.use_wandb:
+        #      wandb.config["latent_size"] = self.model.latent_dim
+        #      wandb.config["classifier_hidden_size"] = 512
+        #      wandb.config["sample_size"] = 300   
         accuracies, fid, mig, aam = None, None, None, None # Default values. Not all metrics can be computed for all datasets
 
         # Need to create a new small dataset for FID. The default dataloaders we get in would typically be shuffled as well, so we need to remove that
@@ -234,8 +234,8 @@ class Evaluator:
                 pca.fit(imgs_pca)
                 methods["PCA"] = pca
                 self.logger.info("Done")
-                if self.use_wandb:
-                    wandb.config["PCA_training_size"] = size
+                # if self.use_wandb:
+                #     wandb.config["PCA_training_size"] = size
                 runtimes[method_name] = time.time()-start
                     
 
@@ -245,8 +245,8 @@ class Evaluator:
                 ica = decomposition.FastICA(n_components=self.model.latent_dim)
                 imgs_ica = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
                 size = min(1000, len(imgs_ica))
-                if self.use_wandb:
-                    wandb.config["ICA_training_size"] = size
+                # if self.use_wandb:
+                #     wandb.config["ICA_training_size"] = size
                 idx = np.random.randint(len(imgs_ica), size = size)
                 imgs_ica = imgs_ica[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
                 ica.fit(imgs_ica)
@@ -348,6 +348,7 @@ class Evaluator:
                     X_train, Y_train = data_train[method]
                     X_train = X_train.to(self.device)
                     Y_train = Y_train.to(self.device)
+                    
                     X_test , Y_test = data_test[method]
                     X_test = X_test.to(self.device)
                     Y_test = Y_test.to(self.device)
