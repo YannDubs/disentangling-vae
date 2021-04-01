@@ -344,6 +344,7 @@ class Evaluator:
                 if method == "VAE":
                     n_epochs = 1200
                 print(f'Training the classifier for model {method}')
+                last_loss=None
                 for e in tqdm(range(n_epochs), desc="Iterating over epochs while training the Higgins classifier"):
                     optim.zero_grad()
                     
