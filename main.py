@@ -228,7 +228,7 @@ def main(args):
 
     set_seed(args.seed)
     device = get_device(is_gpu=not args.no_cuda)
-    exp_dir = os.path.join(RES_DIR, args.name+f"{time.time()}")
+    exp_dir = os.path.join(RES_DIR, args.name+f"{time.time()}" if not args.is_eval_only else args.name)
     logger.info("Root directory for saving and loading experiments: {}".format(exp_dir))
 
     print("Config:")
