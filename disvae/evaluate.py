@@ -342,6 +342,9 @@ class Evaluator:
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, 'min', patience=4000, min_lr=0.00001)
 
             for method in tqdm(methods.keys(), desc = "Training classifiers for the Higgins metric"):
+                if method == "ICA":
+                    optim = torch.optim.Adam(model.parameters(), lr=1 if model_class =="linear" else 0.001)
+                    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, 'min', patience=4000, min_lr=0.00001)
 
                 print(f'Training the classifier for model {method}')
                 last_loss=None
