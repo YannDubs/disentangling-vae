@@ -86,7 +86,7 @@ class DisentangledDataset(Dataset, abc.ABC):
         List of `torch.vision.transforms` to apply to the data when loading it.
     """
 
-    def __init__(self, root, transforms_list=[], logger=logging.getLogger(__name__)):
+    def __init__(self, root, transforms_list=[], logger=logging.getLogger(__name__), **kwargs):
         self.root = root
         self.train_data = os.path.join(root, type(self).files["train"])
         self.transforms = transforms.Compose(transforms_list)
