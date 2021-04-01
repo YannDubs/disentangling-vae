@@ -173,7 +173,7 @@ class Evaluator:
             
             self.logger.info("Computing the disentanglement metric")
             method_names = ["VAE", "PCA", "ICA", "T-SNE","UMAP", "DensUMAP"]
-            accuracies = self._disentanglement_metric(method_names, sample_size=300, lat_sizes=lat_sizes, imgs=lat_imgs, n_epochs=75, dataset_size=1500, hidden_dim=512, use_non_linear=False)
+            accuracies = self._disentanglement_metric(method_names, sample_size=300, lat_sizes=lat_sizes, imgs=lat_imgs, n_epochs=7500, dataset_size=1500, hidden_dim=512, use_non_linear=False)
             #sample size is key for VAE, for sample size 50 only 88% accuarcy, compared to 95 for 200 sample sze
             #non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 50, lat_sizes, lat_imgs, n_epochs=150, dataset_size=5000, hidden_dim=128, use_non_linear=True) #if hidden dim too large -> no training possible
             if self.use_wandb:
@@ -341,8 +341,7 @@ class Evaluator:
             optim = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
         
             for method in tqdm(methods.keys(), desc = "Training classifiers for the Higgins metric"):
-                if method == "VAE":
-                    n_epochs = 1200
+
                 print(f'Training the classifier for model {method}')
                 last_loss=None
                 for e in tqdm(range(n_epochs), desc="Iterating over epochs while training the Higgins classifier"):
@@ -364,7 +363,7 @@ class Evaluator:
                     if (e+1) % 70 == 0:
                         scores_test = model(X_test)   
                         test_loss = criterion(scores_test, Y_test)
-                        print(f'In this epoch {e+1}/{n_epochs}, Training loss: {loss.item():.4f}, Test loss: {test_loss.item():.4f}')
+                        tqdm.write(f'In this epoch {e+1}/{n_epochs}, Training loss: {loss.item():.4f}, Test loss: {test_loss.item():.4f}')
                         model.eval()
                         with torch.no_grad():
                             scores_train = model(X_train)
@@ -374,7 +373,7 @@ class Evaluator:
 
                             train_acc = (prediction_train==Y_train).sum().float()/len(X_train)
                             test_acc[model_class][method] = (prediction_test==Y_test).sum().float()/len(X_test)
-                            print(f'Accuracy of {method} on training set: {train_acc.item():.4f}, test set: {test_acc[model_class][method].item():.4f}')
+                            tqdm.write(f'Accuracy of {method} on training set: {train_acc.item():.4f}, test set: {test_acc[model_class][method].item():.4f}')
                         model.train()
                 
                 model.eval()
