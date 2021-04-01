@@ -244,7 +244,7 @@ class Evaluator:
                 self.logger.info("Training ICA...")
                 ica = decomposition.FastICA(n_components=self.model.latent_dim, max_iter=400)
                 imgs_ica = np.reshape(imgs, (imgs.shape[0], imgs.shape[1]**2))
-                size = min(2000, len(imgs_ica))
+                size = min(3000, len(imgs_ica))
                 # if self.use_wandb:
                 #     wandb.config["ICA_training_size"] = size
                 idx = np.random.randint(len(imgs_ica), size = size)
@@ -347,7 +347,6 @@ class Evaluator:
                     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, 'min', patience=4000, min_lr=0.00001)
 
                 print(f'Training the classifier for model {method}')
-                last_loss=None
                 for e in tqdm(range(n_epochs), desc="Iterating over epochs while training the Higgins classifier"):
                     optim.zero_grad()
                     
