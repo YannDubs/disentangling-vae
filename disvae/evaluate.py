@@ -339,7 +339,7 @@ class Evaluator:
             #log softmax with NLL loss 
             criterion = torch.nn.NLLLoss()
             optim = torch.optim.Adam(model.parameters(), lr=0.01)
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, 'min', patience=50)
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, 'min', patience=500)
 
             for method in tqdm(methods.keys(), desc = "Training classifiers for the Higgins metric"):
 
