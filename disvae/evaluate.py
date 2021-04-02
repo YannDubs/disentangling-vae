@@ -338,16 +338,16 @@ class Evaluator:
 
             #log softmax with NLL loss 
             criterion = torch.nn.NLLLoss()
-            optim = torch.optim.Adam(model.parameters(), lr=0.01 if model_class =="linear" else 0.001, weight_decay=0 if model_class == "linear" else 1e-5)
+            optim = torch.optim.Adam(model.parameters(), lr=0.01 if model_class =="linear" else 0.001, weight_decay=0 if model_class == "linear" else 1e-4)
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, 'min', patience=5000, min_lr=0.00001)
 
             for method in tqdm(methods.keys(), desc = "Training classifiers for the Higgins metric"):
                 if method == "ICA":
-                    optim = torch.optim.Adam(model.parameters(), lr=1 if model_class =="linear" else 0.001, weight_decay=0 if model_class == "linear" else 1e-5)
+                    optim = torch.optim.Adam(model.parameters(), lr=1 if model_class =="linear" else 0.001, weight_decay=0 if model_class == "linear" else 1e-4)
                     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, 'min', patience=5000, min_lr=0.00001)
 
                 print(f'Training the classifier for model {method}')
-                for e in tqdm(range(n_epochs), desc="Iterating over epochs while training the Higgins classifier"):
+                for e in tqdm(range(n_epochs if model_class == "linear" else round(n_epochs/2)), desc="Iterating over epochs while training the Higgins classifier"):
                     optim.zero_grad()
                     
                     X_train, Y_train = data_train[method]

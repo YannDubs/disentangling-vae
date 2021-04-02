@@ -63,9 +63,9 @@ class Classifier(nn.Module):
         x = self.lin1(x)
         if self.use_non_linear:
             x = self.act1(x)
-            x = F.dropout(x, p=0.4)
+            x = F.dropout(x, p=0.5)
             x = self.lin2(x)
-            x = F.dropout(x, p=0.4)
+            x = F.dropout(x, p=0.5)
             x = self.act2(x)
             x = self.lin3(x)
         #if self.use_non_linear:
