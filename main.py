@@ -77,6 +77,8 @@ def parse_arguments(args_to_parse):
                         help='The number of rows to visualize (if applicable).')
     general.add_argument('--n-cols', type=int, default=7,
                         help='The number of columns to visualize (if applicable).')
+    general.add_argument('--metrics_freq', type=int, default=2,
+                        help='The number of columns to visualize (if applicable).')
     # Learning options
     training = parser.add_argument_group('Training specific options')
     training.add_argument('--checkpoint-every',
@@ -280,7 +282,7 @@ def main(args):
                           save_dir=exp_dir,
                           is_progress_bar=not args.no_progress_bar,
                           gif_visualizer=gif_visualizer,
-                          metrics_freq=10 if args.dataset in ['dsprites'] else 50,
+                          metrics_freq= args.metrics_freq,
                           seed=args.seed,
                           steps = args.train_steps,
                           dset_name=args.dataset,
