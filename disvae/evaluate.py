@@ -99,14 +99,14 @@ class Evaluator:
         if is_metrics:
             self.logger.info('Computing metrics...')
             metrics = self.compute_metrics(data_loader, dataset=self.dset_name)
-            self.logger.info('Losses: {}'.format(metrics))
-            save_metadata(metrics, self.save_dir, filename=METRICS_FILENAME)
+            self.logger.info('Metrics: {}'.format(metrics))
+            # save_metadata(metrics, self.save_dir, filename=METRICS_FILENAME)
 
         if is_losses:
             self.logger.info('Computing losses...')
             losses = self.compute_losses(data_loader)
             self.logger.info('Losses: {}'.format(losses))
-            save_metadata(losses, self.save_dir, filename=TEST_LOSSES_FILE)
+            # save_metadata(losses, self.save_dir, filename=TEST_LOSSES_FILE)
 
         if is_still_training:
             self.model.train()
