@@ -95,7 +95,7 @@ class Evaluator:
         is_still_training = self.model.training
         self.model.eval()
 
-        metric, losses = None, None
+        metrics, losses = None, None
         if is_metrics:
             self.logger.info('Computing metrics...')
             metrics = self.compute_metrics(data_loader, dataset=self.dset_name)
@@ -113,7 +113,7 @@ class Evaluator:
 
         self.logger.info('Finished evaluating after {:.1f} min.'.format((default_timer() - start) / 60))
 
-        return metric, losses
+        return metrics, losses
 
     def compute_losses(self, dataloader):
         """Compute all test losses.

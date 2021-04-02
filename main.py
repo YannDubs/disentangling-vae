@@ -392,9 +392,10 @@ def main(args):
                               use_wandb=True,
                               seed=args.seed,
                               higgins_drop_slow=args.higgins_drop_slow,
-                              dset_name=args.dataset)
+                              dset_name=args.dataset,)
 
-        evaluator(test_loader, is_metrics=args.is_metrics, is_losses=not args.no_test)
+        metrics, losses = evaluator(test_loader, is_metrics=True, is_losses=True)
+        wandb.log({"final":{"metric":metrics, "loss":losses}})
 
 
 if __name__ == '__main__':
