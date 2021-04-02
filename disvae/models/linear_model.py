@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 
 # class Classifier(nn.Module):
@@ -62,7 +63,9 @@ class Classifier(nn.Module):
         x = self.lin1(x)
         if self.use_non_linear:
             x = self.act1(x)
+            x = F.dropout(x, p=0.2)
             x = self.lin2(x)
+            x = F.dropout(x, p=0.2)
             x = self.act2(x)
             x = self.lin3(x)
         #if self.use_non_linear:
