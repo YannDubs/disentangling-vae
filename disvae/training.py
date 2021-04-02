@@ -112,7 +112,7 @@ class Trainer():
                 save_model(self.model, self.save_dir,
                            filename="model-{}.pt".format(epoch))
             if self.scheduler is not None:
-                self.scheduler()
+                self.scheduler.step()
             
             self.model.eval()
 
