@@ -369,19 +369,20 @@ class Evaluator:
                     scheduler.step(loss)
                     
                     if (e+1) % 2000 == 0:
-                        scores_test = model(X_test)   
-                        test_loss = criterion(scores_test, Y_test)
-                        tqdm.write(f'In this epoch {e+1}/{n_epochs}, Training loss: {loss.item():.4f}, Test loss: {test_loss.item():.4f}')
                         model.eval()
                         with torch.no_grad():
-                            scores_train = model(X_train)
-                            scores_test = model(X_test)
-                            _, prediction_train = scores_train.max(1)
-                            _, prediction_test = scores_test.max(1)
+                            scores_test = model(X_test)   
+                            test_loss = criterion(scores_test, Y_test)
+                            tqdm.write(f'In this epoch {e+1}/{n_epochs}, Training loss: {loss.item():.4f}, Test loss: {test_loss.item():.4f}')
+                            model.eval()
+                                scores_train = model(X_train)
+                                scores_test = model(X_test)
+                                _, prediction_train = scores_train.max(1)
+                                _, prediction_test = scores_test.max(1)
 
-                            train_acc = (prediction_train==Y_train).sum().float()/len(X_train)
-                            test_acc[model_class][method] = (prediction_test==Y_test).sum().float()/len(X_test)
-                            tqdm.write(f'Accuracy of {method} on training set: {train_acc.item():.4f}, test set: {test_acc[model_class][method].item():.4f}')
+                                train_acc = (prediction_train==Y_train).sum().float()/len(X_train)
+                                test_acc[model_class][method] = (prediction_test==Y_test).sum().float()/len(X_test)
+                                tqdm.write(f'Accuracy of {method} on training set: {train_acc.item():.4f}, test set: {test_acc[model_class][method].item():.4f}')
                         model.train()
                 
                 model.eval()
