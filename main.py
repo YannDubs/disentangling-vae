@@ -260,10 +260,13 @@ def main(args):
         # TRAINS
         if args.model_type == "Burgess":
             optimizer = optim.Adam(model.parameters(), lr=args.lr)
+            scheduler = None
         elif args.model_type == "Higginsdsprites":
             optimizer = optim.Adagrad(model.parameters(), lr=args.lr)
+            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.2)
         elif args.model_type == "Higginsconv":
             optimizer = optim.Adam(model.parameters(), lr=args.lr)
+            scheduler = None
 
 
         gif_visualizer = GifTraversalsTraining(model, args.dataset, exp_dir)
@@ -281,7 +284,8 @@ def main(args):
                           seed=args.seed,
                           steps = args.train_steps,
                           dset_name=args.dataset,
-                          higgins_drop_slow=args.higgins_drop_slow)
+                          higgins_drop_slow=args.higgins_drop_slow,
+                          scheduler=scheduler)
 
         trainer(train_loader,
                 epochs=args.epochs,

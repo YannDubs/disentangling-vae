@@ -54,7 +54,8 @@ class Trainer():
                  seed=1,
                  steps=None,
                  dset_name=None,
-                 higgins_drop_slow=None):
+                 higgins_drop_slow=None
+                 , scheduler = None):
 
         self.device = device
         self.model = model.to(self.device)
@@ -71,6 +72,7 @@ class Trainer():
         self.steps=steps
         self.dset_name=dset_name
         self.higgins_drop_slow = higgins_drop_slow
+        self.scheduler = scheduler
 
     def __call__(self, data_loader,
                  epochs=10,
@@ -109,6 +111,8 @@ class Trainer():
             if epoch % checkpoint_every == 0:
                 save_model(self.model, self.save_dir,
                            filename="model-{}.pt".format(epoch))
+            if self.scheduler is not None:
+                self.scheduler(step)
             
             self.model.eval()
 
