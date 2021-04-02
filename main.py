@@ -230,7 +230,8 @@ def main(args):
 
     set_seed(args.seed)
     device = get_device(is_gpu=not args.no_cuda)
-    exp_dir = os.path.join(RES_DIR, args.name+f"{time.time()}" if not args.is_eval_only else args.name)
+    new_path = args.name+f"{time.time()}" if not args.is_eval_only else args.name
+    exp_dir = os.path.join(RES_DIR, new_path)
     logger.info("Root directory for saving and loading experiments: {}".format(exp_dir))
 
     print("Config:")
@@ -298,7 +299,7 @@ def main(args):
         latents_plots, latent_data, dim_reduction_models = latent_viz(model, train_loader, args.dataset, raw_dataset=raw_dataset, steps=100, device=device)
         
 
-        model_dir = os.path.join(RES_DIR, args.name)
+        model_dir = os.path.join(RES_DIR, new_path)
         viz = Visualizer(model=model,
                     model_dir=model_dir,
                     dataset=args.dataset,

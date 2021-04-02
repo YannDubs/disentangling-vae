@@ -122,6 +122,7 @@ class Evaluator:
         ----------
         data_loader: torch.utils.data.DataLoader
         """
+        self.model.eval()
         storer = defaultdict(list)
         for data, _ in tqdm(dataloader, leave=False, disable=not self.is_progress_bar):
             data = data.to(self.device)
@@ -134,8 +135,9 @@ class Evaluator:
                 # for losses that use multiple optimizers (e.g. Factor)
                 _ = self.loss_f.call_optimize(data, self.model, None, storer)
 
-            losses = {k: sum(v) / len(dataloader) for k, v in storer.items()}
-            return losses
+        losses = {k: sum(v) / len(dataloader) for k, v in storer.items()}
+        self.model.train()
+        return losses
 
     def compute_metrics(self, dataloader, dataset=None):
         """Compute all the metrics.
@@ -148,6 +150,8 @@ class Evaluator:
         #      wandb.config["latent_size"] = self.model.latent_dim
         #      wandb.config["classifier_hidden_size"] = 512
         #      wandb.config["sample_size"] = 300   
+        
+        self.model.eval()
         accuracies, fid, mig, aam = None, None, None, None # Default values. Not all metrics can be computed for all datasets
 
         # Need to create a new small dataset for FID. The default dataloaders we get in would typically be shuffled as well, so we need to remove that
@@ -209,7 +213,7 @@ class Evaluator:
 
         metrics = {'DM': accuracies, 'MIG': mig, 'AAM': aam, 'FID': fid}
         print(f"Evaluated metrics for {dataset} as: {metrics}")
-
+        self.model.train()
         return metrics
 
 
