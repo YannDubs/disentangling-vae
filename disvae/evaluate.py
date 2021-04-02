@@ -178,7 +178,7 @@ class Evaluator:
             #non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 50, lat_sizes, lat_imgs, n_epochs=150, dataset_size=5000, hidden_dim=128, use_non_linear=True) #if hidden dim too large -> no training possible
             if self.use_wandb:
                 # wandb.log(accuracies)
-                wandb.save("disentanglement_metrics.h5")f
+                wandb.save("disentanglement_metrics.h5")
 
             self.logger.info("Computing the empirical distribution q(z|x).")
             samples_zCx, params_zCx = self._compute_q_zCx(dataloader)
