@@ -173,7 +173,7 @@ class Evaluator:
             
             self.logger.info("Computing the disentanglement metric")
             method_names = ["VAE", "PCA", "ICA", "T-SNE","UMAP", "DensUMAP"]
-            accuracies = self._disentanglement_metric(method_names, sample_size=300, lat_sizes=lat_sizes, imgs=lat_imgs, n_epochs=30000, dataset_size=1500, hidden_dim=512, use_non_linear=False)
+            accuracies = self._disentanglement_metric(method_names, sample_size=300, lat_sizes=lat_sizes, imgs=lat_imgs, n_epochs=20000, dataset_size=1500, hidden_dim=512, use_non_linear=False)
             #sample size is key for VAE, for sample size 50 only 88% accuarcy, compared to 95 for 200 sample sze
             #non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 50, lat_sizes, lat_imgs, n_epochs=150, dataset_size=5000, hidden_dim=128, use_non_linear=True) #if hidden dim too large -> no training possible
             if self.use_wandb:
@@ -338,12 +338,12 @@ class Evaluator:
 
             #log softmax with NLL loss 
             criterion = torch.nn.NLLLoss()
-            optim = torch.optim.Adam(model.parameters(), lr=0.01 if model_class =="linear" else 0.001)
+            optim = torch.optim.Adam(model.parameters(), lr=0.01 if model_class =="linear" else 0.001, weight_decay=0 if model_class == "linear" else 1e-5)
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, 'min', patience=5000, min_lr=0.00001)
 
             for method in tqdm(methods.keys(), desc = "Training classifiers for the Higgins metric"):
                 if method == "ICA":
-                    optim = torch.optim.Adam(model.parameters(), lr=1 if model_class =="linear" else 0.001)
+                    optim = torch.optim.Adam(model.parameters(), lr=1 if model_class =="linear" else 0.001, weight_decay=0 if model_class == "linear" else 1e-5)
                     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, 'min', patience=5000, min_lr=0.00001)
 
                 print(f'Training the classifier for model {method}')
