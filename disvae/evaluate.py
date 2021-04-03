@@ -371,12 +371,12 @@ class Evaluator:
                         optim.zero_grad()
                         
                         X_train, Y_train = data_train[method]
-                        X_train, Y_train = torch.stack(X_train, Y_train)
+                        X_train, Y_train = torch.tensor(X_train), torch.tensor(Y_train)
                         X_train = X_train.to(self.device)
                         Y_train = Y_train.to(self.device)
                         
                         X_test , Y_test = data_test[method]
-                        X_test, Y_train = torch.stack(X_train, Y_train,)
+                        X_test, Y_test = torch.tensor(X_test), torch.tensor(Y_test)
                         X_test = X_test.to(self.device)
                         Y_test = Y_test.to(self.device)
 
