@@ -26,15 +26,19 @@ import utils.inception
 
 INCEPTION_V3 = utils.inception.get_inception_v3()
 
-# TODO: get cuda working
-def _get_activations(dataloader, length, model, batch_size, dims, device='cpu' if torch.cuda.is_available() else 'cpu'):
+def _get_activations(dataloader, length, model, batch_size, dims, device='cuda' if torch.cuda.is_available() else 'cpu'):
     model.eval()
+
+    if batch_size > length:
+        print(('Warning: batch size is bigger than the data size. '
+               'Setting batch size to data size'))
+        batch_size = length
 
     pred_arr = np.empty((length, dims))
 
     start_idx = 0
 
-    for batch, labels in (dataloader):
+    for batch in tqdm(dataloader):
         batch = batch.to(device)
 
         with torch.no_grad():
@@ -127,27 +131,18 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
     # batch_size : batch size when evaluating model
 
     length = len(dataloader.dataset)
-    model = INCEPTION_V3
+    model = INCEPTION_v3
 
     # calculated reconstructed data using VAE
     vae_output = []
     vae_label = []
     vae_model.eval()
-    print("Running VAE model.")
     for inputs, labels in dataloader:
-        outputs = vae_model(inputs)[0]
-        for i in range(outputs.shape[0]):
-            vae_output.append(outputs[i])
-        for i in range(labels.shape[0]):
-            vae_label.append(labels[i])
-    vae_output = torch.stack(vae_output)
-    vae_label = torch.stack(vae_label)
-    print(vae_output.shape)
-    
-    print("Outputs calculated. Constructing dataloader.")
+        outputs = model(inputs)[0]
+        vae_output.extend(outputs)
+        vae_label.extend(labels)
     dataset_reconstructed = TensorDataset(vae_output, vae_label)
-    dataloader_reconstructed = DataLoader(dataset_reconstructed, batch_size=batch_size)
-    print("dataloader_reconstructed built")
+    dataloader_reconstructed = DataLoader(dataset_reconstructed)
 
     # get the model dimensions
     for inputs, labels in dataloader:
@@ -158,9 +153,11 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
             dims *= dim
         break
     
-
-    m1, s1 = _calculate_activation_statistics(dataloader, length, model, batch_size, dims)
-    m2, s2 = _calculate_activation_statistics(dataloader_reconstructed, length, model, batch_size, dims)
+    try:
+        m1, s1 = _calculate_activation_statistics(dataloader, length, model, batch_size, dims)
+        m2, s2 = _calculate_activation_statistics(dataloader_reconstructed, length, model, batch_size, dims)
+    except Exception as e:
+        print(f"Failed due to {e}")
 
     fid_value = _calculate_frechet_distance(m1, s1, m2, s2)
     return fid_value
@@ -173,14 +170,14 @@ if __name__ == "__main__":
     import logging
     import sys
 
-    MODEL_PATH = "results/betaH_mnist"
+    MODEL_PATH = "results/fid_testing"
     MODEL_NAME = "model.pt"
     GPU_AVAILABLE = True
 
-    vae_model = load_model(directory=MODEL_PATH, is_gpu=GPU_AVAILABLE, filename=MODEL_NAME)
+    model = load_model(directory=MODEL_PATH, is_gpu=GPU_AVAILABLE, filename=MODEL_NAME)
     device = torch.device("cpu")
-    vae_model = vae_model.to(device)
-    vae_model.eval()
+    model = model.to(device)
+    model.eval()
 
     mode = sys.argv[1] # get the name of the dataset you want to measure FID for
     if mode == 'cifar10'  or mode == 'cifar100' or mode == 'mnist':
@@ -190,6 +187,6 @@ if __name__ == "__main__":
         print("Entered wrong name for dataset") 
         sys.exit()
 
-    fid_value = get_fid_value(dataloader1, vae_model)
+    fid_value = get_fid_value(dataloader1, model)
 
     print("FID for ", mode, ": ", fid_value)
