@@ -111,6 +111,10 @@ def parse_arguments(args_to_parse):
             help='Number of training steps to use per epoch')
     training.add_argument('--higgins_drop_slow', type=bool, default=True,
         help='Whether to drop UMAP/TSNE etc. for computing Higgins metric (if we do not drop them, generating the data takes ~25 hours)')      
+    training.add_argument('--sample_size', type=bool, default=35,
+        help='Whether to drop UMAP/TSNE etc. for computing Higgins metric (if we do not drop them, generating the data takes ~25 hours)')      
+    training.add_argument('--dataset_size', type=bool, default=1500,
+        help='Whether to drop UMAP/TSNE etc. for computing Higgins metric (if we do not drop them, generating the data takes ~25 hours)')      
 
     # Model Options
     model = parser.add_argument_group('Model specfic options')
@@ -400,7 +404,9 @@ def main(args):
                               use_wandb=True,
                               seed=args.seed,
                               higgins_drop_slow=args.higgins_drop_slow,
-                              dset_name=args.dataset,)
+                              dset_name=args.dataset,
+                              sample_size=args.sample_size,
+                              dataset_size=args.dataset_size)
 
         metrics, losses = evaluator(test_loader, is_metrics=True, is_losses=True)
         wandb.log({"final":{"metric":metrics, "loss":losses}})

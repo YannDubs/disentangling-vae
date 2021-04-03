@@ -68,7 +68,9 @@ class Evaluator:
                  use_NN_classifier =False,
                  no_shape_classifier = True,
                  seed=None,
-                 dset_name=None):
+                 dset_name=None,
+                 sample_size=35,
+                 dataset_size=1500):
 
         self.device = device
         self.loss_f = loss_f
@@ -83,6 +85,8 @@ class Evaluator:
         self.dset_name=dset_name
         self.use_NN_classifier = use_NN_classifier       #flag if sklearn or manual classifier
         self.no_shape_classifier = no_shape_classifier
+        self.sample_size=sample_size
+        self.dataset_size=dataset_size
     def __call__(self, data_loader, is_metrics=False, is_losses=True):
         """Compute all test losses.
 
@@ -184,7 +188,7 @@ class Evaluator:
             
             self.logger.info("Computing the disentanglement metric")
             method_names = ["VAE", "PCA", "ICA", "T-SNE","UMAP", "DensUMAP"]
-            accuracies = self._disentanglement_metric(dataloader.dataset, method_names, sample_size=35, n_epochs=10000, dataset_size=1500, hidden_dim=512, use_non_linear=False)
+            accuracies = self._disentanglement_metric(dataloader.dataset, method_names, sample_size=self.sample_size, n_epochs=10000, dataset_size=self.dataset_size, hidden_dim=512, use_non_linear=False)
             #sample size is key for VAE, for sample size 50 only 88% accuarcy, compared to 95 for 200 sample sze
             #non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 50, lat_sizes, lat_imgs, n_epochs=150, dataset_size=5000, hidden_dim=128, use_non_linear=True) #if hidden dim too large -> no training possible
             if self.use_wandb:
