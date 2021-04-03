@@ -183,7 +183,7 @@ class Evaluator:
             
             self.logger.info("Computing the disentanglement metric")
             method_names = ["VAE", "PCA", "ICA", "T-SNE","UMAP", "DensUMAP"]
-            accuracies = self._disentanglement_metric(dataloader.dataset, method_names, sample_size=300, n_epochs=20000, dataset_size=7500, hidden_dim=512, use_non_linear=False)
+            accuracies = self._disentanglement_metric(dataloader.dataset, method_names, sample_size=300, n_epochs=20000, dataset_size=75, hidden_dim=512, use_non_linear=False)
             #sample size is key for VAE, for sample size 50 only 88% accuarcy, compared to 95 for 200 sample sze
             #non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 50, lat_sizes, lat_imgs, n_epochs=150, dataset_size=5000, hidden_dim=128, use_non_linear=True) #if hidden dim too large -> no training possible
             if self.use_wandb:
@@ -371,12 +371,12 @@ class Evaluator:
                         optim.zero_grad()
                         
                         X_train, Y_train = data_train[method]
-                        X_train, Y_train = torch.tensor(X_train), torch.tensor(Y_train)
+                        X_train, Y_train = torch.tensor(X_train, dtype=torch.float32), torch.tensor(Y_train, dtype=torch.float32)
                         X_train = X_train.to(self.device)
                         Y_train = Y_train.to(self.device)
                         
                         X_test , Y_test = data_test[method]
-                        X_test, Y_test = torch.tensor(X_test), torch.tensor(Y_test)
+                        X_test, Y_test = torch.tensor(X_test, dtype=torch.float32), torch.tensor(Y_test, dtype=torch.float32)
                         X_test = X_test.to(self.device)
                         Y_test = Y_test.to(self.device)
 
@@ -419,23 +419,23 @@ class Evaluator:
                 
             elif model_class in ["logreg"]:
                 
-                data_train, data_test = {}, {}
+                # data_train, data_test = {}, {}
 
-                for method in methods:
-                    data_train[method] = [], []
-                    data_test[method] = [], []
+                # for method in methods:
+                #     data_train[method] = [], []
+                #     data_test[method] = [], []
 
-                for i in tqdm(range(dataset_size), desc="Generating datasets for Higgins metric"):
-                    data = self._compute_z_b_diff_y(methods, sample_size, dataset)
-                    for method in methods:
-                        data_train[method][0].append(data[method][0])
-                        data_train[method][1].append(data[method][1])
-                    if i <= int(dataset_size*0.2):
+                # for i in tqdm(range(dataset_size), desc="Generating datasets for Higgins metric"):
+                #     data = self._compute_z_b_diff_y(methods, sample_size, dataset)
+                #     for method in methods:
+                #         data_train[method][0].append(data[method][0])
+                #         data_train[method][1].append(data[method][1])
+                #     if i <= int(dataset_size*0.2):
                         
-                        data = self._compute_z_b_diff_y(methods, sample_size, dataset)
-                        for method in methods:
-                            data_test[method][0].append(data[method][0])
-                            data_test[method][1].append(data[method][1])
+                #         data = self._compute_z_b_diff_y(methods, sample_size, dataset)
+                #         for method in methods:
+                #             data_test[method][0].append(data[method][0])
+                #             data_test[method][1].append(data[method][1])
 
                 for method in tqdm(methods.keys(), desc = "Training classifiers for the Higgins metric"):
                     classifier = linear_model.LogisticRegression(max_iter=500)
