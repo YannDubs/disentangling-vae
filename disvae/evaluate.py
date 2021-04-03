@@ -436,7 +436,6 @@ class Evaluator:
                         for method in methods:
                             data_test[method][0].append(data[method][0])
                             data_test[method][1].append(data[method][1])
-                test_acc = {"linear":{}}
 
                 for method in tqdm(methods.keys(), desc = "Training classifiers for the Higgins metric"):
                     classifier = linear_model.LogisticRegression(max_iter=500)
@@ -448,8 +447,8 @@ class Evaluator:
 
                     classifier.fit(X_train, Y_train)
                     train_acc = np.mean(classifier.predict(X_train)==Y_train)
-                    test_acc["linear"][method] = np.mean(classifier.predict(X_test)==Y_test)
-                    print(f'Accuracy of {method} on training set: {train_acc:.4f}, test set: {test_acc["linear"][method].item():.4f}')
+                    test_acc[model_class][method] = np.mean(classifier.predict(X_test)==Y_test)
+                    print(f'Accuracy of {method} on training set: {train_acc:.4f}, test set: {test_acc[model_class][method].item():.4f}')
 
         return test_acc
 
