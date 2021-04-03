@@ -184,7 +184,7 @@ class Evaluator:
             
             self.logger.info("Computing the disentanglement metric")
             method_names = ["VAE", "PCA", "ICA", "T-SNE","UMAP", "DensUMAP"]
-            accuracies = self._disentanglement_metric(dataloader.dataset, method_names, sample_size=300, n_epochs=20000, dataset_size=7500, hidden_dim=512, use_non_linear=False)
+            accuracies = self._disentanglement_metric(dataloader.dataset, method_names, sample_size=40, n_epochs=20000, dataset_size=1500, hidden_dim=512, use_non_linear=False)
             #sample size is key for VAE, for sample size 50 only 88% accuarcy, compared to 95 for 200 sample sze
             #non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 50, lat_sizes, lat_imgs, n_epochs=150, dataset_size=5000, hidden_dim=128, use_non_linear=True) #if hidden dim too large -> no training possible
             if self.use_wandb:
@@ -249,8 +249,7 @@ class Evaluator:
                 pca.fit(imgs_pca)
                 methods["PCA"] = pca
                 self.logger.info("Done")
-                # if self.use_wandb:
-                #     wandb.config["PCA_training_size"] = size
+
                 runtimes[method_name] = time.time()-start
                     
 
