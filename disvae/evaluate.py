@@ -64,10 +64,10 @@ class Evaluator:
                  is_progress_bar=True, 
                  use_wandb=True, 
                  higgins_drop_slow=True,
-                 seed=1,
-                 dset_name=None,
                  use_NN_classifier =False,
                  no_shape_classifier = True):
+                 seed=None,
+                 dset_name=None):
 
         self.device = device
         self.loss_f = loss_f
@@ -99,25 +99,25 @@ class Evaluator:
         is_still_training = self.model.training
         self.model.eval()
 
-        metric, losses = None, None
+        metrics, losses = None, None
         if is_metrics:
             self.logger.info('Computing metrics...')
             metrics = self.compute_metrics(data_loader, dataset=self.dset_name)
-            self.logger.info('Losses: {}'.format(metrics))
-            save_metadata(metrics, self.save_dir, filename=METRICS_FILENAME)
+            self.logger.info('Metrics: {}'.format(metrics))
+            # save_metadata(metrics, self.save_dir, filename=METRICS_FILENAME)
 
         if is_losses:
             self.logger.info('Computing losses...')
             losses = self.compute_losses(data_loader)
             self.logger.info('Losses: {}'.format(losses))
-            save_metadata(losses, self.save_dir, filename=TEST_LOSSES_FILE)
+            # save_metadata(losses, self.save_dir, filename=TEST_LOSSES_FILE)
 
         if is_still_training:
             self.model.train()
 
         self.logger.info('Finished evaluating after {:.1f} min.'.format((default_timer() - start) / 60))
 
-        return metric, losses
+        return metrics, losses
 
     def compute_losses(self, dataloader):
         """Compute all test losses.
@@ -126,6 +126,7 @@ class Evaluator:
         ----------
         data_loader: torch.utils.data.DataLoader
         """
+        self.model.eval()
         storer = defaultdict(list)
         for data, _ in tqdm(dataloader, leave=False, disable=not self.is_progress_bar):
             data = data.to(self.device)
@@ -138,8 +139,9 @@ class Evaluator:
                 # for losses that use multiple optimizers (e.g. Factor)
                 _ = self.loss_f.call_optimize(data, self.model, None, storer)
 
-            losses = {k: sum(v) / len(dataloader) for k, v in storer.items()}
-            return losses
+        losses = {k: sum(v) / len(dataloader) for k, v in storer.items()}
+        self.model.train()
+        return losses
 
     def compute_metrics(self, dataloader, dataset=None):
         """Compute all the metrics.
@@ -152,6 +154,8 @@ class Evaluator:
         #      wandb.config["latent_size"] = self.model.latent_dim
         #      wandb.config["classifier_hidden_size"] = 512
         #      wandb.config["sample_size"] = 300   
+        
+        self.model.eval()
         accuracies, fid, mig, aam = None, None, None, None # Default values. Not all metrics can be computed for all datasets
 
         # Need to create a new small dataset for FID. The default dataloaders we get in would typically be shuffled as well, so we need to remove that
@@ -179,7 +183,7 @@ class Evaluator:
             
             self.logger.info("Computing the disentanglement metric")
             method_names = ["VAE", "PCA", "ICA", "T-SNE","UMAP", "DensUMAP"]
-            accuracies = self._disentanglement_metric(dataloader.dataset, method_names, sample_size=200, n_epochs=20000, dataset_size=1500, hidden_dim=512, use_non_linear=False)
+            accuracies = self._disentanglement_metric(dataloader.dataset, method_names, sample_size=300, n_epochs=20000, dataset_size=7500, hidden_dim=512, use_non_linear=False)
             #sample size is key for VAE, for sample size 50 only 88% accuarcy, compared to 95 for 200 sample sze
             #non_linear_accuracies = self._disentanglement_metric(["VAE", "PCA", "ICA"], 50, lat_sizes, lat_imgs, n_epochs=150, dataset_size=5000, hidden_dim=128, use_non_linear=True) #if hidden dim too large -> no training possible
             if self.use_wandb:
@@ -215,7 +219,7 @@ class Evaluator:
 
         metrics = {'DM': accuracies, 'MIG': mig, 'AAM': aam, 'FID': fid}
         print(f"Evaluated metrics for {dataset} as: {metrics}")
-
+        self.model.train()
         return metrics
 
 
@@ -359,16 +363,17 @@ class Evaluator:
 
                 #log softmax with NLL loss 
                 criterion = torch.nn.NLLLoss()
-                optim = torch.optim.Adagrad(model.parameters(), lr=0.01 if model_class =="linear" else 0.001)
-                scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, 'min', patience=4000, min_lr=0.00001)
+                optim = torch.optim.Adam(model.parameters(), lr=0.01 if model_class =="linear" else 0.001, weight_decay=0 if model_class == "linear" else 1e-4)
+                scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, 'min', patience=5000, min_lr=0.00001)
 
                 for method in tqdm(methods.keys(), desc = "Training classifiers for the Higgins metric"):
                     if method == "ICA":
-                        optim = torch.optim.Adam(model.parameters(), lr=1 if model_class =="linear" else 0.001)
-                        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, 'min', patience=4000, min_lr=0.00001)
+                        optim = torch.optim.Adam(model.parameters(), lr=1 if model_class =="linear" else 0.001, weight_decay=0 if model_class == "linear" else 1e-4)
+                        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, 'min', patience=5000, min_lr=0.00001)
 
                     print(f'Training the classifier for model {method}')
-                    for e in tqdm(range(n_epochs), desc="Iterating over epochs while training the Higgins classifier"):
+                    for e in tqdm(range(n_epochs if model_class == "linear" else round(n_epochs/2)), desc="Iterating over epochs while training the Higgins classifier"):
+                        model.train()
                         optim.zero_grad()
                         
                         X_train, Y_train = data_train[method]
@@ -386,11 +391,12 @@ class Evaluator:
                         scheduler.step(loss)
                         
                         if (e+1) % 2000 == 0:
-                            scores_test = model(X_test)   
-                            test_loss = criterion(scores_test, Y_test)
-                            tqdm.write(f'In this epoch {e+1}/{n_epochs}, Training loss: {loss.item():.4f}, Test loss: {test_loss.item():.4f}')
                             model.eval()
                             with torch.no_grad():
+                                scores_test = model(X_test)   
+                                test_loss = criterion(scores_test, Y_test)
+                                tqdm.write(f'In this epoch {e+1}/{n_epochs}, Training loss: {loss.item():.4f}, Test loss: {test_loss.item():.4f}')
+                                model.eval()
                                 scores_train = model(X_train)
                                 scores_test = model(X_test)
                                 _, prediction_train = scores_train.max(1)
@@ -414,6 +420,7 @@ class Evaluator:
                         print(f'Accuracy of {method} on training set: {train_acc.item():.4f}, test set: {test_acc[model_class][method].item():.4f}')
                         
                     model.apply(weight_reset)
+                    
         else:
             
             data_train, data_test = {}, {}

@@ -20,7 +20,6 @@ class EncoderHigginsdsprites(nn.Module):
 
         self.latent_dim = latent_dim
         self.img_size = img_size
-        # Shape required to start transpose convs
         
         # Fully connected layers
         self.lin1 = nn.Linear(4096, 1200)

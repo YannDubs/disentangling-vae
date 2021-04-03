@@ -51,10 +51,11 @@ class Trainer():
                  gif_visualizer=None,
                  is_progress_bar=True,
                  metrics_freq=2,
-                 seed=1,
+                 seed=None,
                  steps=None,
                  dset_name=None,
-                 higgins_drop_slow=None):
+                 higgins_drop_slow=None
+                 , scheduler = None):
 
         self.device = device
         self.model = model.to(self.device)
@@ -71,6 +72,7 @@ class Trainer():
         self.steps=steps
         self.dset_name=dset_name
         self.higgins_drop_slow = higgins_drop_slow
+        self.scheduler = scheduler
 
     def __call__(self, data_loader,
                  epochs=10,
@@ -109,13 +111,14 @@ class Trainer():
             if epoch % checkpoint_every == 0:
                 save_model(self.model, self.save_dir,
                            filename="model-{}.pt".format(epoch))
+            if self.scheduler is not None:
+                self.scheduler.step()
             
             self.model.eval()
 
             if wandb_log:
                 metrics, losses = {}, {}
-                if epoch % max(round(epochs/self.metrics_freq), 10) == 0 and abs(epoch-epochs) >= 5:
-
+                if epoch % max(round(epochs/abs(self.metrics_freq)), 10) == 0 and abs(epoch-epochs) >= 5 and (epoch != 0 if self.metrics_freq < 0 else True):
                     metrics = train_evaluator.compute_metrics(data_loader, dataset=self.dset_name)
 
                 losses = train_evaluator.compute_losses(data_loader)

@@ -8,6 +8,7 @@ from configparser import ConfigParser
 import wandb
 import torch
 import time
+import random
 from torch import optim
 import gc
 
@@ -61,7 +62,7 @@ def parse_arguments(args_to_parse):
     general.add_argument('--no-cuda', action='store_true',
                          default=default_config['no_cuda'],
                          help='Disables CUDA training, even when have one.')
-    general.add_argument('-s', '--seed', type=int, default=default_config['seed'],
+    general.add_argument('-s', '--seed', type=int, default=None,
                          help='Random seed. Can be `None` for stochastic behavior.')
     general.add_argument('-max_traversal', '--max_traversal', type=float, default=0.475,
                          help='Random seed. Can be `None` for stochastic behavior.')
@@ -77,6 +78,8 @@ def parse_arguments(args_to_parse):
     general.add_argument('--n-rows', type=int, default=6,
                         help='The number of rows to visualize (if applicable).')
     general.add_argument('--n-cols', type=int, default=7,
+                        help='The number of columns to visualize (if applicable).')
+    general.add_argument('--metrics_freq', type=int, default=2,
                         help='The number of columns to visualize (if applicable).')
     # Learning options
     training = parser.add_argument_group('Training specific options')
@@ -226,10 +229,12 @@ def main(args):
     stream.setLevel(args.log_level.upper())
     stream.setFormatter(formatter)
     logger.addHandler(stream)
+    args.seed = args.seed if args.seed is not None else random.randint(1,10000)
 
     set_seed(args.seed)
     device = get_device(is_gpu=not args.no_cuda)
-    exp_dir = os.path.join(RES_DIR, args.name+f"{time.time()}" if not args.is_eval_only else args.name)
+    new_path = args.name+f"{time.time()}" if not args.is_eval_only else args.name
+    exp_dir = os.path.join(RES_DIR, new_path)
     logger.info("Root directory for saving and loading experiments: {}".format(exp_dir))
 
     print("Config:")
@@ -261,10 +266,13 @@ def main(args):
         # TRAINS
         if args.model_type == "Burgess":
             optimizer = optim.Adam(model.parameters(), lr=args.lr)
+            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.2)
         elif args.model_type == "Higginsdsprites":
             optimizer = optim.Adagrad(model.parameters(), lr=args.lr)
+            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.2)
         elif args.model_type == "Higginsconv":
             optimizer = optim.Adam(model.parameters(), lr=args.lr)
+            scheduler = None
 
 
         gif_visualizer = GifTraversalsTraining(model, args.dataset, exp_dir)
@@ -278,11 +286,12 @@ def main(args):
                           save_dir=exp_dir,
                           is_progress_bar=not args.no_progress_bar,
                           gif_visualizer=gif_visualizer,
-                          metrics_freq=9 if args.dataset in ['dsprites'] else 50,
+                          metrics_freq= args.metrics_freq,
                           seed=args.seed,
                           steps = args.train_steps,
                           dset_name=args.dataset,
-                          higgins_drop_slow=args.higgins_drop_slow)
+                          higgins_drop_slow=args.higgins_drop_slow,
+                          scheduler=scheduler)
 
         trainer(train_loader,
                 epochs=args.epochs,
@@ -328,10 +337,11 @@ def main(args):
                     fname, plot = viz.reconstruct(samples, size=size)
                     builtin_plots["reconstruct"] = plot
                 elif plot_type == 'traversals':
-                    fname, plot =viz.traversals(data=samples[0:1, ...] if args.is_posterior else None,
-                                n_per_latent=args.n_cols,
-                                n_latents=args.n_rows,
-                                is_reorder_latents=True)
+                    fname, plot = viz.reconstruct_traverse(samples,
+                                        is_posterior=True,
+                                        n_latents=args.n_rows,
+                                        n_per_latent=args.n_cols,
+                                        is_show_text=True)
                     builtin_plots["traversals"] = plot
                 elif plot_type == "reconstruct-traverse":
                     fname, plot = viz.reconstruct_traverse(samples,
@@ -393,9 +403,10 @@ def main(args):
                               use_wandb=True,
                               seed=args.seed,
                               higgins_drop_slow=args.higgins_drop_slow,
-                              dset_name=args.dataset)
+                              dset_name=args.dataset,)
 
-        evaluator(test_loader, is_metrics=args.is_metrics, is_losses=not args.no_test)
+        metrics, losses = evaluator(test_loader, is_metrics=True, is_losses=True)
+        wandb.log({"final":{"metric":metrics, "loss":losses}})
 
 
 if __name__ == '__main__':
