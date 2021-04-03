@@ -26,6 +26,30 @@ import utils.inception
 
 INCEPTION_V3 = utils.inception.get_inception_v3()
 
+class CustomTensorDataset(Dataset):
+# Tensor Dataset with support for Transforms
+    def __init__(self, tensors, transform=None):
+        assert all(tensors[0].size(0) == tensor.size(0) for tensor in tensors)
+        self.tensors = tensors
+        self.transform = transform
+
+    def __getitem__(self, index):
+        x = self.tensors[0][index]
+
+        if self.transform:
+            x = self.transform(x)
+
+        y = self.tensors[1][index]
+
+        return x, y
+
+    def __len__(self):
+        return self.tensors[0].size(0)
+    
+class NoneTransform(object):   
+    def __call__(self, image):       
+        return image
+
 # TODO: get cuda working
 def _get_activations(dataloader, length, model, batch_size, dims, device='cpu' if torch.cuda.is_available() else 'cpu'):
     model.eval()
@@ -154,30 +178,6 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
     
     print("Outputs calculated. Constructing dataloader.")
     
-    class CustomTensorDataset(Dataset):
-    # Tensor Dataset with support for Transforms
-        def __init__(self, tensors, transform=None):
-            assert all(tensors[0].size(0) == tensor.size(0) for tensor in tensors)
-            self.tensors = tensors
-            self.transform = transform
-
-        def __getitem__(self, index):
-            x = self.tensors[0][index]
-
-            if self.transform:
-                x = self.transform(x)
-
-            y = self.tensors[1][index]
-
-            return x, y
-
-        def __len__(self):
-            return self.tensors[0].size(0)
-        
-    class NoneTransform(object):   
-        def __call__(self, image):       
-            return image
-    
     Transform = transforms.Compose([transforms.Resize((299, 299)), transforms.Lambda(lambda x: x.repeat(3, 1, 1))  if vae_output.shape[1]==1  else NoneTransform()])
     
     dataset_reconstructed = CustomTensorDataset(tensors=(vae_output, vae_label), transform = Transform)
@@ -196,8 +196,7 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
     
     dataset_original = CustomTensorDataset(tensors=(original_input, original_label), transform = Transform)
     dataloader_original = DataLoader(dataset_original, batch_size=batch_size)
-    print("dataloader_original built")
-    print(dataset_original[1][0].shape)
+    print("dataloader_original built. Shape is ", dataset_original[1][0].shape)
     
     m1, s1 = _calculate_activation_statistics(dataloader_original, length, model, batch_size, dims)
     m2, s2 = _calculate_activation_statistics(dataloader_reconstructed, length, model, batch_size, dims)
