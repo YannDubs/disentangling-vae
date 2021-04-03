@@ -51,7 +51,7 @@ class Trainer():
                  gif_visualizer=None,
                  is_progress_bar=True,
                  metrics_freq=2,
-                 seed=1,
+                 seed=None,
                  steps=None,
                  dset_name=None,
                  higgins_drop_slow=None

@@ -63,7 +63,7 @@ class Evaluator:
                  is_progress_bar=True, 
                  use_wandb=True, 
                  higgins_drop_slow=True,
-                 seed=1,
+                 seed=None,
                  dset_name=None):
 
         self.device = device
@@ -352,6 +352,7 @@ class Evaluator:
 
                 print(f'Training the classifier for model {method}')
                 for e in tqdm(range(n_epochs if model_class == "linear" else round(n_epochs/2)), desc="Iterating over epochs while training the Higgins classifier"):
+                    model.train()
                     optim.zero_grad()
                     
                     X_train, Y_train = data_train[method]

@@ -263,7 +263,7 @@ def main(args):
         # TRAINS
         if args.model_type == "Burgess":
             optimizer = optim.Adam(model.parameters(), lr=args.lr)
-            scheduler = None
+            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.2)
         elif args.model_type == "Higginsdsprites":
             optimizer = optim.Adagrad(model.parameters(), lr=args.lr)
             scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.2)
