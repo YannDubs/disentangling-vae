@@ -18,7 +18,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data.sampler import SequentialSampler
 
 from utils.datasets import get_dataloaders, get_img_size, DATASETS
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import Dataset, TensorDataset, DataLoader
 
 from tqdm import tqdm
 
@@ -133,21 +133,57 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
     vae_output = []
     vae_label = []
     vae_model.eval()
+    
+    original_input = []
+    original_label = []
+    
     print("Running VAE model.")
     for inputs, labels in dataloader:
         outputs = vae_model(inputs)[0]
-        for i in range(outputs.shape[0]):
+        for i in range(outputs.shape[0]): #why do we have two separate loops for outputs and labels?
             vae_output.append(outputs[i])
+            original_input.append(inputs[i])
         for i in range(labels.shape[0]):
             vae_label.append(labels[i])
+            original_label.append(labels[i])
+    original_input = torch.stack(original_input)
+    original_label = torch.stack(original_label)
     vae_output = torch.stack(vae_output)
     vae_label = torch.stack(vae_label)
     print(vae_output.shape)
     
     print("Outputs calculated. Constructing dataloader.")
-    dataset_reconstructed = TensorDataset(vae_output, vae_label)
+    
+    class CustomTensorDataset(Dataset):
+    # Tensor Dataset with support for Transforms
+        def __init__(self, tensors, transform=None):
+            assert all(tensors[0].size(0) == tensor.size(0) for tensor in tensors)
+            self.tensors = tensors
+            self.transform = transform
+
+        def __getitem__(self, index):
+            x = self.tensors[0][index]
+
+            if self.transform:
+                x = self.transform(x)
+
+            y = self.tensors[1][index]
+
+            return x, y
+
+        def __len__(self):
+            return self.tensors[0].size(0)
+        
+    class NoneTransform(object):   
+        def __call__(self, image):       
+            return image
+    
+    Transform = transforms.Compose([transforms.Resize((299, 299)), transforms.Lambda(lambda x: x.repeat(3, 1, 1))  if vae_output.shape[1]==1  else NoneTransform()])
+    
+    dataset_reconstructed = CustomTensorDataset(tensors=(vae_output, vae_label), transform = Transform)
     dataloader_reconstructed = DataLoader(dataset_reconstructed, batch_size=batch_size)
     print("dataloader_reconstructed built")
+    #print(dataset_reconstructed[1][0].shape)
 
     # get the model dimensions
     for inputs, labels in dataloader:
@@ -158,8 +194,12 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
             dims *= dim
         break
     
-
-    m1, s1 = _calculate_activation_statistics(dataloader, length, model, batch_size, dims)
+    dataset_original = CustomTensorDataset(tensors=(original_input, original_label), transform = Transform)
+    dataloader_original = DataLoader(dataset_original, batch_size=batch_size)
+    print("dataloader_original built")
+    print(dataset_original[1][0].shape)
+    
+    m1, s1 = _calculate_activation_statistics(dataloader_original, length, model, batch_size, dims)
     m2, s2 = _calculate_activation_statistics(dataloader_reconstructed, length, model, batch_size, dims)
 
     fid_value = _calculate_frechet_distance(m1, s1, m2, s2)
