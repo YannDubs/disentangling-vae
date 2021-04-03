@@ -12,3 +12,4 @@ sklearn
 umap-learn
 opentsne
 wandb
+h5py

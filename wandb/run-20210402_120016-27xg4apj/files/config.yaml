@@ -1,0 +1,149 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.10.24
+    framework: torch
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    python_version: 3.9.2
+    t:
+      1:
+      - 1
+      - 5
+      2:
+      - 1
+      - 5
+      3:
+      - 3
+      4: 3.9.2
+      5: 0.10.24
+      8:
+      - 5
+batch_size:
+  desc: null
+  value: 256
+betaB_G:
+  desc: null
+  value: 100
+betaB_finC:
+  desc: null
+  value: 25
+betaB_initC:
+  desc: null
+  value: 0
+betaH_B:
+  desc: null
+  value: 1.0
+btcvae_A:
+  desc: null
+  value: 1
+btcvae_B:
+  desc: null
+  value: 6
+btcvae_G:
+  desc: null
+  value: 1
+checkpoint_every:
+  desc: null
+  value: 30
+dataset:
+  desc: null
+  value: 3dshapes
+dry_run:
+  desc: null
+  value: false
+epochs:
+  desc: null
+  value: 20
+eval_batchsize:
+  desc: null
+  value: 1000
+experiment:
+  desc: null
+  value: custom
+factor_G:
+  desc: null
+  value: 6
+higgins_drop_slow:
+  desc: null
+  value: true
+idcs:
+  desc: null
+  value: []
+is_eval_only:
+  desc: null
+  value: false
+is_metrics:
+  desc: null
+  value: true
+is_posterior:
+  desc: null
+  value: false
+is_show_loss:
+  desc: null
+  value: false
+latent_dim:
+  desc: null
+  value: 10
+log_level:
+  desc: null
+  value: info
+loss:
+  desc: null
+  value: betaH
+lr:
+  desc: null
+  value: 0.0005
+lr_disc:
+  desc: null
+  value: 5.0e-05
+max_traversal:
+  desc: null
+  value: 0.475
+model_type:
+  desc: null
+  value: Higginsconv
+n_cols:
+  desc: null
+  value: 7
+n_rows:
+  desc: null
+  value: 6
+name:
+  desc: null
+  value: VAE3dshapes
+no_cuda:
+  desc: null
+  value: false
+no_progress_bar:
+  desc: null
+  value: false
+no_test:
+  desc: null
+  value: false
+num_samples:
+  desc: null
+  value: null
+plots:
+  desc: null
+  value: all
+rec_dist:
+  desc: null
+  value: bernoulli
+reg_anneal:
+  desc: null
+  value: 10000
+seed:
+  desc: null
+  value: 1234
+train_steps:
+  desc: null
+  value: null
+wandb_key:
+  desc: null
+  value: null
+wandb_log:
+  desc: null
+  value: true

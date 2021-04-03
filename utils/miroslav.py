@@ -85,6 +85,11 @@ def latent_viz(model, loader, dataset_name, raw_dataset, steps=100, device='cuda
         n_classes = 10
     elif dataset_name in ["dsprites"]:
         n_classes = 5
+    elif dataset_name in ["3dshapes"]:
+        n_classes = 6
+    elif dataset_name in ["mpi3dtoy"]:
+        n_classes = 7
+
 
     if method == "all":
         method = ["tsne", "densumap", "pca"]
@@ -105,7 +110,7 @@ def latent_viz(model, loader, dataset_name, raw_dataset, steps=100, device='cuda
             if step >= steps:
                 break
             for idx in range(len(y)):
-                proper_slot = y[idx].item() if dataset_name != "dsprites" else 0
+                proper_slot = y[idx].item() if dataset_name != "dsprites" and "3dshapes" and "mpi3dtopy" else 0
                 class_samples[proper_slot].append(x[idx])
                 post_means[proper_slot].append(post_mean[idx])
                 post_logvars[proper_slot].append(post_logvar[idx])
@@ -127,6 +132,8 @@ def latent_viz(model, loader, dataset_name, raw_dataset, steps=100, device='cuda
                         post_means_viz[i].append(post_mean)
                         post_logvars_viz[i].append(post_logvar)
                         post_samples_viz[i].append(samples[0].cpu().numpy())
+        elif dataset_name in ['mpi3dtoy', '3dshapes']:
+            post_samples_viz = post_samples
 
         true_labels = [[x]*len(post_samples_viz[x]) for x in range(len(post_samples_viz))]
         plots = {}

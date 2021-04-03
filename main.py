@@ -9,6 +9,7 @@ import wandb
 import torch
 import time
 from torch import optim
+import gc
 
 from disvae import init_specific_model, Trainer, Evaluator
 from disvae.utils.modelIO import save_model, load_model, load_metadata
@@ -277,7 +278,7 @@ def main(args):
                           save_dir=exp_dir,
                           is_progress_bar=not args.no_progress_bar,
                           gif_visualizer=gif_visualizer,
-                          metrics_freq=10 if args.dataset in ['dsprites'] else 50,
+                          metrics_freq=9 if args.dataset in ['dsprites'] else 50,
                           seed=args.seed,
                           steps = args.train_steps,
                           dset_name=args.dataset,
@@ -289,81 +290,87 @@ def main(args):
                 wandb_log = args.wandb_log)
 
         latents_plots, traversal_plots, cluster_score = {}, {}, {}
-        latents_plots, latent_data, dim_reduction_models = latent_viz(model, train_loader, args.dataset, raw_dataset=raw_dataset, steps=100, device=device)
-        
+        try: 
+            latents_plots, latent_data, dim_reduction_models = latent_viz(model, train_loader, args.dataset, raw_dataset=raw_dataset, steps=100, device=device)
+            
 
-        model_dir = os.path.join(RES_DIR, args.name)
-        viz = Visualizer(model=model,
-                    model_dir=model_dir,
-                    dataset=args.dataset,
-                    max_traversal=args.max_traversal,
-                    loss_of_interest='kl_loss_',
-                    upsample_factor=1)
+            
+            viz = Visualizer(model=model,
+                        model_dir=exp_dir,
+                        dataset=args.dataset,
+                        max_traversal=args.max_traversal,
+                        loss_of_interest='kl_loss_',
+                        upsample_factor=1)
 
-        traversal_plots = {}
-        base_datum = next(iter(train_loader))[0][0].unsqueeze(dim=0)
-        for model_name, model in dim_reduction_models.items():
-            traversal_plots[model_name] = viz.latents_traversal_plot(model, data=base_datum, n_per_latent=50)
+            traversal_plots = {}
+            base_datum = next(iter(train_loader))[0][0].unsqueeze(dim=0)
+            for model_name, model in dim_reduction_models.items():
+                traversal_plots[model_name] = viz.latents_traversal_plot(model, data=base_datum, n_per_latent=50)
 
-        # Original plots from the repo
-        size = (args.n_rows, args.n_cols)
-        # same samples for all plots: sample max then take first `x`data  for all plots
-        num_samples = args.n_cols * args.n_rows
-        samples = get_samples(args.dataset, num_samples, idcs=args.idcs)
+            # Original plots from the repo
+            size = (args.n_rows, args.n_cols)
+            # same samples for all plots: sample max then take first `x`data  for all plots
+            num_samples = args.n_cols * args.n_rows
+            samples = get_samples(args.dataset, num_samples, idcs=args.idcs)
 
-        if "all" in args.plots:
-            args.plots = [p for p in PLOT_TYPES if p != "all"]
-        builtin_plots = {}
-        plot_fnames = []
-        for plot_type in args.plots:
-            if plot_type == 'generate-samples':
-                fname, plot = viz.generate_samples(size=size)
-                builtin_plots["generate-samples"] = plot
-            elif plot_type == 'data-samples':
-                fname, plot = viz.data_samples(samples, size=size)
-                builtin_plots["data-samples"] = plot
-            elif plot_type == "reconstruct":
-                fname, plot = viz.reconstruct(samples, size=size)
-                builtin_plots["reconstruct"] = plot
-            elif plot_type == 'traversals':
-                fname, plot =viz.traversals(data=samples[0:1, ...] if args.is_posterior else None,
-                            n_per_latent=args.n_cols,
-                            n_latents=args.n_rows,
-                            is_reorder_latents=True)
-                builtin_plots["traversals"] = plot
-            elif plot_type == "reconstruct-traverse":
-                fname, plot = viz.reconstruct_traverse(samples,
-                                        is_posterior=True,
-                                        n_latents=args.n_rows,
-                                        n_per_latent=args.n_cols,
-                                        is_show_text=True)
-                builtin_plots["reconstruct-traverse"] = plot
-            elif plot_type == "gif-traversals":
-                fname, plot = viz.gif_traversals(samples[:args.n_cols, ...], n_latents=args.n_rows)
-                builtin_plots["gif-traversals"] = plot
-            else:
-                raise ValueError("Unkown plot_type={}".format(plot_type))
-            plot_fnames.append(fname)
+            if "all" in args.plots:
+                args.plots = [p for p in PLOT_TYPES if p != "all"]
+            builtin_plots = {}
+            plot_fnames = []
+            for plot_type in args.plots:
+                if plot_type == 'generate-samples':
+                    fname, plot = viz.generate_samples(size=size)
+                    builtin_plots["generate-samples"] = plot
+                elif plot_type == 'data-samples':
+                    fname, plot = viz.data_samples(samples, size=size)
+                    builtin_plots["data-samples"] = plot
+                elif plot_type == "reconstruct":
+                    fname, plot = viz.reconstruct(samples, size=size)
+                    builtin_plots["reconstruct"] = plot
+                elif plot_type == 'traversals':
+                    fname, plot =viz.traversals(data=samples[0:1, ...] if args.is_posterior else None,
+                                n_per_latent=args.n_cols,
+                                n_latents=args.n_rows,
+                                is_reorder_latents=True)
+                    builtin_plots["traversals"] = plot
+                elif plot_type == "reconstruct-traverse":
+                    fname, plot = viz.reconstruct_traverse(samples,
+                                            is_posterior=True,
+                                            n_latents=args.n_rows,
+                                            n_per_latent=args.n_cols,
+                                            is_show_text=True)
+                    builtin_plots["reconstruct-traverse"] = plot
+                elif plot_type == "gif-traversals":
+                    fname, plot = viz.gif_traversals(samples[:args.n_cols, ...], n_latents=args.n_rows)
+                    builtin_plots["gif-traversals"] = plot
+                else:
+                    raise ValueError("Unkown plot_type={}".format(plot_type))
+                plot_fnames.append(fname)
 
-        converted_imgs = {}
-        for k, img in builtin_plots.items():
-            print(f"Converting {k}")
-            try:
-                converted_imgs[k] = wandb.Image(img)
-            except:
-                print(f"Failed to convert {k}")
-
-        if args.wandb_log:
-            wandb.log({"latents":latents_plots, "latent_traversal":traversal_plots, "cluster_metric":cluster_score, "builtin_plots":converted_imgs})
-            for fname in plot_fnames:
+            converted_imgs = {}
+            for k, img in builtin_plots.items():
+                print(f"Converting {k}")
                 try:
-                    wandb.save(fname)
-                except Exception as e:
-                    print(f"Failed to save {fname} to WANDB. Exception: {e}")
+                    converted_imgs[k] = wandb.Image(img)
+                except:
+                    print(f"Failed to convert {k}")
+
+            if args.wandb_log:
+                wandb.log({"latents":latents_plots, "latent_traversal":traversal_plots, "cluster_metric":cluster_score, "builtin_plots":converted_imgs})
+                for fname in plot_fnames:
+                    try:
+                        wandb.save(fname)
+                    except Exception as e:
+                        print(f"Failed to save {fname} to WANDB. Exception: {e}")
+        except:
+            print("latent visualisation not yet implemented for this dataset")
 
 
         # SAVE MODEL AND EXPERIMENT INFORMATION
         save_model(trainer.model, exp_dir, metadata=vars(args))
+        #free RAM from train loader so test loader can be loaded
+        del train_loader
+        gc.collect()
 
     if args.is_metrics or not args.no_test:
         print("Evaluation time.")

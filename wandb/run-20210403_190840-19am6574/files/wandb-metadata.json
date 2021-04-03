@@ -1,0 +1,43 @@
+{
+    "os": "Linux-5.8.0-44-generic-x86_64-with-glibc2.31",
+    "python": "3.9.2",
+    "heartbeatAt": "2021-04-03T17:08:40.940723",
+    "startedAt": "2021-04-03T17:08:40.329041",
+    "docker": null,
+    "gpu": "GeForce RTX 2070 SUPER",
+    "gpu_count": 1,
+    "cpu_count": 32,
+    "cuda": null,
+    "args": [
+        "--name",
+        "BVAEdsprites",
+        "--model-type",
+        "Higginsdsprites",
+        "-d",
+        "dsprites",
+        "--loss",
+        "betaH",
+        "--betaH-B",
+        "4",
+        "-b",
+        "256",
+        "-e",
+        "1",
+        "--is-metrics",
+        "--reg-anneal=0",
+        "--lr",
+        "0.0005"
+    ],
+    "state": "running",
+    "program": "/home/jonas/Desktop/ATML/backup/ATML_miroslav/disentangling-vae/main.py",
+    "codePath": "main.py",
+    "git": {
+        "remote": "https://github.com/Mirofil/disentangling-vae.git",
+        "commit": "17cde660b059b07be62e6fc64e449986cd1d07a2"
+    },
+    "email": "Mandelbrot99",
+    "root": "/home/jonas/Desktop/ATML/backup/ATML_miroslav/disentangling-vae",
+    "host": "jonasMaschine",
+    "username": "jonas",
+    "executable": "/home/jonas/anaconda3/envs/ATML/bin/python"
+}
