@@ -8,6 +8,7 @@ from configparser import ConfigParser
 import wandb
 import torch
 import time
+import random
 from torch import optim
 
 from disvae import init_specific_model, Trainer, Evaluator
@@ -60,7 +61,7 @@ def parse_arguments(args_to_parse):
     general.add_argument('--no-cuda', action='store_true',
                          default=default_config['no_cuda'],
                          help='Disables CUDA training, even when have one.')
-    general.add_argument('-s', '--seed', type=int, default=default_config['seed'],
+    general.add_argument('-s', '--seed', type=int, default=None,
                          help='Random seed. Can be `None` for stochastic behavior.')
     general.add_argument('-max_traversal', '--max_traversal', type=float, default=0.475,
                          help='Random seed. Can be `None` for stochastic behavior.')
@@ -227,6 +228,7 @@ def main(args):
     stream.setLevel(args.log_level.upper())
     stream.setFormatter(formatter)
     logger.addHandler(stream)
+    args.seed = args.seed if args.seed is not None else random.randint(1,10000)
 
     set_seed(args.seed)
     device = get_device(is_gpu=not args.no_cuda)
