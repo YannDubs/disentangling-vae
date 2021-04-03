@@ -26,7 +26,7 @@ from utils.fid import get_fid_value
 from sklearn import decomposition
 from sklearn import manifold
 from sklearn import linear_model
-import sklearn
+import sklearn.ensemble
 import wandb
 
 TEST_LOSSES_FILE = "test_losses.log"
