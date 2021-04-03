@@ -65,7 +65,7 @@ class Evaluator:
                  use_wandb=True, 
                  higgins_drop_slow=True,
                  use_NN_classifier =False,
-                 no_shape_classifier = True):
+                 no_shape_classifier = True,
                  seed=None,
                  dset_name=None):
 
@@ -327,35 +327,29 @@ class Evaluator:
                 pass
         #compute training- and test data for linear classifier     
         
-        if  self.use_NN_classifier:
+        #latent dim = length of z_b_diff for arbitrary method = output dimension of linear classifier
+        latent_dim = 10
+        data_train, data_test = {}, {}
 
-            data_train =  self._compute_z_b_diff_y(methods, sample_size, dataset)
-            data_test =  self._compute_z_b_diff_y(methods, sample_size, dataset)
-            for method in methods.keys(): 
-                data_train[method][0].unsqueeze_(0)
-                data_test[method][0].unsqueeze_(0)
-        
-            #latent dim = length of z_b_diff for arbitrary method = output dimension of linear classifier
-            latent_dim = next(iter(data_test.values()))[0].shape[1]
+        for method in methods:
+            data_train[method] = [], []
+            data_test[method] = [], []
 
-            #generate dataset_size many training data points and 20% of that test data points
-            for i in tqdm(range(dataset_size), desc="Generating datasets for Higgins metric"):
+        for i in tqdm(range(dataset_size), desc="Generating datasets for Higgins metric"):
+            data = self._compute_z_b_diff_y(methods, sample_size, dataset)
+            for method in methods:
+                data_train[method][0].append(data[method][0])
+                data_train[method][1].append(data[method][1])
+            if i <= int(dataset_size*0.2):
+                
                 data = self._compute_z_b_diff_y(methods, sample_size, dataset)
                 for method in methods:
-                    X_train = data_train[method][0]
-                    Y_train = data_train[method][1]
-                    data_train[method] = torch.cat((X_train, data[method][0].unsqueeze_(0)), 0), torch.cat((Y_train, data[method][1]), 0)
-                
-                if i <= int(dataset_size*0.2):
-                    
-                    data = self._compute_z_b_diff_y(methods, sample_size, dataset)
-                    for method in methods:
-                        X_test = data_test[method][0]
-                        Y_test = data_test[method][1]
-                        data_test[method] = torch.cat((X_test, data[method][0].unsqueeze_(0)), 0), torch.cat((Y_test, data[method][1]), 0)
+                    data_test[method][0].append(data[method][0])
+                    data_test[method][1].append(data[method][1])
 
-            test_acc = {"linear":{}, "nonlinear":{}}
-            for model_class in ["linear", "nonlinear"]:
+        test_acc = {"logreg":{},"linear":{}, "nonlinear":{}}
+        for model_class in ["linear", "nonlinear", "logreg"]:
+            if model_class in ["linear", "nonlinear"]:
                 model = Classifier(latent_dim,hidden_dim,len(dataset.lat_sizes), use_non_linear= True if model_class =="nonlinear" else False)
                 
                 model.to(self.device)
@@ -377,10 +371,12 @@ class Evaluator:
                         optim.zero_grad()
                         
                         X_train, Y_train = data_train[method]
+                        X_train, Y_train = torch.stack(X_train, Y_train)
                         X_train = X_train.to(self.device)
                         Y_train = Y_train.to(self.device)
                         
                         X_test , Y_test = data_test[method]
+                        X_test, Y_train = torch.stack(X_train, Y_train,)
                         X_test = X_test.to(self.device)
                         Y_test = Y_test.to(self.device)
 
@@ -420,41 +416,40 @@ class Evaluator:
                         print(f'Accuracy of {method} on training set: {train_acc.item():.4f}, test set: {test_acc[model_class][method].item():.4f}')
                         
                     model.apply(weight_reset)
-                    
-        else:
-            
-            data_train, data_test = {}, {}
+                
+            elif model_class in ["logreg"]:
+                
+                data_train, data_test = {}, {}
 
-            for method in methods:
-                data_train[method] = [], []
-                data_test[method] = [], []
-
-            for i in tqdm(range(dataset_size), desc="Generating datasets for Higgins metric"):
-                data = self._compute_z_b_diff_y(methods, sample_size, dataset)
                 for method in methods:
-                    data_train[method][0].append(data[method][0])
-                    data_train[method][1].append(data[method][1])
-                if i <= int(dataset_size*0.2):
-                    
+                    data_train[method] = [], []
+                    data_test[method] = [], []
+
+                for i in tqdm(range(dataset_size), desc="Generating datasets for Higgins metric"):
                     data = self._compute_z_b_diff_y(methods, sample_size, dataset)
                     for method in methods:
-                        data_test[method][0].append(data[method][0])
-                        data_test[method][1].append(data[method][1])
-            test_acc = {"linear":{}}
-            
+                        data_train[method][0].append(data[method][0])
+                        data_train[method][1].append(data[method][1])
+                    if i <= int(dataset_size*0.2):
+                        
+                        data = self._compute_z_b_diff_y(methods, sample_size, dataset)
+                        for method in methods:
+                            data_test[method][0].append(data[method][0])
+                            data_test[method][1].append(data[method][1])
+                test_acc = {"linear":{}}
 
-            for method in tqdm(methods.keys(), desc = "Training classifiers for the Higgins metric"):
-                classifier = linear_model.LogisticRegression(max_iter=500)
-                X_train, Y_train = data_train[method]
-                X_test, Y_test = data_test[method]
+                for method in tqdm(methods.keys(), desc = "Training classifiers for the Higgins metric"):
+                    classifier = linear_model.LogisticRegression(max_iter=500)
+                    X_train, Y_train = data_train[method]
+                    X_test, Y_test = data_test[method]
 
-                #X_train, Y_train = X_train.cpu().detach().numpy(), Y_train.cpu().detach().numpy()
-                #X_test, Y_test = X_test.cpu().detach().numpy(), Y_test.cpu().detach().numpy()
+                    #X_train, Y_train = X_train.cpu().detach().numpy(), Y_train.cpu().detach().numpy()
+                    #X_test, Y_test = X_test.cpu().detach().numpy(), Y_test.cpu().detach().numpy()
 
-                classifier.fit(X_train, Y_train)
-                train_acc = np.mean(classifier.predict(X_train)==Y_train)
-                test_acc["linear"][method] = np.mean(classifier.predict(X_test)==Y_test)
-                print(f'Accuracy of {method} on training set: {train_acc:.4f}, test set: {test_acc["linear"][method].item():.4f}')
+                    classifier.fit(X_train, Y_train)
+                    train_acc = np.mean(classifier.predict(X_train)==Y_train)
+                    test_acc["linear"][method] = np.mean(classifier.predict(X_test)==Y_test)
+                    print(f'Accuracy of {method} on training set: {train_acc:.4f}, test set: {test_acc["linear"][method].item():.4f}')
 
         return test_acc
 

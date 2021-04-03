@@ -301,9 +301,7 @@ def main(args):
         latents_plots, traversal_plots, cluster_score = {}, {}, {}
         try: 
             latents_plots, latent_data, dim_reduction_models = latent_viz(model, train_loader, args.dataset, raw_dataset=raw_dataset, steps=100, device=device)
-            
-
-            
+        
             viz = Visualizer(model=model,
                         model_dir=exp_dir,
                         dataset=args.dataset,
@@ -337,11 +335,10 @@ def main(args):
                     fname, plot = viz.reconstruct(samples, size=size)
                     builtin_plots["reconstruct"] = plot
                 elif plot_type == 'traversals':
-                    fname, plot = viz.reconstruct_traverse(samples,
-                                        is_posterior=True,
-                                        n_latents=args.n_rows,
-                                        n_per_latent=args.n_cols,
-                                        is_show_text=True)
+                    fname, plot = viz.traversals(data=samples[0:1, ...],
+                            n_per_latent=args.n_cols,
+                            n_latents=args.n_rows,
+                            is_reorder_latents=True)
                     builtin_plots["traversals"] = plot
                 elif plot_type == "reconstruct-traverse":
                     fname, plot = viz.reconstruct_traverse(samples,
