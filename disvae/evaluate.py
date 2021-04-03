@@ -365,22 +365,21 @@ class Evaluator:
                     if method == "ICA":
                         optim = torch.optim.Adam(model.parameters(), lr=1 if model_class =="linear" else 0.001, weight_decay=0 if model_class == "linear" else 1e-4)
                         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, 'min', patience=5000, min_lr=0.00001)
+                    X_train, Y_train = data_train[method]
+                    X_train, Y_train = torch.tensor(X_train, dtype=torch.float32), torch.tensor(Y_train, dtype=torch.long)
+                    X_train = X_train.to(self.device)
+                    Y_train = Y_train.to(self.device)
+                    
+                    X_test , Y_test = data_test[method]
+                    X_test, Y_test = torch.tensor(X_test, dtype=torch.float32), torch.tensor(Y_test, dtype=torch.long)
+                    X_test = X_test.to(self.device)
+                    Y_test = Y_test.to(self.device)
 
                     print(f'Training the classifier for model {method}')
                     for e in tqdm(range(n_epochs if model_class == "linear" else round(n_epochs/2)), desc="Iterating over epochs while training the Higgins classifier"):
                         model.train()
                         optim.zero_grad()
                         
-                        X_train, Y_train = data_train[method]
-                        X_train, Y_train = torch.tensor(X_train, dtype=torch.float32), torch.tensor(Y_train, dtype=torch.long)
-                        X_train = X_train.to(self.device)
-                        Y_train = Y_train.to(self.device)
-                        
-                        X_test , Y_test = data_test[method]
-                        X_test, Y_test = torch.tensor(X_test, dtype=torch.float32), torch.tensor(Y_test, dtype=torch.long)
-                        X_test = X_test.to(self.device)
-                        Y_test = Y_test.to(self.device)
-
                         scores_train = model(X_train)   
                         loss = criterion(scores_train, Y_train)
                         loss.backward()
