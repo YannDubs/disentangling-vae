@@ -26,6 +26,7 @@ from utils.fid import get_fid_value
 from sklearn import decomposition
 from sklearn import manifold
 from sklearn import linear_model
+import sklearn
 import wandb
 
 TEST_LOSSES_FILE = "test_losses.log"
@@ -347,8 +348,8 @@ class Evaluator:
                     data_test[method][0].append(data[method][0])
                     data_test[method][1].append(data[method][1])
 
-        test_acc = {"logreg":{},"linear":{}, "nonlinear":{}}
-        for model_class in ["linear", "nonlinear", "logreg"]:
+        test_acc = {"logreg":{},"linear":{}, "nonlinear":{}, "rf":{}}
+        for model_class in ["linear", "nonlinear", "logreg", "rf"]:
             if model_class in ["linear", "nonlinear"]:
                 model = Classifier(latent_dim,hidden_dim,len(dataset.lat_sizes), use_non_linear= True if model_class =="nonlinear" else False)
                 
@@ -417,28 +418,13 @@ class Evaluator:
                         
                     model.apply(weight_reset)
                 
-            elif model_class in ["logreg"]:
-                
-                # data_train, data_test = {}, {}
-
-                # for method in methods:
-                #     data_train[method] = [], []
-                #     data_test[method] = [], []
-
-                # for i in tqdm(range(dataset_size), desc="Generating datasets for Higgins metric"):
-                #     data = self._compute_z_b_diff_y(methods, sample_size, dataset)
-                #     for method in methods:
-                #         data_train[method][0].append(data[method][0])
-                #         data_train[method][1].append(data[method][1])
-                #     if i <= int(dataset_size*0.2):
-                        
-                #         data = self._compute_z_b_diff_y(methods, sample_size, dataset)
-                #         for method in methods:
-                #             data_test[method][0].append(data[method][0])
-                #             data_test[method][1].append(data[method][1])
+            elif model_class in ["logreg", "rf"]:
 
                 for method in tqdm(methods.keys(), desc = "Training classifiers for the Higgins metric"):
-                    classifier = linear_model.LogisticRegression(max_iter=500)
+                    if model_class == "logreg":
+                        classifier = linear_model.LogisticRegression(max_iter=500)
+                    elif model_class == "rf":
+                        classifier = sklearn.ensemble.RandomForestClassifier(n_estimators = 150)
                     X_train, Y_train = data_train[method]
                     X_test, Y_test = data_test[method]
 
