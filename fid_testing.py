@@ -53,28 +53,24 @@ class NoneTransform(object):
 # TODO: get cuda working
 def _get_activations(dataloader, length, model, batch_size, dims, device='cpu' if torch.cuda.is_available() else 'cpu'):
     model.eval()
+    if batch_size > length:
+        print(('Warning: batch size is bigger than the data size. '
+               'Setting batch size to data size'))
+        batch_size = length
 
-    pred_arr = np.empty((length, dims))
+    pred_arr = np.empty((length))
 
     start_idx = 0
 
-    for batch, labels in (dataloader):
-        batch = batch.to(device)
-
+    for inputs, labels in (dataloader):
+        batch = inputs.to(device)
         with torch.no_grad():
             pred = model(batch)[0]
 
-        # If model output is not scalar, apply global spatial average pooling.
-        # This happens if you choose a dimensionality not equal 2048.
-        if pred.size(2) != 1 or pred.size(3) != 1:
-            pred = adaptive_avg_pool2d(pred, output_size=(1, 1))
-
-        pred = pred.squeeze(3).squeeze(2).cpu().numpy()
-
+        pred = torch.flatten(pred, start_dim=0)
         pred_arr[start_idx:start_idx + pred.shape[0]] = pred
-
         start_idx = start_idx + pred.shape[0]
-
+    
     return pred_arr
 
 def _calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
@@ -139,6 +135,7 @@ def _calculate_activation_statistics(dataloader, length, model, batch_size=128, 
     #         the model.
         
     act = _get_activations(dataloader, length, model, batch_size, dims)
+    print("Sucessfully got InceptionV3 activations")
     mu = np.mean(act, axis=0)
     sigma = np.cov(act, rowvar=False)
     return mu, sigma
@@ -199,7 +196,9 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
     print("dataloader_original built. Shape is ", dataset_original[1][0].shape)
     
     m1, s1 = _calculate_activation_statistics(dataloader_original, length, model, batch_size, dims)
+    print("Calculated m1 and s1")
     m2, s2 = _calculate_activation_statistics(dataloader_reconstructed, length, model, batch_size, dims)
+    print("Calculated m2 and s2")
 
     fid_value = _calculate_frechet_distance(m1, s1, m2, s2)
     return fid_value

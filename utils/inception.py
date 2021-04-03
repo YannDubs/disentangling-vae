@@ -1,7 +1,13 @@
-import torch.hub
+import torch
+
+USE_CUSTOM_INCEPTION = True
 
 def get_inception_v3():
-    return fid_inception_v3()
+    if USE_CUSTOM_INCEPTION: return fid_inception_v3()
+    
+    model = torch.hub.load('pytorch/vision:v0.8.2', 'inception_v3', pretrained=True)
+    model.eval()
+    return model
 
 import torch
 import torch.nn as nn
