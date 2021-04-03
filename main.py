@@ -263,10 +263,10 @@ def main(args):
         # TRAINS
         if args.model_type == "Burgess":
             optimizer = optim.Adam(model.parameters(), lr=args.lr)
-            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.2)
+            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.2)
         elif args.model_type == "Higginsdsprites":
             optimizer = optim.Adagrad(model.parameters(), lr=args.lr)
-            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.2)
+            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.2)
         elif args.model_type == "Higginsconv":
             optimizer = optim.Adam(model.parameters(), lr=args.lr)
             scheduler = None
@@ -333,7 +333,7 @@ def main(args):
                 fname, plot = viz.reconstruct(samples, size=size)
                 builtin_plots["reconstruct"] = plot
             elif plot_type == 'traversals':
-                fname, plot =viz.traversals(data=samples[0:1, ...] if args.is_posterior else None,
+                fname, plot =viz.traversals(data=samples[0:1, ...],
                             n_per_latent=args.n_cols,
                             n_latents=args.n_rows,
                             is_reorder_latents=True)
