@@ -301,7 +301,6 @@ def main(args):
                           higgins_drop_slow=args.higgins_drop_slow,
                           scheduler=scheduler,
                           no_shape_classifier=args.all_latents)
-        print(model)
         trainer(train_loader,
                 epochs=args.epochs,
                 checkpoint_every=args.checkpoint_every,
