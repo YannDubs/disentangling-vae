@@ -426,7 +426,7 @@ class DSprites(DisentangledDataset):
         latent_indices = np.dot(samples, latents_bases).astype(int)
     
         #use the data generative factors to simulate two sets of images from the dataset
-        imgs_sampled = torch.from_numpy(self.imgs[latent_indices]).unsqueeze_(1).float()
+        imgs_sampled = torch.from_numpy(self.imgs_test[latent_indices]).unsqueeze_(1).float()
 
         #print(imgs_sampled.shape)
         return imgs_sampled

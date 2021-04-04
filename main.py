@@ -287,6 +287,7 @@ def main(args):
                             n_data=len(train_loader.dataset),
                             device=device,
                             **vars(args))
+        print(model)
         trainer = Trainer(model, optimizer, loss_f,
                           device=device,
                           logger=logger,
@@ -300,7 +301,7 @@ def main(args):
                           higgins_drop_slow=args.higgins_drop_slow,
                           scheduler=scheduler,
                           no_shape_classifier=args.all_latents)
-
+        print(model)
         trainer(train_loader,
                 epochs=args.epochs,
                 checkpoint_every=args.checkpoint_every,
@@ -319,8 +320,8 @@ def main(args):
 
             traversal_plots = {}
             base_datum = next(iter(train_loader))[0][0].unsqueeze(dim=0)
-            for model_name, model in dim_reduction_models.items():
-                traversal_plots[model_name] = viz.latents_traversal_plot(model, data=base_datum, n_per_latent=50)
+            for model_name, viz_model in dim_reduction_models.items():
+                traversal_plots[model_name] = viz.latents_traversal_plot(viz_model, data=base_datum, n_per_latent=50)
 
             # Original plots from the repo
             size = (args.n_rows, args.n_cols)
