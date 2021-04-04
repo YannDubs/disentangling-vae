@@ -401,6 +401,7 @@ def main(args):
                             n_data=len(test_loader.dataset),
                             device=device,
                             **vars(args))
+        print(model)
         print(model.training)
         model.eval()
         evaluator = Evaluator(model, loss_f,
