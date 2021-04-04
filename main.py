@@ -389,7 +389,8 @@ def main(args):
 
     if args.is_metrics or not args.no_test:
         print("Evaluation time.")
-        # model = load_model(exp_dir, is_gpu=not args.no_cuda)
+        if args.is_eval_only:
+            model = load_model(exp_dir, is_gpu=not args.no_cuda)
         metadata = load_metadata(exp_dir)
         # TO-DO: currently uses train datatset
         test_loader, raw_dataset = get_dataloaders(metadata["dataset"],
