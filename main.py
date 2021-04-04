@@ -115,6 +115,9 @@ def parse_arguments(args_to_parse):
         help='Whether to drop UMAP/TSNE etc. for computing Higgins metric (if we do not drop them, generating the data takes ~25 hours)')      
     training.add_argument('--dataset_size', type=int, default=10000,
         help='Whether to drop UMAP/TSNE etc. for computing Higgins metric (if we do not drop them, generating the data takes ~25 hours)')      
+    training.add_argument('--all_latents', type=bool, default=False,
+        help='Whether to use 5 or 4 latents in Dsprites')      
+
 
     # Model Options
     model = parser.add_argument_group('Model specfic options')
@@ -295,7 +298,8 @@ def main(args):
                           steps = args.train_steps,
                           dset_name=args.dataset,
                           higgins_drop_slow=args.higgins_drop_slow,
-                          scheduler=scheduler)
+                          scheduler=scheduler,
+                          no_shape_classifier=args.all_latents)
 
         trainer(train_loader,
                 epochs=args.epochs,
@@ -396,6 +400,8 @@ def main(args):
                             n_data=len(test_loader.dataset),
                             device=device,
                             **vars(args))
+        print(model.training)
+        model.train()
         evaluator = Evaluator(model, loss_f,
                               device=device,
                               logger=logger,
@@ -406,7 +412,8 @@ def main(args):
                               higgins_drop_slow=args.higgins_drop_slow,
                               dset_name=args.dataset,
                               sample_size=args.sample_size,
-                              dataset_size=args.dataset_size)
+                              dataset_size=args.dataset_size,
+                              no_shape_classifier=args.all_latents)
 
         metrics, losses = evaluator(test_loader, is_metrics=True, is_losses=True)
         wandb.log({"final":{"metric":metrics, "loss":losses}})
