@@ -107,7 +107,7 @@ class Trainer():
         
         for epoch in range(epochs):
             storer = defaultdict(list)
-            assert model.training
+            assert self.model.training
             mean_epoch_loss = self._train_epoch(data_loader, storer, epoch)
             self.logger.info('Epoch: {} Average loss per image: {:.2f}'.format(epoch + 1,
                                                                                mean_epoch_loss))
