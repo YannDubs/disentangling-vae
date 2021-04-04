@@ -111,9 +111,9 @@ def parse_arguments(args_to_parse):
             help='Number of training steps to use per epoch')
     training.add_argument('--higgins_drop_slow', type=bool, default=True,
         help='Whether to drop UMAP/TSNE etc. for computing Higgins metric (if we do not drop them, generating the data takes ~25 hours)')      
-    training.add_argument('--sample_size', type=bool, default=35,
+    training.add_argument('--sample_size', type=int, default=35,
         help='Whether to drop UMAP/TSNE etc. for computing Higgins metric (if we do not drop them, generating the data takes ~25 hours)')      
-    training.add_argument('--dataset_size', type=bool, default=1500,
+    training.add_argument('--dataset_size', type=int, default=1500,
         help='Whether to drop UMAP/TSNE etc. for computing Higgins metric (if we do not drop them, generating the data takes ~25 hours)')      
 
     # Model Options
