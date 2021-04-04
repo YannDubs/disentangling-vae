@@ -195,6 +195,7 @@ class Trainer():
 
         try:
             recon_batch, latent_dist, latent_sample = self.model(data)
+            assert self.model.training
             loss = self.loss_f(data, recon_batch, latent_dist, self.model.training,
                                storer, latent_sample=latent_sample)
             self.optimizer.zero_grad()
