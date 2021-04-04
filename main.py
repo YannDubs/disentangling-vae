@@ -401,7 +401,7 @@ def main(args):
                             device=device,
                             **vars(args))
         print(model.training)
-        model.train()
+        model.eval()
         evaluator = Evaluator(model, loss_f,
                               device=device,
                               logger=logger,
