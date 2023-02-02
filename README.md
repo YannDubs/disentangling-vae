@@ -19,6 +19,7 @@ Table of Contents:
 3. [Data](#data)
 4. [Our Contributions](#our-contributions)
 5. [Losses Explanation](#losses-explanation)
+6. [Citing](#cite)
 
 ## Install
 
@@ -277,6 +278,16 @@ The losses differ in their estimates of each of these terms and the hyperparamet
 * [**FactorVAE**](https://arxiv.org/abs/1802.05983): α=ɣ=1, β>1. Each term is computed exactly by a closed form solution. Simply adds a hyper-parameter (β in the paper) before the KL. Adds a weighted Total Correlation term to the standard VAE loss. The total correlation is estimated using a classifier and the density-ratio trick. Note that ɣ in their paper corresponds to β+1 in our framework.
 * [**β-TCVAE**](https://arxiv.org/abs/1802.04942): α=ɣ=1 (although can be modified), β>1. Conceptually equivalent to FactorVAE, but each term is estimated separately using minibatch stratified sampling.
 
+ ## Cite
 
+When using one of the models implemented in this repo in academic work please cite the corresponding paper (linked at the top of the README). In case you want to cite this specific implementation then you can use:
 
- 
+```
+@misc{dubois2019dvae,
+  title        = {Disentangling VAE},
+  author       = {Dubois, Yann and Kastanos, Alexandros and Lines, Dave and Melman, Bart},
+  month        = {march},
+  year         = {2019},
+  howpublished = {\url{http://github.com/YannDubs/disentangling-vae/}}
+}
+```
